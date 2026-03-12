@@ -1,0 +1,43 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_API_DISABLED=false
+      # widget.js is loaded by the browser, so use localhost (not the docker service name)
+      - EXTERNAL_FRONTEND_HOOKS_URLS=http://localhost:3000/widget.js
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - n8n-net
+
+  chatbot:
+    build: ./chatbot
+    container_name: n8n-chatbot
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - N8N_API_KEY=${N8N_API_KEY}
+      # server-to-server: use docker service name
+      - N8N_BASE_URL=http://n8n:5678
+      - PORT=3000
+    networks:
+      - n8n-net
+    depends_on:
+      - n8n
+
+networks:
+  n8n-net:
+    driver: bridge
+
+volumes:
+  n8n_data:
