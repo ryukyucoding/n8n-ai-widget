@@ -25,7 +25,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - N8N_API_KEY=${N8N_API_KEY}
       # server-to-server: use docker service name
       - N8N_BASE_URL=http://n8n:5678

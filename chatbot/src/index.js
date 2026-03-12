@@ -5,12 +5,12 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-const anthropic = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const N8N_BASE_URL = process.env.N8N_BASE_URL || 'http://localhost:5678';
 const N8N_API_KEY = process.env.N8N_API_KEY;
 
@@ -104,14 +104,16 @@ app.post('/generate', async (req, res) => {
   // 1. Call Claude
   let workflowJson;
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: message.trim() }],
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: message.trim() },
+      ],
     });
 
-    const raw = response.content[0]?.text ?? '';
+    const raw = response.choices[0]?.message?.content ?? '';
 
     // Strip markdown code fences if Claude adds them despite instructions
     const jsonText = raw
