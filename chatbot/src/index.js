@@ -76,7 +76,16 @@ Follow this schema exactly:
 
 Common node types and their typeVersion:
 - n8n-nodes-base.manualTrigger (typeVersion 1) — manual start, no parameters
-- n8n-nodes-base.scheduleTrigger (typeVersion 1.2) — parameters: { "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] } }
+- n8n-nodes-base.scheduleTrigger (typeVersion 1.2) — IMPORTANT: "interval" MUST be an array (not an object). Example for daily at 9am:
+    { "rule": { "interval": [ { "field": "days", "daysInterval": 1, "triggerAtHour": 9, "triggerAtMinute": 0 } ] } }
+    Other interval options (always wrap the object in an array []):
+    • Every N seconds:  [ { "field": "seconds", "secondsInterval": N } ]
+    • Every N minutes:  [ { "field": "minutes", "minutesInterval": N } ]
+    • Every N hours:    [ { "field": "hours", "hoursInterval": 1, "triggerAtMinute": 0 } ]
+    • Daily at a time:  [ { "field": "days", "daysInterval": 1, "triggerAtHour": 9, "triggerAtMinute": 0 } ]
+    • Weekly:           [ { "field": "weeks", "weeksInterval": 1, "triggerAtHour": 9, "triggerAtMinute": 0, "triggerAtDay": [1] } ]
+    • Cron expression:  [ { "field": "cronExpression", "expression": "0 9 * * *" } ]
+    CRITICAL: "interval" value is always an array [ {...} ], never a plain object { ... }.
 - n8n-nodes-base.webhook (typeVersion 2) — parameters: { "httpMethod": "POST", "path": "my-path", "responseMode": "onReceived" }
 - n8n-nodes-base.httpRequest (typeVersion 4.2) — parameters: { "method": "GET", "url": "https://..." }
 - n8n-nodes-base.emailSend (typeVersion 2.1) — parameters: { "fromEmail": "...", "toEmail": "...", "subject": "...", "emailType": "text", "message": "..." }

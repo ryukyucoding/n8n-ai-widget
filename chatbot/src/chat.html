@@ -37,6 +37,19 @@
     }
     .header-title { font-weight: 600; font-size: 15px; }
     .header-sub  { font-size: 11px; opacity: 0.8; }
+    .header-spacer { flex: 1; }
+    #clear-btn {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    #clear-btn:hover { background: rgba(255,255,255,0.28); }
 
     /* Messages area */
     #messages {
@@ -161,6 +174,8 @@
       <div class="header-title">AI Workflow Generator</div>
       <div class="header-sub">用自然語言描述，自動建立 n8n workflow</div>
     </div>
+    <div class="header-spacer"></div>
+    <button id="clear-btn" title="清空對話">清空</button>
   </div>
 
   <div id="messages">
@@ -182,22 +197,52 @@
   </div>
 
   <script>
-    var API_URL = 'http://localhost:3000/generate';
+    var API_URL = 'http://localhost:3001/generate';
+    var HISTORY_KEY = 'n8n-widget-history';
 
     var messagesEl = document.getElementById('messages');
     var inputEl    = document.getElementById('input');
     var sendBtn    = document.getElementById('send-btn');
+    var clearBtn   = document.getElementById('clear-btn');
+
+    // -----------------------------------------------------------------
+    // Chat history persistence via sessionStorage
+    // -----------------------------------------------------------------
+    var chatHistory = [];
+
+    function saveHistory() {
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(chatHistory)); } catch(e) {}
+    }
+
+    function restoreHistory() {
+      try {
+        var saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        if (!Array.isArray(saved) || saved.length === 0) return;
+        // Remove the default greeting before restoring
+        messagesEl.innerHTML = '';
+        saved.forEach(function(item) {
+          addBubble(item.html, item.type, true); // true = skip saving again
+        });
+        chatHistory = saved;
+      } catch(e) {}
+    }
+
+    // -----------------------------------------------------------------
 
     function scrollBottom() {
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
-    function addBubble(text, type) {
+    function addBubble(html, type, skipSave) {
       var el = document.createElement('div');
       el.className = 'bubble ' + type;
-      el.innerHTML = text;
+      el.innerHTML = html;
       messagesEl.appendChild(el);
       scrollBottom();
+      if (!skipSave) {
+        chatHistory.push({ html: html, type: type });
+        saveHistory();
+      }
       return el;
     }
 
@@ -240,30 +285,20 @@
 
         if (!res.ok || data.error) {
           var errMsg = data.error || 'Unknown error';
-          var botEl = addBubble('❌ ' + escHtml(errMsg), 'bot error');
-
-          // Even on error, show the workflow JSON if present (so user can copy-paste)
+          var errHtml = '❌ ' + escHtml(errMsg);
           if (data.workflow) {
-            var preview = document.createElement('div');
-            preview.className = 'workflow-preview';
-            preview.textContent = JSON.stringify(data.workflow, null, 2);
-            botEl.appendChild(preview);
+            errHtml += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
           }
+          addBubble(errHtml, 'bot error');
         } else {
           var html = '✅ ' + escHtml(data.message);
-
           if (data.workflowUrl) {
             html += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
           }
-
-          var botEl = addBubble(html, 'bot');
-
           if (data.workflow) {
-            var preview = document.createElement('div');
-            preview.className = 'workflow-preview';
-            preview.textContent = JSON.stringify(data.workflow, null, 2);
-            botEl.appendChild(preview);
+            html += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
           }
+          addBubble(html, 'bot');
         }
       } catch (err) {
         typing.remove();
@@ -275,6 +310,12 @@
     }
 
     sendBtn.addEventListener('click', send);
+
+    clearBtn.addEventListener('click', function () {
+      chatHistory = [];
+      try { localStorage.removeItem(HISTORY_KEY); } catch(e) {}
+      messagesEl.innerHTML = '<div class="bubble bot">👋 Hi！請描述你想要的 workflow，例如：<br><br><em>「每天早上 9 點發一封提醒信給我」</em><br><em>「當 Webhook 收到 POST 請求時，把資料存到 Google Sheets」</em></div>';
+    });
 
     inputEl.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -290,6 +331,9 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
     }
+
+    // Restore history on load (survives iframe recreation)
+    restoreHistory();
   </script>
 </body>
 </html>

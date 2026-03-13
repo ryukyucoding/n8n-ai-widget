@@ -2,7 +2,9 @@
 (function () {
   'use strict';
 
-  var CHAT_URL = 'http://localhost:3000/chat';
+  var CHAT_URL = 'http://localhost:3001/chat';
+
+  function mount() {
   var BUTTON_SIZE = '56px';
   var PANEL_WIDTH = '380px';
   var PANEL_HEIGHT = '520px';
@@ -99,4 +101,11 @@
   // -------------------------------------------------------------------------
   document.body.appendChild(panel);
   document.body.appendChild(btn);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount);
+  } else {
+    mount();
+  }
 })();

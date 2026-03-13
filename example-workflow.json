@@ -1,0 +1,183 @@
+{
+  "name": "workflow A",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{\n  (() => {\n    const userText = $('Webhook').item.json.body.chatInput || '';\n    const file = $('Webhook').item.json.body.file;\n    let fileContentStr = '';\n\n    if (file && file.content) {\n      try {\n        const rawContent = file.content;\n        const base64Part = rawContent.includes(',') ? rawContent.split(',')[1] : rawContent;\n        const decodedText = Buffer.from(base64Part, 'base64').toString('utf-8');\n        fileContentStr = `\\n\\n=== 📎 使用者上傳的檔案 (${file.name}) ===\\n${decodedText}\\n==============================\\n`;\n      } catch (e) {\n        fileContentStr = `\\n\\n[系統提示: 檔案解碼失敗]`;\n      }\n    }\n    return `${userText}${fileContentStr}`;\n  })()\n}}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "f4e53b21-41b3-452d-93a1-4213c080f314",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        208
+      ],
+      "id": "bc788fcb-feb5-4b36-a895-ff42b87cd62e",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "description": "Call this tool when the user wants to generate an n8n workflow based on a text description or intent. The input provided to this tool should be the user's full description of the desired automation.",
+        "workflowId": {
+          "__rl": true,
+          "value": "Sy3s8j5iPmjAqbJfcq963",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        224
+      ],
+      "id": "055969ae-d88d-4505-82b9-b01d49ef67e7",
+      "name": "generate_workflow"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        80,
+        208
+      ],
+      "id": "9c02184b-6075-4fd1-b37a-450d8a564be4",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "kGMCzTcZjXYi00uZ",
+          "name": "Ollama account(lab ollama)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lab-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "536b9775-63d5-4a45-b16d-2da5b707edd6",
+      "name": "Webhook",
+      "webhookId": "55fd990f-8e32-42d1-958f-2a37dca9942a"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  (() => {\n    const file = $('Webhook').item.json.body.file;\n    const response = { \"output\": $json.output };\n\n    if (file) {\n      let content = file.content;\n      // 🕵️‍♂️ 自動解碼邏輯 (一定要加這段！)\n      if (typeof content === 'string' && content.startsWith('data:')) {\n        try {\n          const base64Data = content.split(',')[1];\n          content = Buffer.from(base64Data, 'base64').toString('utf-8');\n        } catch (e) {}\n      }\n\n      response.download = {\n        \"fileName\": file.name.replace('.json', '_v2.json'),\n        \"content\": content \n      };\n    }\n    return response;\n  })()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        560,
+        0
+      ],
+      "id": "2fdfb3f0-a497-4b6d-bf91-9d4e9f41ec92",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generate_workflow": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "d38f7dee-1f01-47f7-aa6a-57f8384b55e3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7bf586026093fcb9a35a17cb4682e81b33e356debf2d6f6cf389f9a6b39f28e3"
+  },
+  "id": "TFfIJ6PvM8WX6JIqKQdAA",
+  "tags": []
+}

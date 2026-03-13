@@ -7,6 +7,6 @@ RUN npm install --omit=dev
 
 COPY src/ ./src/
 
-EXPOSE 3000
+EXPOSE 3001
 
 CMD ["node", "src/index.js"]
