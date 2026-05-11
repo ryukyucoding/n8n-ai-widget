@@ -17,15 +17,15 @@ def default_schema_roots() -> List[Path]:
     Shared JSON exports used by insert + modify pipelines.
 
     Override with ``N8N_WIDGET_SCHEMA_ROOT`` or ``WIDGET_NODE_SCHEMA_ROOT`` (directory that
-    contains ``node_schemas/`` and ``core_nodes_schemas/``). Default: ``<chatbot>/schemas/``.
+    contains ``node_schemas/``). Default: ``<chatbot>/schemas/``.
     """
     for key in ("N8N_WIDGET_SCHEMA_ROOT", "WIDGET_NODE_SCHEMA_ROOT"):
         raw = (os.environ.get(key) or "").strip()
         if raw:
             base = Path(raw)
-            return [base / "node_schemas", base / "core_nodes_schemas"]
+            return [base / "node_schemas"]
     base = _CHATBOT_ROOT / "schemas"
-    return [base / "node_schemas", base / "core_nodes_schemas"]
+    return [base / "node_schemas"]
 
 
 class NodeSchemaStore:

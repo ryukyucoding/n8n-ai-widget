@@ -21,9 +21,9 @@ def default_schema_roots() -> List[Path]:
         raw = (os.environ.get(key) or "").strip()
         if raw:
             base = Path(raw)
-            return [base / "node_schemas", base / "core_nodes_schemas"]
+            return [base / "node_schemas"]
     base = _CHATBOT_ROOT / "schemas"
-    return [base / "node_schemas", base / "core_nodes_schemas"]
+    return [base / "node_schemas"]
 
 
 class NodeSchemaStore:
