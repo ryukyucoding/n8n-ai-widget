@@ -1,0 +1,16 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.toolWolframAlpha",
+  "displayName": "Wolfram|Alpha",
+  "description": "Connects to WolframAlpha's computational intelligence engine.",
+  "properties": [
+    {
+      "displayName": "This node must be connected to an AI agent. <a data-action='openSelectiveNodeCreator' data-action-parameter-creatorview='AI'>Insert one</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "typeOptions": {
+        "containerClass": "ndv-connection-hint-notice"
+      }
+    }
+  ]
+}

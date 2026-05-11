@@ -1,0 +1,14 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.vectorStoreInMemoryLoad",
+  "displayName": "In Memory Vector Store Load",
+  "description": "Load embedded data from an in-memory vector store",
+  "properties": [
+    {
+      "displayName": "Memory Key",
+      "name": "memoryKey",
+      "type": "string",
+      "default": "vector_store_key",
+      "description": "The key to use to store the vector memory in the workflow data. The key will be prefixed with the workflow ID to avoid collisions."
+    }
+  ]
+}

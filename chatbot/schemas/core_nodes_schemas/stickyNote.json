@@ -1,0 +1,34 @@
+{
+  "name": "n8n-nodes-base.stickyNote",
+  "displayName": "Sticky Note",
+  "description": "Make your workflow easier to understand",
+  "properties": [
+    {
+      "displayName": "Content",
+      "name": "content",
+      "type": "string",
+      "default": "## I'm a note \n**Double click** to edit me. [Guide](https://docs.n8n.io/workflows/sticky-notes/)"
+    },
+    {
+      "displayName": "Height",
+      "name": "height",
+      "type": "number",
+      "required": true,
+      "default": 160
+    },
+    {
+      "displayName": "Width",
+      "name": "width",
+      "type": "number",
+      "required": true,
+      "default": 240
+    },
+    {
+      "displayName": "Color",
+      "name": "color",
+      "type": "number",
+      "required": true,
+      "default": 1
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "name": "n8n-nodes-base.autopilotTrigger",
+  "displayName": "Autopilot Trigger",
+  "description": "Handle Autopilot events via webhooks",
+  "properties": [
+    {
+      "displayName": "Event",
+      "name": "event",
+      "type": "options",
+      "required": true,
+      "default": "",
+      "options": [
+        {
+          "name": "Contact Added",
+          "value": "contactAdded"
+        },
+        {
+          "name": "Contact Added To List",
+          "value": "contactAddedToList"
+        },
+        {
+          "name": "Contact Entered Segment",
+          "value": "contactEnteredSegment"
+        },
+        {
+          "name": "Contact Left Segment",
+          "value": "contactLeftSegment"
+        },
+        {
+          "name": "Contact Removed From List",
+          "value": "contactRemovedFromList"
+        },
+        {
+          "name": "Contact Unsubscribed",
+          "value": "contactUnsubscribed"
+        },
+        {
+          "name": "Contact Updated",
+          "value": "contactUpdated"
+        }
+      ]
+    }
+  ]
+}

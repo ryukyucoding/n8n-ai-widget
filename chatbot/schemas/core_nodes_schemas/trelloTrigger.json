@@ -1,0 +1,16 @@
+{
+  "name": "n8n-nodes-base.trelloTrigger",
+  "displayName": "Trello Trigger",
+  "description": "Starts the workflow when Trello events occur",
+  "properties": [
+    {
+      "displayName": "Model ID",
+      "name": "id",
+      "type": "string",
+      "default": "",
+      "placeholder": "4d5ea62fd76aa1136000000c",
+      "required": true,
+      "description": "ID of the model of which to subscribe to events"
+    }
+  ]
+}

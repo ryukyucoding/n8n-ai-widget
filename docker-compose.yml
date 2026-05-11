@@ -9,6 +9,8 @@ services:
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
+      # Local HTTP: avoid "secure cookie" errors in browser (use http://localhost:5678, not 127.0.0.1)
+      - N8N_SECURE_COOKIE=false
       - N8N_API_DISABLED=false
       # widget.js is loaded by the browser, so use localhost (not the docker service name)
       - EXTERNAL_FRONTEND_HOOKS_URLS=http://localhost:3001/widget.js
@@ -30,6 +32,17 @@ services:
       # server-to-server: use docker service name
       - N8N_BASE_URL=http://n8n:5678
       - PORT=3001
+      # Force-disable inherited host proxy vars for this container.
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
+      - ALL_PROXY=
+      - http_proxy=
+      - https_proxy=
+      - all_proxy=
+      - NO_PROXY=n8n,localhost,127.0.0.1
+      - no_proxy=n8n,localhost,127.0.0.1
+      - WIDGET_INSERT_DEBUG=1
+      - WIDGET_MODIFY_DEBUG=1
     networks:
       - n8n-net
     depends_on:

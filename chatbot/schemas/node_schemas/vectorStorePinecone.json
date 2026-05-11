@@ -1,0 +1,383 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+  "displayName": "Pinecone Vector Store",
+  "description": "Work with your data in Pinecone Vector Store",
+  "properties": [
+    {
+      "displayName": "Tip: Get a feel for vector stores in n8n with our",
+      "name": "ragStarterCallout",
+      "type": "callout",
+      "typeOptions": {
+        "calloutAction": {
+          "label": "RAG starter template",
+          "type": "openSampleWorkflowTemplate",
+          "templateId": "rag-starter-template"
+        }
+      },
+      "default": ""
+    },
+    {
+      "displayName": "Operation Mode",
+      "name": "mode",
+      "type": "options",
+      "noDataExpression": true,
+      "default": "retrieve",
+      "options": [
+        {
+          "name": "Get Many",
+          "value": "load",
+          "description": "Get many ranked documents from vector store for query",
+          "action": "Get ranked documents from vector store"
+        },
+        {
+          "name": "Insert Documents",
+          "value": "insert",
+          "description": "Insert documents into vector store",
+          "action": "Add documents to vector store"
+        },
+        {
+          "name": "Retrieve Documents (As Vector Store for Chain/Tool)",
+          "value": "retrieve",
+          "description": "Retrieve documents from vector store to be used as vector store with AI nodes",
+          "action": "Retrieve documents for Chain/Tool as Vector Store",
+          "outputConnectionType": "ai_vectorStore"
+        },
+        {
+          "name": "Retrieve Documents (As Tool for AI Agent)",
+          "value": "retrieve-as-tool",
+          "description": "Retrieve documents from vector store to be used as tool with AI nodes",
+          "action": "Retrieve documents for AI Agent as Tool",
+          "outputConnectionType": "ai_tool"
+        },
+        {
+          "name": "Update Documents",
+          "value": "update",
+          "description": "Update documents in vector store by ID",
+          "action": "Update vector store documents"
+        }
+      ]
+    },
+    {
+      "displayName": "This node must be connected to a vector store retriever. <a data-action='openSelectiveNodeCreator' data-action-parameter-connectiontype='ai_retriever'>Insert one</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "typeOptions": {
+        "containerClass": "ndv-connection-hint-notice"
+      },
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "retrieve"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Name",
+      "name": "toolName",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "description": "Name of the vector store",
+      "placeholder": "e.g. company_knowledge_base",
+      "validateType": "string-alphanumeric",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "lte": 1.2
+              }
+            }
+          ],
+          "mode": [
+            "retrieve-as-tool"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Description",
+      "name": "toolDescription",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "typeOptions": {
+        "rows": 2
+      },
+      "description": "Explain to the LLM what this tool does, a good, specific description would allow LLMs to produce expected results much more often",
+      "placeholder": "e.g. Work with your data in Pinecone Vector Store",
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "retrieve-as-tool"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Pinecone Index",
+      "name": "pineconeIndex",
+      "type": "resourceLocator",
+      "default": {
+        "mode": "list",
+        "value": ""
+      },
+      "required": true,
+      "modes": [
+        {
+          "displayName": "From List",
+          "name": "list",
+          "type": "list",
+          "typeOptions": {
+            "searchListMethod": "pineconeIndexSearch"
+          }
+        },
+        {
+          "displayName": "ID",
+          "name": "id",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "displayName": "Embedding Batch Size",
+      "name": "embeddingBatchSize",
+      "type": "number",
+      "default": 200,
+      "description": "Number of documents to embed in a single batch",
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "insert"
+          ],
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "placeholder": "Add Option",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Clear Namespace",
+          "name": "clearNamespace",
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to clear the namespace before inserting new data"
+        },
+        {
+          "displayName": "Pinecone Namespace",
+          "name": "pineconeNamespace",
+          "type": "string",
+          "description": "Partition the records in an index into namespaces. Queries and other operations are then limited to one namespace, so different requests can search different subsets of your index.",
+          "default": ""
+        }
+      ],
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "insert"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Prompt",
+      "name": "prompt",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "description": "Search prompt to retrieve matching documents from the vector store using similarity-based ranking",
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "load"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Limit",
+      "name": "topK",
+      "type": "number",
+      "default": 4,
+      "description": "Number of top results to fetch from vector store",
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "load",
+            "retrieve-as-tool"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Include Metadata",
+      "name": "includeDocumentMetadata",
+      "type": "boolean",
+      "default": true,
+      "description": "Whether or not to include document metadata",
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "load",
+            "retrieve-as-tool"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Rerank Results",
+      "name": "useReranker",
+      "type": "boolean",
+      "default": false,
+      "description": "Whether or not to rerank results",
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "load",
+            "retrieve",
+            "retrieve-as-tool"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "ID",
+      "name": "id",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "description": "ID of an embedding entry",
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "update"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "placeholder": "Add Option",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Pinecone Namespace",
+          "name": "pineconeNamespace",
+          "type": "string",
+          "description": "Partition the records in an index into namespaces. Queries and other operations are then limited to one namespace, so different requests can search different subsets of your index.",
+          "default": ""
+        },
+        {
+          "displayName": "Metadata Filter",
+          "name": "metadata",
+          "type": "fixedCollection",
+          "description": "Metadata to filter the document by",
+          "typeOptions": {
+            "multipleValues": true
+          },
+          "default": {},
+          "placeholder": "Add filter field",
+          "options": [
+            {
+              "name": "metadataValues",
+              "displayName": "Fields to Set",
+              "values": [
+                {
+                  "displayName": "Name",
+                  "name": "name",
+                  "type": "string",
+                  "default": "",
+                  "required": true
+                },
+                {
+                  "displayName": "Value",
+                  "name": "value",
+                  "type": "string",
+                  "default": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "load",
+            "retrieve-as-tool"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "placeholder": "Add Option",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Pinecone Namespace",
+          "name": "pineconeNamespace",
+          "type": "string",
+          "description": "Partition the records in an index into namespaces. Queries and other operations are then limited to one namespace, so different requests can search different subsets of your index.",
+          "default": ""
+        },
+        {
+          "displayName": "Metadata Filter",
+          "name": "metadata",
+          "type": "fixedCollection",
+          "description": "Metadata to filter the document by",
+          "typeOptions": {
+            "multipleValues": true
+          },
+          "default": {},
+          "placeholder": "Add filter field",
+          "options": [
+            {
+              "name": "metadataValues",
+              "displayName": "Fields to Set",
+              "values": [
+                {
+                  "displayName": "Name",
+                  "name": "name",
+                  "type": "string",
+                  "default": "",
+                  "required": true
+                },
+                {
+                  "displayName": "Value",
+                  "name": "value",
+                  "type": "string",
+                  "default": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "displayOptions": {
+        "show": {
+          "mode": [
+            "retrieve"
+          ]
+        }
+      }
+    }
+  ]
+}

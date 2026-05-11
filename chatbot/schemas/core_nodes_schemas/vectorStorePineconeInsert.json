@@ -1,0 +1,51 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.vectorStorePineconeInsert",
+  "displayName": "Pinecone: Insert",
+  "description": "Insert data into Pinecone Vector Store index",
+  "properties": [
+    {
+      "displayName": "Pinecone Index",
+      "name": "pineconeIndex",
+      "type": "resourceLocator",
+      "default": {
+        "mode": "list",
+        "value": ""
+      },
+      "required": true,
+      "modes": [
+        {
+          "displayName": "From List",
+          "name": "list",
+          "type": "list",
+          "typeOptions": {
+            "searchListMethod": "pineconeIndexSearch"
+          }
+        },
+        {
+          "displayName": "ID",
+          "name": "id",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "displayName": "Pinecone Namespace",
+      "name": "pineconeNamespace",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "displayName": "Specify the document to load in the document loader sub-node",
+      "name": "notice",
+      "type": "notice",
+      "default": ""
+    },
+    {
+      "displayName": "Clear Namespace",
+      "name": "clearNamespace",
+      "type": "boolean",
+      "default": false,
+      "description": "Whether to clear the namespace before inserting new data"
+    }
+  ]
+}

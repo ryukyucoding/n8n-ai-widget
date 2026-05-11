@@ -1,0 +1,1077 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.agent",
+  "displayName": "AI Agent",
+  "description": "Generates an action plan and executes it. Can use external tools.",
+  "properties": [
+    {
+      "displayName": "Tip: Get a feel for agents with our quick <a href=\"https://docs.n8n.io/advanced-ai/intro-tutorial/\" target=\"_blank\">tutorial</a> or see an <a href=\"/templates/1954\" target=\"_blank\">example</a> of how this node works",
+      "name": "aiAgentStarterCallout",
+      "type": "callout",
+      "default": "",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "conversationalAgent",
+            "toolsAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Get started faster with our",
+      "name": "preBuiltAgentsCallout",
+      "type": "callout",
+      "typeOptions": {
+        "calloutAction": {
+          "label": "pre-built agents",
+          "icon": "bot",
+          "type": "openPreBuiltAgentsCollection"
+        }
+      },
+      "default": ""
+    },
+    {
+      "displayName": "This node is using Agent that has been deprecated. Please switch to using 'Tools Agent' instead.",
+      "name": "deprecated",
+      "type": "notice",
+      "default": "",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "conversationalAgent",
+            "openAiFunctionsAgent",
+            "planAndExecuteAgent",
+            "reActAgent",
+            "sqlAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Agent",
+      "name": "agent",
+      "type": "options",
+      "noDataExpression": true,
+      "options": [
+        {
+          "name": "Conversational Agent",
+          "value": "conversationalAgent",
+          "description": "Describes tools in the system prompt and parses JSON responses for tool calls. More flexible but potentially less reliable than the Tools Agent. Suitable for simpler interactions or with models not supporting structured schemas."
+        },
+        {
+          "name": "OpenAI Functions Agent",
+          "value": "openAiFunctionsAgent",
+          "description": "Leverages OpenAI's function calling capabilities to precisely select and execute tools. Excellent for tasks requiring structured outputs when working with OpenAI models."
+        },
+        {
+          "name": "Plan and Execute Agent",
+          "value": "planAndExecuteAgent",
+          "description": "Creates a high-level plan for complex tasks and then executes each step. Suitable for multi-stage problems or when a strategic approach is needed."
+        },
+        {
+          "name": "ReAct Agent",
+          "value": "reActAgent",
+          "description": "Combines reasoning and action in an iterative process. Effective for tasks that require careful analysis and step-by-step problem-solving."
+        },
+        {
+          "name": "SQL Agent",
+          "value": "sqlAgent",
+          "description": "Specializes in interacting with SQL databases. Ideal for data analysis tasks, generating queries, or extracting insights from structured data."
+        }
+      ],
+      "default": "conversationalAgent",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "lte": 1.5
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Agent",
+      "name": "agent",
+      "type": "options",
+      "noDataExpression": true,
+      "options": [
+        {
+          "name": "Tools Agent",
+          "value": "toolsAgent",
+          "description": "Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling."
+        },
+        {
+          "name": "Conversational Agent",
+          "value": "conversationalAgent",
+          "description": "Describes tools in the system prompt and parses JSON responses for tool calls. More flexible but potentially less reliable than the Tools Agent. Suitable for simpler interactions or with models not supporting structured schemas."
+        },
+        {
+          "name": "OpenAI Functions Agent",
+          "value": "openAiFunctionsAgent",
+          "description": "Leverages OpenAI's function calling capabilities to precisely select and execute tools. Excellent for tasks requiring structured outputs when working with OpenAI models."
+        },
+        {
+          "name": "Plan and Execute Agent",
+          "value": "planAndExecuteAgent",
+          "description": "Creates a high-level plan for complex tasks and then executes each step. Suitable for multi-stage problems or when a strategic approach is needed."
+        },
+        {
+          "name": "ReAct Agent",
+          "value": "reActAgent",
+          "description": "Combines reasoning and action in an iterative process. Effective for tasks that require careful analysis and step-by-step problem-solving."
+        },
+        {
+          "name": "SQL Agent",
+          "value": "sqlAgent",
+          "description": "Specializes in interacting with SQL databases. Ideal for data analysis tasks, generating queries, or extracting insights from structured data."
+        }
+      ],
+      "default": "toolsAgent",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "between": {
+                  "from": 1.6,
+                  "to": 1.7
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Agent",
+      "name": "agent",
+      "type": "hidden",
+      "noDataExpression": true,
+      "options": [
+        {
+          "name": "Tools Agent",
+          "value": "toolsAgent",
+          "description": "Utilizes structured tool schemas for precise and reliable tool selection and execution. Recommended for complex tasks requiring accurate and consistent tool usage, but only usable with models that support tool calling."
+        },
+        {
+          "name": "Conversational Agent",
+          "value": "conversationalAgent",
+          "description": "Describes tools in the system prompt and parses JSON responses for tool calls. More flexible but potentially less reliable than the Tools Agent. Suitable for simpler interactions or with models not supporting structured schemas."
+        },
+        {
+          "name": "OpenAI Functions Agent",
+          "value": "openAiFunctionsAgent",
+          "description": "Leverages OpenAI's function calling capabilities to precisely select and execute tools. Excellent for tasks requiring structured outputs when working with OpenAI models."
+        },
+        {
+          "name": "Plan and Execute Agent",
+          "value": "planAndExecuteAgent",
+          "description": "Creates a high-level plan for complex tasks and then executes each step. Suitable for multi-stage problems or when a strategic approach is needed."
+        },
+        {
+          "name": "ReAct Agent",
+          "value": "reActAgent",
+          "description": "Combines reasoning and action in an iterative process. Effective for tasks that require careful analysis and step-by-step problem-solving."
+        },
+        {
+          "name": "SQL Agent",
+          "value": "sqlAgent",
+          "description": "Specializes in interacting with SQL databases. Ideal for data analysis tasks, generating queries, or extracting insights from structured data."
+        }
+      ],
+      "default": "toolsAgent",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.8
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Source for Prompt (User Message)",
+      "name": "promptType",
+      "type": "options",
+      "options": [
+        {
+          "name": "Connected Chat Trigger Node",
+          "value": "auto",
+          "description": "Looks for an input field called 'chatInput' that is coming from a directly connected Chat Trigger"
+        },
+        {
+          "name": "Define below",
+          "value": "define",
+          "description": "Use an expression to reference data in previous nodes or enter static text"
+        }
+      ],
+      "default": "auto",
+      "displayOptions": {
+        "hide": {
+          "@version": [
+            {
+              "_cnd": {
+                "lte": 1.2
+              }
+            }
+          ],
+          "agent": [
+            "sqlAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Prompt (User Message)",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "default": "={{ $json.chatInput }}",
+      "typeOptions": {
+        "rows": 2
+      },
+      "disabledOptions": {
+        "show": {
+          "promptType": [
+            "auto"
+          ]
+        }
+      },
+      "displayOptions": {
+        "show": {
+          "promptType": [
+            "auto"
+          ],
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.7
+              }
+            }
+          ]
+        },
+        "hide": {
+          "agent": [
+            "sqlAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Prompt (User Message)",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "placeholder": "e.g. Hello, how can you help me?",
+      "typeOptions": {
+        "rows": 2
+      },
+      "displayOptions": {
+        "show": {
+          "promptType": [
+            "define"
+          ]
+        },
+        "hide": {
+          "agent": [
+            "sqlAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "For more reliable structured output parsing, consider using the Tools agent",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "displayOptions": {
+        "show": {
+          "hasOutputParser": [
+            true
+          ],
+          "agent": [
+            "conversationalAgent",
+            "reActAgent",
+            "planAndExecuteAgent",
+            "openAiFunctionsAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Require Specific Output Format",
+      "name": "hasOutputParser",
+      "type": "boolean",
+      "default": false,
+      "noDataExpression": true,
+      "displayOptions": {
+        "hide": {
+          "@version": [
+            {
+              "_cnd": {
+                "lte": 1.2
+              }
+            }
+          ],
+          "agent": [
+            "sqlAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Connect an <a data-action='openSelectiveNodeCreator' data-action-parameter-connectiontype='ai_outputParser'>output parser</a> on the canvas to specify the output format you require",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "displayOptions": {
+        "show": {
+          "hasOutputParser": [
+            true
+          ],
+          "agent": [
+            "toolsAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "toolsAgent"
+          ]
+        }
+      },
+      "default": {},
+      "placeholder": "Add Option",
+      "options": [
+        {
+          "displayName": "System Message",
+          "name": "systemMessage",
+          "type": "string",
+          "default": "You are a helpful assistant",
+          "description": "The message that will be sent to the agent before the conversation starts",
+          "typeOptions": {
+            "rows": 6
+          }
+        },
+        {
+          "displayName": "Max Iterations",
+          "name": "maxIterations",
+          "type": "number",
+          "default": 10,
+          "description": "The maximum number of iterations the agent will run before stopping"
+        },
+        {
+          "displayName": "Return Intermediate Steps",
+          "name": "returnIntermediateSteps",
+          "type": "boolean",
+          "default": false,
+          "description": "Whether or not the output should include intermediate steps the agent took"
+        },
+        {
+          "displayName": "Automatically Passthrough Binary Images",
+          "name": "passthroughBinaryImages",
+          "type": "boolean",
+          "default": true,
+          "description": "Whether or not binary images should be automatically passed through to the agent as image type messages"
+        }
+      ]
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "conversationalAgent"
+          ],
+          "@version": [
+            1
+          ]
+        }
+      },
+      "default": "={{ $json.input }}"
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "conversationalAgent"
+          ],
+          "@version": [
+            1.1
+          ]
+        }
+      },
+      "default": "={{ $json.chat_input }}"
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "conversationalAgent"
+          ],
+          "@version": [
+            1.2
+          ]
+        }
+      },
+      "default": "={{ $json.chatInput }}"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "conversationalAgent"
+          ]
+        }
+      },
+      "default": {},
+      "placeholder": "Add Option",
+      "options": [
+        {
+          "displayName": "Human Message",
+          "name": "humanMessage",
+          "type": "string",
+          "default": "TOOLS\n------\nAssistant can ask the user to use tools to look up information that may be helpful in answering the users original question. The tools the human can use are:\n\n{tools}\n\n{format_instructions}\n\nUSER'S INPUT\n--------------------\nHere is the user's input (remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else):\n\n{{input}}",
+          "description": "The message that will provide the agent with a list of tools to use",
+          "typeOptions": {
+            "rows": 6
+          }
+        },
+        {
+          "displayName": "System Message",
+          "name": "systemMessage",
+          "type": "string",
+          "default": "Assistant is a large language model trained by OpenAI.\n\nAssistant is designed to be able to assist with a wide range of tasks, from answering simple questions to providing in-depth explanations and discussions on a wide range of topics. As a language model, Assistant is able to generate human-like text based on the input it receives, allowing it to engage in natural-sounding conversations and provide responses that are coherent and relevant to the topic at hand.\n\nAssistant is constantly learning and improving, and its capabilities are constantly evolving. It is able to process and understand large amounts of text, and can use this knowledge to provide accurate and informative responses to a wide range of questions. Additionally, Assistant is able to generate its own text based on the input it receives, allowing it to engage in discussions and provide explanations and descriptions on a wide range of topics.\n\nOverall, Assistant is a powerful system that can help with a wide range of tasks and provide valuable insights and information on a wide range of topics. Whether you need help with a specific question or just want to have a conversation about a particular topic, Assistant is here to assist.",
+          "description": "The message that will be sent to the agent before the conversation starts",
+          "typeOptions": {
+            "rows": 6
+          }
+        },
+        {
+          "displayName": "Max Iterations",
+          "name": "maxIterations",
+          "type": "number",
+          "default": 10,
+          "description": "The maximum number of iterations the agent will run before stopping"
+        },
+        {
+          "displayName": "Return Intermediate Steps",
+          "name": "returnIntermediateSteps",
+          "type": "boolean",
+          "default": false,
+          "description": "Whether or not the output should include intermediate steps the agent took"
+        }
+      ]
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "openAiFunctionsAgent"
+          ],
+          "@version": [
+            1
+          ]
+        }
+      },
+      "default": "={{ $json.input }}"
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "openAiFunctionsAgent"
+          ],
+          "@version": [
+            1.1
+          ]
+        }
+      },
+      "default": "={{ $json.chat_input }}"
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "openAiFunctionsAgent"
+          ],
+          "@version": [
+            1.2
+          ]
+        }
+      },
+      "default": "={{ $json.chatInput }}"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "openAiFunctionsAgent"
+          ]
+        }
+      },
+      "default": {},
+      "placeholder": "Add Option",
+      "options": [
+        {
+          "displayName": "System Message",
+          "name": "systemMessage",
+          "type": "string",
+          "default": "You are a helpful AI assistant.",
+          "description": "The message that will be sent to the agent before the conversation starts",
+          "typeOptions": {
+            "rows": 6
+          }
+        },
+        {
+          "displayName": "Max Iterations",
+          "name": "maxIterations",
+          "type": "number",
+          "default": 10,
+          "description": "The maximum number of iterations the agent will run before stopping"
+        },
+        {
+          "displayName": "Return Intermediate Steps",
+          "name": "returnIntermediateSteps",
+          "type": "boolean",
+          "default": false,
+          "description": "Whether or not the output should include intermediate steps the agent took"
+        }
+      ]
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "reActAgent"
+          ],
+          "@version": [
+            1
+          ]
+        }
+      },
+      "default": "={{ $json.input }}"
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "reActAgent"
+          ],
+          "@version": [
+            1.1
+          ]
+        }
+      },
+      "default": "={{ $json.chat_input }}"
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "reActAgent"
+          ],
+          "@version": [
+            1.2
+          ]
+        }
+      },
+      "default": "={{ $json.chatInput }}"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "reActAgent"
+          ]
+        }
+      },
+      "default": {},
+      "placeholder": "Add Option",
+      "options": [
+        {
+          "displayName": "Human Message Template",
+          "name": "humanMessageTemplate",
+          "type": "string",
+          "default": "{input}\n\n{agent_scratchpad}",
+          "description": "String to use directly as the human message template",
+          "typeOptions": {
+            "rows": 6
+          }
+        },
+        {
+          "displayName": "Prefix Message",
+          "name": "prefix",
+          "type": "string",
+          "default": "Answer the following questions as best you can. You have access to the following tools:",
+          "description": "String to put before the list of tools",
+          "typeOptions": {
+            "rows": 6
+          }
+        },
+        {
+          "displayName": "Suffix Message for Chat Model",
+          "name": "suffixChat",
+          "type": "string",
+          "default": "Begin! Reminder to always use the exact characters `Final Answer` when responding.",
+          "description": "String to put after the list of tools that will be used if chat model is used",
+          "typeOptions": {
+            "rows": 6
+          }
+        },
+        {
+          "displayName": "Suffix Message for Regular Model",
+          "name": "suffix",
+          "type": "string",
+          "default": "Begin!\n\n\tQuestion: {input}\n\tThought:{agent_scratchpad}",
+          "description": "String to put after the list of tools that will be used if regular model is used",
+          "typeOptions": {
+            "rows": 6
+          }
+        },
+        {
+          "displayName": "Max Iterations",
+          "name": "maxIterations",
+          "type": "number",
+          "default": 10,
+          "description": "The maximum number of iterations the agent will run before stopping"
+        },
+        {
+          "displayName": "Return Intermediate Steps",
+          "name": "returnIntermediateSteps",
+          "type": "boolean",
+          "default": false,
+          "description": "Whether or not the output should include intermediate steps the agent took"
+        }
+      ]
+    },
+    {
+      "displayName": "Data Source",
+      "name": "dataSource",
+      "type": "options",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "sqlAgent"
+          ],
+          "@version": [
+            {
+              "_cnd": {
+                "lt": 1.4
+              }
+            }
+          ]
+        }
+      },
+      "default": "sqlite",
+      "description": "SQL database to connect to",
+      "options": [
+        {
+          "name": "MySQL",
+          "value": "mysql",
+          "description": "Connect to a MySQL database"
+        },
+        {
+          "name": "Postgres",
+          "value": "postgres",
+          "description": "Connect to a Postgres database"
+        },
+        {
+          "name": "SQLite",
+          "value": "sqlite",
+          "description": "Use SQLite by connecting a database file as binary input"
+        }
+      ]
+    },
+    {
+      "displayName": "Data Source",
+      "name": "dataSource",
+      "type": "options",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "sqlAgent"
+          ],
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.4
+              }
+            }
+          ]
+        }
+      },
+      "default": "postgres",
+      "description": "SQL database to connect to",
+      "options": [
+        {
+          "name": "MySQL",
+          "value": "mysql",
+          "description": "Connect to a MySQL database"
+        },
+        {
+          "name": "Postgres",
+          "value": "postgres",
+          "description": "Connect to a Postgres database"
+        },
+        {
+          "name": "SQLite",
+          "value": "sqlite",
+          "description": "Use SQLite by connecting a database file as binary input"
+        }
+      ]
+    },
+    {
+      "displayName": "Credentials",
+      "name": "credentials",
+      "type": "credentials",
+      "default": ""
+    },
+    {
+      "displayName": "Pass the SQLite database into this node as binary data, e.g. by inserting a 'Read/Write Files from Disk' node beforehand",
+      "name": "sqLiteFileNotice",
+      "type": "notice",
+      "default": "",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "sqlAgent"
+          ],
+          "dataSource": [
+            "sqlite"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Input Binary Field",
+      "name": "binaryPropertyName",
+      "type": "string",
+      "default": "data",
+      "required": true,
+      "placeholder": "e.g data",
+      "hint": "The name of the input binary field containing the file to be extracted",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "sqlAgent"
+          ],
+          "dataSource": [
+            "sqlite"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Prompt",
+      "name": "input",
+      "type": "string",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "sqlAgent"
+          ],
+          "@version": [
+            {
+              "_cnd": {
+                "lte": 1.2
+              }
+            }
+          ]
+        }
+      },
+      "default": "",
+      "required": true,
+      "typeOptions": {
+        "rows": 5
+      }
+    },
+    {
+      "displayName": "Source for Prompt (User Message)",
+      "name": "promptType",
+      "type": "options",
+      "options": [
+        {
+          "name": "Connected Chat Trigger Node",
+          "value": "auto",
+          "description": "Looks for an input field called 'chatInput' that is coming from a directly connected Chat Trigger"
+        },
+        {
+          "name": "Define below",
+          "value": "define",
+          "description": "Use an expression to reference data in previous nodes or enter static text"
+        }
+      ],
+      "default": "auto",
+      "displayOptions": {
+        "hide": {
+          "@version": [
+            {
+              "_cnd": {
+                "lte": 1.2
+              }
+            }
+          ]
+        },
+        "show": {
+          "agent": [
+            "sqlAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Prompt (User Message)",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "default": "={{ $json.chatInput }}",
+      "typeOptions": {
+        "rows": 2
+      },
+      "disabledOptions": {
+        "show": {
+          "promptType": [
+            "auto"
+          ]
+        }
+      },
+      "displayOptions": {
+        "show": {
+          "promptType": [
+            "auto"
+          ],
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.7
+              }
+            }
+          ],
+          "agent": [
+            "sqlAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Prompt (User Message)",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "placeholder": "e.g. Hello, how can you help me?",
+      "typeOptions": {
+        "rows": 2
+      },
+      "displayOptions": {
+        "show": {
+          "promptType": [
+            "define"
+          ],
+          "agent": [
+            "sqlAgent"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "sqlAgent"
+          ]
+        }
+      },
+      "default": {},
+      "placeholder": "Add Option",
+      "options": [
+        {
+          "displayName": "Ignored Tables",
+          "name": "ignoredTables",
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated list of tables to ignore from the database. If empty, no tables are ignored."
+        },
+        {
+          "displayName": "Include Sample Rows",
+          "name": "includedSampleRows",
+          "type": "number",
+          "description": "Number of sample rows to include in the prompt to the agent. It helps the agent to understand the schema of the database but it also increases the amount of tokens used.",
+          "default": 3
+        },
+        {
+          "displayName": "Included Tables",
+          "name": "includedTables",
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated list of tables to include in the database. If empty, all tables are included."
+        },
+        {
+          "displayName": "Prefix Prompt",
+          "name": "prefixPrompt",
+          "type": "string",
+          "default": "You are an agent designed to interact with an SQL database.\nGiven an input question, create a syntactically correct {dialect} query to run, then look at the results of the query and return the answer.\nUnless the user specifies a specific number of examples they wish to obtain, always limit your query to at most {top_k} results using the LIMIT clause.\nYou can order the results by a relevant column to return the most interesting examples in the database.\nNever query for all the columns from a specific table, only ask for a the few relevant columns given the question.\nYou have access to tools for interacting with the database.\nOnly use the below tools. Only use the information returned by the below tools to construct your final answer.\nYou MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.\n\nDO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.\n\nIf the question does not seem related to the database, just return \"I don't know\" as the answer.",
+          "description": "Prefix prompt to use for the agent",
+          "typeOptions": {
+            "rows": 10
+          }
+        },
+        {
+          "displayName": "Suffix Prompt",
+          "name": "suffixPrompt",
+          "type": "string",
+          "default": "Begin!\nChat History:\n{chatHistory}\n\nQuestion: {input}\nThought: I should look at the tables in the database to see what I can query.\n{agent_scratchpad}",
+          "description": "Suffix prompt to use for the agent",
+          "typeOptions": {
+            "rows": 4
+          }
+        },
+        {
+          "displayName": "Limit",
+          "name": "topK",
+          "type": "number",
+          "default": 10,
+          "description": "The maximum number of results to return"
+        }
+      ]
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "planAndExecuteAgent"
+          ],
+          "@version": [
+            1
+          ]
+        }
+      },
+      "default": "={{ $json.input }}"
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "planAndExecuteAgent"
+          ],
+          "@version": [
+            1.1
+          ]
+        }
+      },
+      "default": "={{ $json.chat_input }}"
+    },
+    {
+      "displayName": "Text",
+      "name": "text",
+      "type": "string",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "planAndExecuteAgent"
+          ],
+          "@version": [
+            1.2
+          ]
+        }
+      },
+      "default": "={{ $json.chatInput }}"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "displayOptions": {
+        "show": {
+          "agent": [
+            "planAndExecuteAgent"
+          ]
+        }
+      },
+      "default": {},
+      "placeholder": "Add Option",
+      "options": [
+        {
+          "displayName": "Human Message Template",
+          "name": "humanMessageTemplate",
+          "type": "string",
+          "default": "Previous steps: {previous_steps}\n\nCurrent objective: {current_step}\n\n{agent_scratchpad}\n\nYou may extract and combine relevant data from your previous steps when responding to me.",
+          "description": "The message that will be sent to the agent during each step execution",
+          "typeOptions": {
+            "rows": 6
+          }
+        }
+      ]
+    }
+  ]
+}

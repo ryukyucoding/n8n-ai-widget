@@ -1,0 +1,25 @@
+{
+  "name": "n8n-nodes-base.wufooTrigger",
+  "displayName": "Wufoo Trigger",
+  "description": "Handle Wufoo events via webhooks",
+  "properties": [
+    {
+      "displayName": "Forms Name or ID",
+      "name": "form",
+      "type": "options",
+      "required": true,
+      "default": "",
+      "typeOptions": {
+        "loadOptionsMethod": "getForms"
+      },
+      "description": "The form upon which will trigger this node when a new entry is made. Choose from the list, or specify an ID using an <a href=\"https://docs.n8n.io/code/expressions/\">expression</a>."
+    },
+    {
+      "displayName": "Only Answers",
+      "name": "onlyAnswers",
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to return only the answers of the form and not any of the other data"
+    }
+  ]
+}

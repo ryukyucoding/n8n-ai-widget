@@ -1,0 +1,24 @@
+{
+  "name": "n8n-nodes-base.n8nTrainingCustomerMessenger",
+  "displayName": "Customer Messenger (n8n training)",
+  "description": "Dummy node used for n8n training",
+  "properties": [
+    {
+      "displayName": "Customer ID",
+      "name": "customerId",
+      "type": "string",
+      "required": true,
+      "default": ""
+    },
+    {
+      "displayName": "Message",
+      "name": "message",
+      "type": "string",
+      "required": true,
+      "typeOptions": {
+        "rows": 4
+      },
+      "default": ""
+    }
+  ]
+}

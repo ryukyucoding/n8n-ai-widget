@@ -1,0 +1,91 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.lmChatGroq",
+  "displayName": "Groq Chat Model",
+  "description": "Language Model Groq",
+  "properties": [
+    {
+      "displayName": "This node must be connected to an AI chain. <a data-action='openSelectiveNodeCreator' data-action-parameter-creatorview='AI'>Insert one</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "typeOptions": {
+        "containerClass": "ndv-connection-hint-notice"
+      }
+    },
+    {
+      "displayName": "Model",
+      "name": "model",
+      "type": "options",
+      "typeOptions": {
+        "loadOptions": {
+          "routing": {
+            "request": {
+              "method": "GET",
+              "url": "/models"
+            },
+            "output": {
+              "postReceive": [
+                {
+                  "type": "rootProperty",
+                  "properties": {
+                    "property": "data"
+                  }
+                },
+                {
+                  "type": "filter",
+                  "properties": {
+                    "pass": "={{ $responseItem.active === true && $responseItem.object === \"model\" }}"
+                  }
+                },
+                {
+                  "type": "setKeyValue",
+                  "properties": {
+                    "name": "={{$responseItem.id}}",
+                    "value": "={{$responseItem.id}}"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "routing": {
+        "send": {
+          "type": "body",
+          "property": "model"
+        }
+      },
+      "description": "The model which will generate the completion. <a href=\"https://console.groq.com/docs/models\">Learn more</a>.",
+      "default": "llama3-8b-8192"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "placeholder": "Add Option",
+      "description": "Additional options to add",
+      "type": "collection",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Maximum Number of Tokens",
+          "name": "maxTokensToSample",
+          "default": 4096,
+          "description": "The maximum number of tokens to generate in the completion",
+          "type": "number"
+        },
+        {
+          "displayName": "Sampling Temperature",
+          "name": "temperature",
+          "default": 0.7,
+          "typeOptions": {
+            "maxValue": 1,
+            "minValue": 0,
+            "numberPrecision": 1
+          },
+          "description": "Controls randomness: Lowering results in less random completions. As the temperature approaches zero, the model will become deterministic and repetitive.",
+          "type": "number"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.embeddingsMistralCloud",
+  "displayName": "Embeddings Mistral Cloud",
+  "description": "Use Embeddings Mistral Cloud",
+  "properties": [
+    {
+      "displayName": "This node must be connected to a vector store. <a data-action='openSelectiveNodeCreator' data-action-parameter-connectiontype='ai_vectorStore'>Insert one</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "typeOptions": {
+        "containerClass": "ndv-connection-hint-notice"
+      }
+    },
+    {
+      "displayName": "Model",
+      "name": "model",
+      "type": "options",
+      "description": "The model which will compute the embeddings. <a href=\"https://docs.mistral.ai/platform/endpoints/\">Learn more</a>.",
+      "typeOptions": {
+        "loadOptions": {
+          "routing": {
+            "request": {
+              "method": "GET",
+              "url": "/models"
+            },
+            "output": {
+              "postReceive": [
+                {
+                  "type": "rootProperty",
+                  "properties": {
+                    "property": "data"
+                  }
+                },
+                {
+                  "type": "filter",
+                  "properties": {
+                    "pass": "={{ $responseItem.id.includes('embed') }}"
+                  }
+                },
+                {
+                  "type": "setKeyValue",
+                  "properties": {
+                    "name": "={{ $responseItem.id }}",
+                    "value": "={{ $responseItem.id }}"
+                  }
+                },
+                {
+                  "type": "sort",
+                  "properties": {
+                    "key": "name"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "routing": {
+        "send": {
+          "type": "body",
+          "property": "model"
+        }
+      },
+      "default": "mistral-embed"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "placeholder": "Add Option",
+      "description": "Additional options to add",
+      "type": "collection",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Batch Size",
+          "name": "batchSize",
+          "default": 512,
+          "typeOptions": {
+            "maxValue": 2048
+          },
+          "description": "Maximum number of documents to send in each request",
+          "type": "number"
+        },
+        {
+          "displayName": "Strip New Lines",
+          "name": "stripNewLines",
+          "default": true,
+          "description": "Whether to strip new lines from the input text",
+          "type": "boolean"
+        }
+      ]
+    }
+  ]
+}

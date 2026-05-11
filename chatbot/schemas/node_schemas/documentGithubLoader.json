@@ -1,0 +1,77 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.documentGithubLoader",
+  "displayName": "GitHub Document Loader",
+  "description": "Use GitHub data as input to this chain",
+  "properties": [
+    {
+      "displayName": "This node must be connected to a vector store. <a data-action='openSelectiveNodeCreator' data-action-parameter-connectiontype='ai_vectorStore'>Insert one</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "typeOptions": {
+        "containerClass": "ndv-connection-hint-notice"
+      }
+    },
+    {
+      "displayName": "Repository Link",
+      "name": "repository",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "displayName": "Branch",
+      "name": "branch",
+      "type": "string",
+      "default": "main"
+    },
+    {
+      "displayName": "Text Splitting",
+      "name": "textSplittingMode",
+      "type": "options",
+      "default": "simple",
+      "required": true,
+      "noDataExpression": true,
+      "displayOptions": {
+        "show": {
+          "@version": [
+            1.1
+          ]
+        }
+      },
+      "options": [
+        {
+          "name": "Simple",
+          "value": "simple",
+          "description": "Splits every 1000 characters with a 200 character overlap"
+        },
+        {
+          "name": "Custom",
+          "value": "custom",
+          "description": "Connect a custom text-splitting sub-node"
+        }
+      ]
+    },
+    {
+      "displayName": "Options",
+      "name": "additionalOptions",
+      "type": "collection",
+      "placeholder": "Add Option",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Recursive",
+          "name": "recursive",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "displayName": "Ignore Paths",
+          "name": "ignorePaths",
+          "type": "string",
+          "description": "Comma-separated list of paths to ignore, e.g. \"docs, src/tests",
+          "default": ""
+        }
+      ]
+    }
+  ]
+}

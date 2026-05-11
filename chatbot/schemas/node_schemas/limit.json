@@ -1,0 +1,34 @@
+{
+  "name": "n8n-nodes-base.limit",
+  "displayName": "Limit",
+  "description": "Restrict the number of items",
+  "properties": [
+    {
+      "displayName": "Max Items",
+      "name": "maxItems",
+      "type": "number",
+      "typeOptions": {
+        "minValue": 1
+      },
+      "default": 1,
+      "description": "If there are more items than this number, some are removed"
+    },
+    {
+      "displayName": "Keep",
+      "name": "keep",
+      "type": "options",
+      "options": [
+        {
+          "name": "First Items",
+          "value": "firstItems"
+        },
+        {
+          "name": "Last Items",
+          "value": "lastItems"
+        }
+      ],
+      "default": "firstItems",
+      "description": "When removing items, whether to keep the ones at the start or the ending"
+    }
+  ]
+}

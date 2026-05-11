@@ -1,0 +1,196 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.mcpClientTool",
+  "displayName": "MCP Client Tool",
+  "description": "Connect tools from an MCP Server",
+  "properties": [
+    {
+      "displayName": "This node must be connected to an AI agent. <a data-action='openSelectiveNodeCreator' data-action-parameter-creatorview='AI'>Insert one</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "typeOptions": {
+        "containerClass": "ndv-connection-hint-notice"
+      }
+    },
+    {
+      "displayName": "SSE Endpoint",
+      "name": "sseEndpoint",
+      "type": "string",
+      "description": "SSE Endpoint of your MCP server",
+      "placeholder": "e.g. https://my-mcp-server.ai/sse",
+      "default": "",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "@version": [
+            1
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Endpoint",
+      "name": "endpointUrl",
+      "type": "string",
+      "description": "Endpoint of your MCP server",
+      "placeholder": "e.g. https://my-mcp-server.ai/mcp",
+      "default": "",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Server Transport",
+      "name": "serverTransport",
+      "type": "options",
+      "options": [
+        {
+          "name": "Server Sent Events (Deprecated)",
+          "value": "sse"
+        },
+        {
+          "name": "HTTP Streamable",
+          "value": "httpStreamable"
+        }
+      ],
+      "default": "sse",
+      "description": "The transport used by your endpoint",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Authentication",
+      "name": "authentication",
+      "type": "options",
+      "options": [
+        {
+          "name": "Bearer Auth",
+          "value": "bearerAuth"
+        },
+        {
+          "name": "Header Auth",
+          "value": "headerAuth"
+        },
+        {
+          "name": "None",
+          "value": "none"
+        }
+      ],
+      "default": "none",
+      "description": "The way to authenticate with your endpoint"
+    },
+    {
+      "displayName": "Credentials",
+      "name": "credentials",
+      "type": "credentials",
+      "default": "",
+      "displayOptions": {
+        "show": {
+          "authentication": [
+            "headerAuth",
+            "bearerAuth"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Tools to Include",
+      "name": "include",
+      "type": "options",
+      "description": "How to select the tools you want to be exposed to the AI Agent",
+      "default": "all",
+      "options": [
+        {
+          "name": "All",
+          "value": "all",
+          "description": "Also include all unchanged fields from the input"
+        },
+        {
+          "name": "Selected",
+          "value": "selected",
+          "description": "Also include the tools listed in the parameter \"Tools to Include\""
+        },
+        {
+          "name": "All Except",
+          "value": "except",
+          "description": "Exclude the tools listed in the parameter \"Tools to Exclude\""
+        }
+      ]
+    },
+    {
+      "displayName": "Tools to Include",
+      "name": "includeTools",
+      "type": "multiOptions",
+      "default": [],
+      "description": "Choose from the list, or specify IDs using an <a href=\"https://docs.n8n.io/code/expressions/\">expression</a>",
+      "typeOptions": {
+        "loadOptionsMethod": "getTools",
+        "loadOptionsDependsOn": [
+          "sseEndpoint"
+        ]
+      },
+      "displayOptions": {
+        "show": {
+          "include": [
+            "selected"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Tools to Exclude",
+      "name": "excludeTools",
+      "type": "multiOptions",
+      "default": [],
+      "description": "Choose from the list, or specify IDs using an <a href=\"https://docs.n8n.io/code/expressions/\">expression</a>",
+      "typeOptions": {
+        "loadOptionsMethod": "getTools"
+      },
+      "displayOptions": {
+        "show": {
+          "include": [
+            "except"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "placeholder": "Add Option",
+      "description": "Additional options to add",
+      "type": "collection",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Timeout",
+          "name": "timeout",
+          "type": "number",
+          "typeOptions": {
+            "minValue": 1
+          },
+          "default": 60000,
+          "description": "Time in ms to wait for tool calls to finish"
+        }
+      ]
+    }
+  ]
+}

@@ -2,7 +2,19 @@
 (function () {
   'use strict';
 
-  var CHAT_URL = 'http://localhost:3001/chat';
+  var CHAT_BASE = 'http://localhost:3001';
+
+  function workflowIdFromN8nPath() {
+    var m = window.location.pathname.match(/\/workflow\/([^/?#]+)/);
+    return m ? m[1] : '';
+  }
+
+  function chatIframeUrl() {
+    var id = workflowIdFromN8nPath();
+    return id
+      ? CHAT_BASE + '/chat?workflowId=' + encodeURIComponent(id)
+      : CHAT_BASE + '/chat';
+  }
 
   function mount() {
     var BTN    = 56;
@@ -91,7 +103,7 @@
 
     var panel = document.createElement('iframe');
     panel.id  = 'n8n-ai-widget-panel';
-    panel.src = CHAT_URL;
+    panel.src = chatIframeUrl();
     panel.classList.add('hidden');
     panel.style.width  = panelW + 'px';
     panel.style.height = panelH + 'px';
@@ -105,10 +117,13 @@
     var isOpen = false;
 
     function openPanel() {
+      panel.src = chatIframeUrl();
       isOpen = true;
       panel.classList.remove('hidden');
       backdrop.style.display      = 'block';
       resizeHandle.style.display  = 'block';
+      // Keep FAB below iframe (99997) so it cannot cover the chat send button (FAB was 99999).
+      btn.style.zIndex = '99990';
     }
 
     function closePanel() {
@@ -116,6 +131,7 @@
       panel.classList.add('hidden');
       backdrop.style.display      = 'none';
       resizeHandle.style.display  = 'none';
+      btn.style.zIndex = '';
     }
 
     backdrop.addEventListener('click', closePanel);

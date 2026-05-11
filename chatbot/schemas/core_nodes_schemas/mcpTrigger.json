@@ -1,0 +1,37 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.mcpTrigger",
+  "displayName": "MCP Server Trigger",
+  "description": "Expose n8n tools as an MCP Server endpoint",
+  "properties": [
+    {
+      "displayName": "Authentication",
+      "name": "authentication",
+      "type": "options",
+      "options": [
+        {
+          "name": "None",
+          "value": "none"
+        },
+        {
+          "name": "Bearer Auth",
+          "value": "bearerAuth"
+        },
+        {
+          "name": "Header Auth",
+          "value": "headerAuth"
+        }
+      ],
+      "default": "none",
+      "description": "The way to authenticate"
+    },
+    {
+      "displayName": "Path",
+      "name": "path",
+      "type": "string",
+      "default": "",
+      "placeholder": "webhook",
+      "required": true,
+      "description": "The base path for this MCP server"
+    }
+  ]
+}

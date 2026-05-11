@@ -1,0 +1,24 @@
+{
+  "name": "n8n-nodes-base.readBinaryFile",
+  "displayName": "Read Binary File",
+  "description": "Reads a binary file from disk",
+  "properties": [
+    {
+      "displayName": "File Path",
+      "name": "filePath",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "placeholder": "/data/example.jpg",
+      "description": "Path of the file to read"
+    },
+    {
+      "displayName": "Property Name",
+      "name": "dataPropertyName",
+      "type": "string",
+      "default": "data",
+      "required": true,
+      "description": "Name of the binary property to which to write the data of the read file"
+    }
+  ]
+}

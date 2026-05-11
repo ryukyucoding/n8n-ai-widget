@@ -2,24 +2,59 @@
 
 require('dotenv').config();
 
+const dns = require('dns');
+try {
+  if (typeof dns.setDefaultResultOrder === 'function') {
+    dns.setDefaultResultOrder('ipv4first');
+  }
+} catch (_) {
+  /* ignore */
+}
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { Agent } = require('undici');
 const OpenAI = require('openai');
+const { processAgentMessage } = require('./n8nAgent');
+const { normalizeN8nBaseUrl, sanitizeProxyEnv } = require('./normalizeN8nBaseUrl');
+
+// HTTP(S)_PROXY with unbracketed IPv6 breaks Node fetch before the request URL is used.
+sanitizeProxyEnv();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const N8N_BASE_URL = process.env.N8N_BASE_URL || 'http://localhost:5678';
+const N8N_BASE_URL = normalizeN8nBaseUrl(
+  process.env.N8N_BASE_URL || 'http://localhost:5678'
+);
 const N8N_API_KEY = process.env.N8N_API_KEY;
+const DIRECT_FETCH = new Agent({});
+
+async function fetchWithRetry(url, options, retries = 1) {
+  let lastErr;
+  for (let i = 0; i <= retries; i += 1) {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      lastErr = err;
+      const code = err && err.cause && err.cause.code ? String(err.cause.code) : '';
+      if (i >= retries || !['UND_ERR_SOCKET', 'ECONNRESET', 'EPIPE'].includes(code)) {
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, 120 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
 
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '12mb' }));
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -39,6 +74,42 @@ app.get('/chat', (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// ---------------------------------------------------------------------------
+// POST /agent/run — intent decompose + modify/delete/insert station pipelines
+// ---------------------------------------------------------------------------
+
+app.post('/agent/run', async (req, res) => {
+  const {
+    message,
+    sessionId,
+    workflowId,
+    clearSession,
+  } = req.body || {};
+
+  if (!message || typeof message !== 'string' || message.trim() === '') {
+    return res.status(400).json({ ok: false, error: 'message is required' });
+  }
+
+  try {
+    const out = await processAgentMessage({
+      openai,
+      n8nBaseUrl: N8N_BASE_URL,
+      n8nApiKey: N8N_API_KEY,
+      sessionId: sessionId || null,
+      message: message.trim(),
+      workflowId: workflowId || null,
+      clearSession: !!clearSession,
+    });
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    return res.json(out);
+  } catch (err) {
+    console.error('agent/run error:', err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -146,14 +217,16 @@ app.post('/generate', async (req, res) => {
   }
 
   try {
-    const n8nRes = await fetch(`${N8N_BASE_URL}/api/v1/workflows`, {
+    const n8nRes = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-N8N-API-KEY': N8N_API_KEY,
+        Connection: 'close',
       },
       body: JSON.stringify(workflowJson),
-    });
+      dispatcher: DIRECT_FETCH,
+    }, 2);
 
     if (!n8nRes.ok) {
       const errText = await n8nRes.text();
@@ -184,4 +257,5 @@ app.post('/generate', async (req, res) => {
 
 app.listen(port, () => {
   console.log(`n8n AI widget server running on http://localhost:${port}`);
+  console.log(`n8n API base: ${N8N_BASE_URL}`);
 });

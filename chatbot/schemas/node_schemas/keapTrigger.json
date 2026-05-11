@@ -1,0 +1,25 @@
+{
+  "name": "n8n-nodes-base.keapTrigger",
+  "displayName": "Keap Trigger",
+  "description": "Starts the workflow when Infusionsoft events occur",
+  "properties": [
+    {
+      "displayName": "Event Name or ID",
+      "name": "eventId",
+      "type": "options",
+      "description": "Choose from the list, or specify an ID using an <a href=\"https://docs.n8n.io/code/expressions/\">expression</a>",
+      "typeOptions": {
+        "loadOptionsMethod": "getEvents"
+      },
+      "default": "",
+      "required": true
+    },
+    {
+      "displayName": "RAW Data",
+      "name": "rawData",
+      "type": "boolean",
+      "default": false,
+      "description": "Whether to return the data exactly in the way it got received from the API"
+    }
+  ]
+}

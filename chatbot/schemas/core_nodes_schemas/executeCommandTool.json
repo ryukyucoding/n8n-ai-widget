@@ -1,0 +1,37 @@
+{
+  "name": "n8n-nodes-base.executeCommandTool",
+  "displayName": "Execute Command Tool",
+  "description": "Executes a command on the host",
+  "properties": [
+    {
+      "displayName": "Description",
+      "name": "toolDescription",
+      "type": "string",
+      "default": "Executes a command on the host",
+      "required": true,
+      "typeOptions": {
+        "rows": 2
+      },
+      "description": "Explain to the LLM what this tool does, a good, specific description would allow LLMs to produce expected results much more often"
+    },
+    {
+      "displayName": "Execute Once",
+      "name": "executeOnce",
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to execute only once instead of once for each entry"
+    },
+    {
+      "displayName": "Command",
+      "name": "command",
+      "typeOptions": {
+        "rows": 5
+      },
+      "type": "string",
+      "default": "",
+      "placeholder": "echo \"test\"",
+      "description": "The command to execute",
+      "required": true
+    }
+  ]
+}

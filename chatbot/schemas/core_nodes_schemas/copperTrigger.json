@@ -1,0 +1,71 @@
+{
+  "name": "n8n-nodes-base.copperTrigger",
+  "displayName": "Copper Trigger",
+  "description": "Handle Copper events via webhooks",
+  "properties": [
+    {
+      "displayName": "Resource",
+      "name": "resource",
+      "type": "options",
+      "noDataExpression": true,
+      "required": true,
+      "default": "",
+      "options": [
+        {
+          "name": "Company",
+          "value": "company"
+        },
+        {
+          "name": "Lead",
+          "value": "lead"
+        },
+        {
+          "name": "Opportunity",
+          "value": "opportunity"
+        },
+        {
+          "name": "Person",
+          "value": "person"
+        },
+        {
+          "name": "Project",
+          "value": "project"
+        },
+        {
+          "name": "Task",
+          "value": "task"
+        },
+        {
+          "name": "Custom API Call",
+          "value": "__CUSTOM_API_CALL__"
+        }
+      ],
+      "description": "The resource which will fire the event"
+    },
+    {
+      "displayName": "Event",
+      "name": "event",
+      "type": "options",
+      "required": true,
+      "default": "",
+      "options": [
+        {
+          "name": "Delete",
+          "value": "delete",
+          "description": "An existing record is removed"
+        },
+        {
+          "name": "New",
+          "value": "new",
+          "description": "A new record is created"
+        },
+        {
+          "name": "Update",
+          "value": "update",
+          "description": "Any field in the existing entity record is changed"
+        }
+      ],
+      "description": "The event to listen to"
+    }
+  ]
+}

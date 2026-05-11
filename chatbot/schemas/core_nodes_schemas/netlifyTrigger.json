@@ -1,0 +1,75 @@
+{
+  "name": "n8n-nodes-base.netlifyTrigger",
+  "displayName": "Netlify Trigger",
+  "description": "Handle netlify events via webhooks",
+  "properties": [
+    {
+      "displayName": "Site Name or ID",
+      "name": "siteId",
+      "required": true,
+      "type": "options",
+      "default": "",
+      "typeOptions": {
+        "loadOptionsMethod": "getSites"
+      },
+      "description": "Select the Site ID. Choose from the list, or specify an ID using an <a href=\"https://docs.n8n.io/code/expressions/\">expression</a>."
+    },
+    {
+      "displayName": "Event",
+      "name": "event",
+      "type": "options",
+      "required": true,
+      "default": "",
+      "options": [
+        {
+          "name": "Deploy Building",
+          "value": "deployBuilding"
+        },
+        {
+          "name": "Deploy Failed",
+          "value": "deployFailed"
+        },
+        {
+          "name": "Deploy Created",
+          "value": "deployCreated"
+        },
+        {
+          "name": "Form Submitted",
+          "value": "submissionCreated"
+        }
+      ]
+    },
+    {
+      "displayName": "Form Name or ID",
+      "name": "formId",
+      "type": "options",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "event": [
+            "submissionCreated"
+          ]
+        }
+      },
+      "default": "",
+      "typeOptions": {
+        "loadOptionsMethod": "getForms"
+      },
+      "description": "Select a form. Choose from the list, or specify an ID using an <a href=\"https://docs.n8n.io/code/expressions/\">expression</a>."
+    },
+    {
+      "displayName": "Simplify",
+      "name": "simple",
+      "type": "boolean",
+      "displayOptions": {
+        "show": {
+          "event": [
+            "submissionCreated"
+          ]
+        }
+      },
+      "default": true,
+      "description": "Whether to return a simplified version of the response instead of the raw data"
+    }
+  ]
+}

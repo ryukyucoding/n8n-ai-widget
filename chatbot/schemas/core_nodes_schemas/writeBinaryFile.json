@@ -1,0 +1,40 @@
+{
+  "name": "n8n-nodes-base.writeBinaryFile",
+  "displayName": "Write Binary File",
+  "description": "Writes a binary file to disk",
+  "properties": [
+    {
+      "displayName": "File Name",
+      "name": "fileName",
+      "type": "string",
+      "default": "",
+      "required": true,
+      "placeholder": "/data/example.jpg",
+      "description": "Path to which the file should be written"
+    },
+    {
+      "displayName": "Property Name",
+      "name": "dataPropertyName",
+      "type": "string",
+      "default": "data",
+      "required": true,
+      "description": "Name of the binary property which contains the data for the file to be written"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "placeholder": "Add option",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Append",
+          "name": "append",
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to append to an existing file"
+        }
+      ]
+    }
+  ]
+}

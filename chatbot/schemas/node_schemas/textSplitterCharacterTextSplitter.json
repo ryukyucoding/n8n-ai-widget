@@ -1,0 +1,36 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.textSplitterCharacterTextSplitter",
+  "displayName": "Character Text Splitter",
+  "description": "Split text into chunks by characters",
+  "properties": [
+    {
+      "displayName": "This node must be connected to a document loader. <a data-action='openSelectiveNodeCreator' data-action-parameter-connectiontype='ai_document'>Insert one</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "typeOptions": {
+        "containerClass": "ndv-connection-hint-notice"
+      }
+    },
+    {
+      "displayName": "Separator",
+      "name": "separator",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "displayName": "Chunk Size",
+      "name": "chunkSize",
+      "type": "number",
+      "default": 1000,
+      "description": "Maximum number of characters per chunk"
+    },
+    {
+      "displayName": "Chunk Overlap",
+      "name": "chunkOverlap",
+      "type": "number",
+      "default": 0,
+      "description": "Number of characters shared between consecutive chunks to preserve context"
+    }
+  ]
+}

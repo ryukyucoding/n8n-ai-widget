@@ -1,0 +1,16 @@
+{
+  "name": "n8n-nodes-base.sseTrigger",
+  "displayName": "SSE Trigger",
+  "description": "Triggers the workflow when Server-Sent Events occur",
+  "properties": [
+    {
+      "displayName": "URL",
+      "name": "url",
+      "type": "string",
+      "default": "",
+      "placeholder": "http://example.com",
+      "description": "The URL to receive the SSE from",
+      "required": true
+    }
+  ]
+}

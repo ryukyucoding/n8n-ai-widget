@@ -86,8 +86,11 @@ docker-compose.yml:
 | ------ | ------------ | ---------------------------------------------- |
 | `GET`  | `/widget.js` | 被 n8n 注入的前端 IIFE script                  |
 | `GET`  | `/chat`      | iframe 裡面的聊天室 HTML 頁面                  |
-| `POST` | `/generate`  | 接收自然語言，呼叫 OpenAI，注入 n8n workflow    |
+| `POST` | `/generate`  | 快速模式：自然語言 → OpenAI → 建立新 workflow   |
+| `POST` | `/agent/run` | Agent 模式：意圖分解 → insert/modify/delete → 寫回目前 workflow |
 | `GET`  | `/health`    | 健康檢查，回傳 `{ status: "ok" }`              |
+
+Python 端邏輯在 `chatbot/bundles/`（modify / delete / insert / decompose），由 `chatbot/python/widget_agent_bridge.py` 以子行程呼叫；共用的節點描述 JSON 在 `chatbot/schemas/`。
 
 ### POST /generate 流程
 

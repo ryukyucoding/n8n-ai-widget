@@ -1,0 +1,19 @@
+{
+  "name": "n8n-nodes-base.loneScaleTrigger",
+  "displayName": "LoneScale Trigger",
+  "description": "Trigger LoneScale Workflow",
+  "properties": [
+    {
+      "displayName": "Workflow Name",
+      "name": "workflow",
+      "type": "options",
+      "noDataExpression": true,
+      "typeOptions": {
+        "loadOptionsMethod": "getWorkflows"
+      },
+      "default": "",
+      "description": "Select one workflow. Choose from the list",
+      "required": true
+    }
+  ]
+}

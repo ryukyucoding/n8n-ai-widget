@@ -54,6 +54,7 @@
     /* Messages area */
     #messages {
       flex: 1;
+      min-height: 0; /* critical: lets this column shrink so .input-area stays visible (flex + overflow) */
       overflow-y: auto;
       padding: 16px 14px;
       display: flex;
@@ -135,6 +136,8 @@
       gap: 8px;
       align-items: flex-end;
       flex-shrink: 0;
+      position: relative;
+      z-index: 1;
     }
     #input {
       flex: 1;
@@ -172,7 +175,7 @@
     <div class="header-icon">⚡</div>
     <div>
       <div class="header-title">AI Workflow Generator</div>
-      <div class="header-sub">用自然語言描述，自動建立 n8n workflow</div>
+      <div class="header-sub">意圖分解 → insert / modify / delete agents → 寫回 n8n</div>
     </div>
     <div class="header-spacer"></div>
     <button id="clear-btn" title="清空對話">清空</button>
@@ -180,15 +183,18 @@
 
   <div id="messages">
     <div class="bubble bot">
-      👋 Hi！請描述你想要的 workflow，例如：<br><br>
-      <em>「每天早上 9 點發一封提醒信給我」</em><br>
-      <em>「當 Webhook 收到 POST 請求時，把資料存到 Google Sheets」</em>
+      👋 在此描述要對 **目前開啟的 workflow** 做的變更（會自動從網址帶入 workflow id）。<br><br>
+      範例：<em>「把 Slack 節點改成發到 #general」</em>、<em>「在 HTTP Request 後面加一個 Set」</em>、<em>「刪掉用不到的 Code 節點」</em><br><br>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;cursor:pointer;">
+        <input type="checkbox" id="quick-mode" />
+        快速模式（只做從零生成，不跑意圖分解與編輯 agents）
+      </label>
     </div>
   </div>
 
   <div class="input-area">
     <textarea id="input" rows="1" placeholder="描述你想要的 workflow…"></textarea>
-    <button id="send-btn" title="送出">
+    <button type="button" id="send-btn" title="送出">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
         <path d="M22 2L11 13" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -197,13 +203,29 @@
   </div>
 
   <script>
-    var API_URL = 'http://localhost:3001/generate';
+    var AGENT_URL = 'http://localhost:3001/agent/run';
+    var GENERATE_URL = 'http://localhost:3001/generate';
     var HISTORY_KEY = 'n8n-widget-history';
+    var SESSION_KEY = 'n8n-widget-agent-session';
 
     var messagesEl = document.getElementById('messages');
     var inputEl    = document.getElementById('input');
     var sendBtn    = document.getElementById('send-btn');
     var clearBtn   = document.getElementById('clear-btn');
+
+    function currentWorkflowId() {
+      var q = new URLSearchParams(window.location.search || '');
+      var w = q.get('workflowId');
+      return w && String(w).trim() ? String(w).trim() : null;
+    }
+
+    function loadSessionId() {
+      try { return localStorage.getItem(SESSION_KEY) || null; } catch (e) { return null; }
+    }
+    function saveSessionId(id) {
+      if (!id) return;
+      try { localStorage.setItem(SESSION_KEY, id); } catch (e) {}
+    }
 
     // -----------------------------------------------------------------
     // Chat history persistence via sessionStorage
@@ -274,10 +296,22 @@
       var typing = addTyping();
 
       try {
-        var res = await fetch(API_URL, {
+        var qm = document.getElementById('quick-mode');
+        var useQuick = qm && qm.checked;
+        var wfId = useQuick ? null : currentWorkflowId();
+        var body = useQuick
+          ? { message: text }
+          : {
+              message: text,
+              sessionId: loadSessionId(),
+              workflowId: wfId,
+              clearSession: false,
+            };
+        var url = useQuick ? GENERATE_URL : AGENT_URL;
+        var res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify(body),
         });
 
         var data = await res.json();
@@ -285,13 +319,22 @@
 
         if (!res.ok || data.error) {
           var errMsg = data.error || 'Unknown error';
+          if (data.sessionId) saveSessionId(data.sessionId);
           var errHtml = '❌ ' + escHtml(errMsg);
           if (data.workflow) {
             errHtml += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
           }
           addBubble(errHtml, 'bot error');
-        } else {
-          var html = '✅ ' + escHtml(data.message);
+        } else if (data.action === 'clarify') {
+          var cands = data.candidates && data.candidates.length
+            ? '<br><br>候選：<em>' + escHtml(data.candidates.join(', ')) + '</em>'
+            : '';
+          saveSessionId(data.sessionId);
+          addBubble('❓ ' + escHtml(data.message || '') + cands, 'bot');
+        } else if (data.action === 'done') {
+          saveSessionId(null);
+          try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+          var html = '✅ ' + escHtml(data.message || '完成');
           if (data.workflowUrl) {
             html += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
           }
@@ -299,6 +342,25 @@
             html += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
           }
           addBubble(html, 'bot');
+        } else if (useQuick) {
+          var htmlQ = '✅ ' + escHtml(data.message || '');
+          if (data.workflowUrl) {
+            htmlQ += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
+          }
+          if (data.workflow) {
+            htmlQ += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
+          }
+          addBubble(htmlQ, 'bot');
+        } else {
+          saveSessionId(data.sessionId);
+          var html2 = '✅ ' + escHtml(data.message || '已處理');
+          if (data.workflowUrl) {
+            html2 += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
+          }
+          if (data.workflow) {
+            html2 += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
+          }
+          addBubble(html2, 'bot');
         }
       } catch (err) {
         typing.remove();
@@ -309,12 +371,22 @@
       }
     }
 
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
     sendBtn.addEventListener('click', send);
 
     clearBtn.addEventListener('click', function () {
       chatHistory = [];
-      try { localStorage.removeItem(HISTORY_KEY); } catch(e) {}
-      messagesEl.innerHTML = '<div class="bubble bot">👋 Hi！請描述你想要的 workflow，例如：<br><br><em>「每天早上 9 點發一封提醒信給我」</em><br><em>「當 Webhook 收到 POST 請求時，把資料存到 Google Sheets」</em></div>';
+      try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+      try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+      messagesEl.innerHTML =
+        '<div class="bubble bot">👋 在此描述要對 <strong>目前開啟的 workflow</strong> 做的變更（會自動從網址帶入 workflow id）。<br><br>範例：<em>「把 Slack 節點改成發到 #general」</em>、<em>「在 HTTP Request 後面加一個 Set」</em>、<em>「刪掉用不到的 Code 節點」</em><br><br><label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="quick-mode" />快速模式（只做從零生成，不跑意圖分解與編輯 agents）</label></div>';
     });
 
     inputEl.addEventListener('keydown', function (e) {
@@ -323,14 +395,6 @@
         send();
       }
     });
-
-    function escHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    }
 
     // Restore history on load (survives iframe recreation)
     restoreHistory();

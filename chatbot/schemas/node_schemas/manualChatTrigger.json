@@ -1,0 +1,24 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.manualChatTrigger",
+  "displayName": "Manual Chat Trigger",
+  "description": "Runs the flow on new manual chat message",
+  "properties": [
+    {
+      "displayName": "This node is where a manual chat workflow execution starts. To make one, go back to the canvas and click ‘Chat’",
+      "name": "notice",
+      "type": "notice",
+      "default": ""
+    },
+    {
+      "displayName": "Chat and execute workflow",
+      "name": "openChat",
+      "type": "button",
+      "typeOptions": {
+        "buttonConfig": {
+          "action": "openChat"
+        }
+      },
+      "default": ""
+    }
+  ]
+}

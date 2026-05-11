@@ -1,0 +1,39 @@
+{
+  "name": "n8n-nodes-base.splitInBatches",
+  "displayName": "Split In Batches",
+  "description": "Split data into batches and iterate over each batch",
+  "properties": [
+    {
+      "displayName": "You may not need this node — n8n nodes automatically run once for each input item. <a href=\"https://docs.n8n.io/getting-started/key-concepts/looping.html#using-loops-in-n8n\" target=\"_blank\">More info</a>",
+      "name": "splitInBatchesNotice",
+      "type": "notice",
+      "default": ""
+    },
+    {
+      "displayName": "Batch Size",
+      "name": "batchSize",
+      "type": "number",
+      "typeOptions": {
+        "minValue": 1
+      },
+      "default": 10,
+      "description": "The number of items to return with each call"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "placeholder": "Add option",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Reset",
+          "name": "reset",
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the node will be reset and so with the current input-data newly initialized"
+        }
+      ]
+    }
+  ]
+}

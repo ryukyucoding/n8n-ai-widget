@@ -1,0 +1,26 @@
+{
+  "name": "n8n-nodes-base.executeCommand",
+  "displayName": "Execute Command",
+  "description": "Executes a command on the host",
+  "properties": [
+    {
+      "displayName": "Execute Once",
+      "name": "executeOnce",
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to execute only once instead of once for each entry"
+    },
+    {
+      "displayName": "Command",
+      "name": "command",
+      "typeOptions": {
+        "rows": 5
+      },
+      "type": "string",
+      "default": "",
+      "placeholder": "echo \"test\"",
+      "description": "The command to execute",
+      "required": true
+    }
+  ]
+}

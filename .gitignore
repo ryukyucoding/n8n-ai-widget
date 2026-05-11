@@ -2,3 +2,5 @@
 .DS_Store
 node_modules/
 chatbot/node_modules/
+**/__pycache__/
+*.pyc

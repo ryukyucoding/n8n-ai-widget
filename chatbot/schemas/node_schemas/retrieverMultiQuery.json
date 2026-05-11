@@ -1,0 +1,27 @@
+{
+  "name": "@n8n/n8n-nodes-langchain.retrieverMultiQuery",
+  "displayName": "MultiQuery Retriever",
+  "description": "Automates prompt tuning, generates diverse queries and expands document pool for enhanced retrieval.",
+  "properties": [
+    {
+      "displayName": "Options",
+      "name": "options",
+      "placeholder": "Add Option",
+      "description": "Additional options to add",
+      "type": "collection",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Query Count",
+          "name": "queryCount",
+          "default": 3,
+          "typeOptions": {
+            "minValue": 1
+          },
+          "description": "Number of different versions of the given question to generate",
+          "type": "number"
+        }
+      ]
+    }
+  ]
+}

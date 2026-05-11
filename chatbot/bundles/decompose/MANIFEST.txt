@@ -1,0 +1,11 @@
+n8n-decompose-v2-bundle（自 n8n-decompose-task 整理）
+
+檔案清單：
+  decompose_pipeline/decompose_v2.py     — v2 主程式（與 n8n-decompose-task/decompose_v2.py 同內容）
+  requirements.txt   — 執行依賴
+  README.md          — 使用說明與與 v1 差異
+  ARCHITECTURE.md    — v2 行為與流程說明
+  MANIFEST.txt       — 本清單
+
+未包含（屬 v1 或整包評測用）：
+  decompose.py, eval.py, test_examples.py, generate_test_data.py, test_data/
