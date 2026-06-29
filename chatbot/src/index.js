@@ -16,7 +16,7 @@ const cors = require('cors');
 const path = require('path');
 const { Agent } = require('undici');
 const OpenAI = require('openai');
-const { processAgentMessage } = require('./n8nAgent');
+const { processAgentMessage, verifyN8nApiKey } = require('./n8nAgent');
 const { normalizeN8nBaseUrl, sanitizeProxyEnv } = require('./normalizeN8nBaseUrl');
 
 // HTTP(S)_PROXY with unbracketed IPv6 breaks Node fetch before the request URL is used.
@@ -63,11 +63,13 @@ app.use(express.json({ limit: '12mb' }));
 // Serve the browser-side widget script (injected into n8n via EXTERNAL_FRONTEND_HOOKS_URLS)
 app.get('/widget.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'widget.js'));
 });
 
 // Serve the chat UI inside the iframe
 app.get('/chat', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'chat.html'));
 });
 
@@ -235,7 +237,7 @@ app.post('/generate', async (req, res) => {
 
     const created = await n8nRes.json();
     return res.json({
-      message: `Workflow "${created.name}" created successfully!`,
+      message: `好的，已為你建立 workflow「${created.name}」。`,
       workflowId: created.id,
       workflowName: created.name,
       workflowUrl: `http://localhost:5678/workflow/${created.id}`,
@@ -258,4 +260,22 @@ app.post('/generate', async (req, res) => {
 app.listen(port, () => {
   console.log(`n8n AI widget server running on http://localhost:${port}`);
   console.log(`n8n API base: ${N8N_BASE_URL}`);
+  void verifyN8nApiKey(N8N_BASE_URL, N8N_API_KEY).then((check) => {
+    if (!N8N_API_KEY) {
+      console.warn('[chatbot] N8N_API_KEY 未設定 — agent 無法讀寫 workflow');
+      return;
+    }
+    if (check.ok) {
+      console.log('[chatbot] N8N_API_KEY verified');
+      return;
+    }
+    if (check.reason === 'unauthorized') {
+      console.error(
+        '[chatbot] N8N_API_KEY 無效（401）。請在 n8n → Settings → n8n API 建立新 key，' +
+          '更新 .env 後執行：docker compose --env-file .env up -d --force-recreate chatbot'
+      );
+      return;
+    }
+    console.warn('[chatbot] N8N_API_KEY check failed:', check);
+  });
 });

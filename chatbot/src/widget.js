@@ -3,6 +3,231 @@
   'use strict';
 
   var CHAT_BASE = 'http://localhost:3001';
+  var MSG_TYPE = 'n8n-ai-widget';
+  var n8nHookStore = null;
+
+  function chatOrigin() {
+    try {
+      return new URL(CHAT_BASE).origin;
+    } catch (e) {
+      return CHAT_BASE.replace(/\/$/, '');
+    }
+  }
+
+  function captureN8nStore(store) {
+    if (store) n8nHookStore = store;
+  }
+
+  function getPinia() {
+    var el = document.getElementById('app');
+    var app = el && el.__vue_app__;
+    if (!app) return null;
+    var pinia = app.config.globalProperties.$pinia;
+    if (pinia) return pinia;
+    var provides = app._context && app._context.provides;
+    if (!provides) return null;
+    for (var key in provides) {
+      if (provides[key] && provides[key]._s) return provides[key];
+    }
+    return null;
+  }
+
+  function getPiniaStore(name) {
+    var pinia = getPinia();
+    if (!pinia || !pinia._s || !pinia._s.has(name)) return null;
+    return pinia._s.get(name);
+  }
+
+  function getN8nStore() {
+    return n8nHookStore || getPiniaStore('webhooks');
+  }
+
+  function getVueRouter() {
+    var el = document.getElementById('app');
+    var app = el && el.__vue_app__;
+    return (app && app.config.globalProperties.$router) || null;
+  }
+
+  function workflowDocumentStoreId(workflowId) {
+    return 'workflowDocuments/' + workflowId + '@latest';
+  }
+
+  function ensureExternalHooks() {
+    if (!window.n8nExternalHooks) window.n8nExternalHooks = {};
+
+    function registerHook(path, fn) {
+      var parts = path.split('.');
+      var root = window.n8nExternalHooks;
+      for (var i = 0; i < parts.length - 1; i++) {
+        if (!root[parts[i]]) root[parts[i]] = {};
+        root = root[parts[i]];
+      }
+      var leaf = parts[parts.length - 1];
+      if (!root[leaf]) root[leaf] = [];
+      var hooks = root[leaf];
+      for (var j = 0; j < hooks.length; j++) {
+        if (hooks[j] && hooks[j].__n8nAiWidget) return;
+      }
+      fn.__n8nAiWidget = true;
+      hooks.push(fn);
+    }
+
+    registerHook('nodeView.mount', function (store) {
+      captureN8nStore(store);
+    });
+    registerHook('workflow.open', function (store) {
+      captureN8nStore(store);
+    });
+  }
+
+  function resolveDocumentStore(store, workflowId) {
+    if (store) {
+      var doc = store.workflowDocumentStore;
+      if (doc && typeof doc.hydrate === 'function') return doc;
+      if (doc && doc.value && typeof doc.value.hydrate === 'function') return doc.value;
+    }
+    return getPiniaStore(workflowDocumentStoreId(workflowId));
+  }
+
+  function readStoreWorkflowId(store) {
+    if (!store) return '';
+    var openId = store.workflowId;
+    if (typeof openId === 'object' && openId && openId.value !== undefined) openId = openId.value;
+    if (!openId && store.workflow) {
+      openId = store.workflow.id;
+      if (typeof openId === 'object' && openId && openId.value !== undefined) openId = openId.value;
+    }
+    return openId ? String(openId) : '';
+  }
+
+  function restContextFromStore(store) {
+    var ctx = store && store.restApiContext;
+    if (ctx && ctx.baseUrl) return ctx;
+    var baseUrl = store && (store.restUrl || store.baseUrl);
+    if (typeof baseUrl === 'object' && baseUrl && baseUrl.value) baseUrl = baseUrl.value;
+    var pushRef = store && store.pushRef;
+    if (typeof pushRef === 'object' && pushRef && pushRef.value) pushRef = pushRef.value;
+    if (baseUrl) return { baseUrl: baseUrl, pushRef: pushRef || '' };
+    return { baseUrl: window.location.origin + '/rest', pushRef: pushRef || '' };
+  }
+
+  function fetchWorkflowFromSession(store, workflowId) {
+    var ctx = restContextFromStore(store);
+    var url = String(ctx.baseUrl).replace(/\/$/, '') + '/workflows/' + encodeURIComponent(workflowId);
+    var headers = { Accept: 'application/json' };
+    if (ctx.pushRef) headers['push-ref'] = ctx.pushRef;
+    return fetch(url, { credentials: 'include', headers: headers }).then(function (r) {
+      if (!r.ok) throw new Error('GET /rest/workflows/' + workflowId + ' ' + r.status);
+      return r.json();
+    }).then(function (body) {
+      return body && body.data !== undefined ? body.data : body;
+    });
+  }
+
+  function loadWorkflowForRefresh(store, workflowId) {
+    var listStore = getPiniaStore('workflowsList');
+    if (listStore && typeof listStore.fetchWorkflow === 'function') {
+      return Promise.resolve(listStore.fetchWorkflow(String(workflowId)));
+    }
+    return fetchWorkflowFromSession(store, workflowId);
+  }
+
+  function applyHydrateRefresh(store, wf) {
+    var listStore = getPiniaStore('workflowsList');
+    if (listStore && typeof listStore.addWorkflow === 'function') listStore.addWorkflow(wf);
+    if (store && typeof store.setWorkflowId === 'function') store.setWorkflowId(wf.id);
+
+    var docStore = resolveDocumentStore(store, wf.id);
+    if (!docStore || typeof docStore.hydrate !== 'function') {
+      throw new Error('workflowDocumentStore unavailable');
+    }
+    docStore.hydrate(wf);
+    if (store && typeof store.markStateClean === 'function') store.markStateClean();
+  }
+
+  function routerSoftReloadWorkflow(workflowId) {
+    var router = getVueRouter();
+    if (!router) {
+      return Promise.resolve({ ok: false, reason: 'no_router' });
+    }
+    var target = '/workflow/' + encodeURIComponent(String(workflowId));
+    return router.push('/home/workflows').then(function () {
+      return router.push(target);
+    }).then(function () {
+      return { ok: true, method: 'router' };
+    }).catch(function (err) {
+      console.error('[n8n-ai-widget] Router refresh failed:', err);
+      return { ok: false, reason: 'router_error', error: err && err.message ? err.message : String(err) };
+    });
+  }
+
+  function refreshN8nCanvas(payload) {
+    var workflowId = payload && (payload.workflowId || payload.id);
+    if (!workflowId) {
+      return Promise.resolve({ ok: false, reason: 'no_id' });
+    }
+
+    var store = getN8nStore();
+    var openId = readStoreWorkflowId(store);
+    if (openId && openId !== String(workflowId)) {
+      return routerSoftReloadWorkflow(workflowId);
+    }
+
+    return loadWorkflowForRefresh(store, workflowId).then(function (wf) {
+      if (!wf || !Array.isArray(wf.nodes)) {
+        throw new Error('Invalid workflow payload');
+      }
+      if (!wf.id) wf.id = workflowId;
+      try {
+        applyHydrateRefresh(store, wf);
+        return { ok: true, method: 'hydrate' };
+      } catch (hydrateErr) {
+        console.warn('[n8n-ai-widget] hydrate refresh failed, trying router fallback:', hydrateErr);
+        return routerSoftReloadWorkflow(workflowId);
+      }
+    }).catch(function (err) {
+      console.warn('[n8n-ai-widget] fetch refresh failed, trying router fallback:', err);
+      return routerSoftReloadWorkflow(workflowId).then(function (routerResult) {
+        if (routerResult.ok) return routerResult;
+        return {
+          ok: false,
+          reason: 'error',
+          error: err && err.message ? err.message : String(err),
+        };
+      });
+    });
+  }
+
+  function notifyChatIframe(payload) {
+    var iframe = document.getElementById('n8n-ai-widget-panel');
+    if (!iframe || !iframe.contentWindow) return;
+    try {
+      iframe.contentWindow.postMessage(payload, chatOrigin());
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function onWidgetMessage(event) {
+    if (!event || !event.data || typeof event.data !== 'object') return;
+    if (event.data.type !== MSG_TYPE) return;
+    if (event.origin !== chatOrigin()) return;
+    if (event.data.action === 'refreshCanvas') {
+      refreshN8nCanvas(event.data.payload || {}).then(function (result) {
+        notifyChatIframe({
+          type: MSG_TYPE,
+          action: 'refreshCanvasResult',
+          requestId: event.data.requestId,
+          ok: !!result.ok,
+          reason: result.reason,
+          method: result.method,
+        });
+      });
+    }
+  }
+
+  ensureExternalHooks();
+  window.addEventListener('message', onWidgetMessage);
 
   function workflowIdFromN8nPath() {
     var m = window.location.pathname.match(/\/workflow\/([^/?#]+)/);

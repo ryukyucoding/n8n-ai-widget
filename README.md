@@ -163,3 +163,16 @@ n8n-ai-widget/
         └── chat.html      # Chat UI inside iframe
 ```
 
+Test:
+
+Delete:
+Delete the node "Transcribe Audio"
+
+Modify:
+Change the "Telegram" node's operation to "Send Document".
+
+Insert:
+Insert a tool node in "Jackie, AI Assistant" node, I want the ai node to have a google sheet tool to get a sheet called "記帳2026".
+
+Complex: 
+Change the "Transcribe Audio" node's operation to "Transcribe a Recording" and delete the google sheet tool node that attach to "Jackie, AI Assistant" node.

@@ -93,7 +93,28 @@ function getOrCreateSession(sessionId) {
   return { id, session: sessions.get(id) };
 }
 
+function formatN8nApiError(status, bodyText, operation) {
+  const detail = (bodyText || '').trim();
+  if (status === 401) {
+    return (
+      'n8n API 認證失敗（401）。`.env` 的 N8N_API_KEY 與目前 n8n 實例不符（常見於重設 n8n 或重新建立 Owner 帳號後）。' +
+      '請到 n8n → Settings → n8n API 建立新 key，更新 .env 後執行：' +
+      'docker compose --env-file .env up -d --force-recreate chatbot'
+    );
+  }
+  if (status === 403) {
+    return (
+      `n8n ${operation} 403：此 API key 無權存取該 workflow。` +
+      (detail ? ` (${detail})` : '')
+    );
+  }
+  return `n8n ${operation} ${status}${detail ? `: ${detail}` : ''}`;
+}
+
 async function fetchWorkflowFromN8n(workflowId, baseUrl, apiKey) {
+  if (!apiKey) {
+    throw new Error('N8N_API_KEY 未設定，無法讀取 workflow。');
+  }
   const r = await fetchWithRetry(`${baseUrl}/api/v1/workflows/${workflowId}`, {
     headers: {
       'X-N8N-API-KEY': apiKey,
@@ -103,12 +124,15 @@ async function fetchWorkflowFromN8n(workflowId, baseUrl, apiKey) {
   }, 1);
   if (!r.ok) {
     const t = await r.text();
-    throw new Error(`n8n GET workflow ${r.status}: ${t}`);
+    throw new Error(formatN8nApiError(r.status, t, 'GET workflow'));
   }
   return r.json();
 }
 
 async function putWorkflowToN8(workflowId, fullDocument, baseUrl, apiKey) {
+  if (!apiKey) {
+    throw new Error('N8N_API_KEY 未設定，無法寫回 workflow。');
+  }
   const r = await fetchWithRetry(`${baseUrl}/api/v1/workflows/${workflowId}`, {
     method: 'PUT',
     headers: {
@@ -121,9 +145,34 @@ async function putWorkflowToN8(workflowId, fullDocument, baseUrl, apiKey) {
   }, 2);
   if (!r.ok) {
     const t = await r.text();
-    throw new Error(`n8n PUT workflow ${r.status}: ${t}`);
+    throw new Error(formatN8nApiError(r.status, t, 'PUT workflow'));
   }
   return r.json();
+}
+
+async function verifyN8nApiKey(baseUrl, apiKey) {
+  if (!apiKey) {
+    return { ok: false, reason: 'missing' };
+  }
+  try {
+    const r = await fetchWithRetry(`${baseUrl}/api/v1/workflows?limit=1`, {
+      headers: {
+        'X-N8N-API-KEY': apiKey,
+        Connection: 'close',
+      },
+      dispatcher: DIRECT_FETCH,
+    }, 0);
+    if (r.status === 401) {
+      return { ok: false, reason: 'unauthorized' };
+    }
+    if (!r.ok) {
+      const t = await r.text();
+      return { ok: false, reason: 'http', status: r.status, detail: t.slice(0, 200) };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: 'network', detail: err.message || String(err) };
+  }
 }
 
 const SYSTEM_PROMPT_CREATE = `You are an expert n8n workflow builder.
@@ -529,6 +578,97 @@ function extractCandidates(result) {
     .filter(Boolean);
 }
 
+function ensureSentence(text) {
+  const s = String(text || '').trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  if (/[。．.!?！？]$/.test(s)) return s;
+  return `${s}。`;
+}
+
+function nodeDisplayName(node) {
+  if (!node) return '節點';
+  return node.name || node.type || '節點';
+}
+
+function summarizeWorkflowDiff(before, after) {
+  const beforeNodes = Array.isArray(before?.nodes) ? before.nodes : [];
+  const afterNodes = Array.isArray(after?.nodes) ? after.nodes : [];
+  const beforeByName = new Map(beforeNodes.map((n) => [n.name, n]));
+  const afterByName = new Map(afterNodes.map((n) => [n.name, n]));
+
+  const added = [];
+  const removed = [];
+  const modified = [];
+
+  for (const node of afterNodes) {
+    if (!node?.name || !beforeByName.has(node.name)) added.push(node);
+  }
+  for (const node of beforeNodes) {
+    if (node?.name && !afterByName.has(node.name)) removed.push(node.name);
+  }
+  for (const node of afterNodes) {
+    if (!node?.name) continue;
+    const prev = beforeByName.get(node.name);
+    if (!prev) continue;
+    const prevJson = JSON.stringify({
+      parameters: prev.parameters,
+      type: prev.type,
+      typeVersion: prev.typeVersion,
+      disabled: prev.disabled,
+    });
+    const nextJson = JSON.stringify({
+      parameters: node.parameters,
+      type: node.type,
+      typeVersion: node.typeVersion,
+      disabled: node.disabled,
+    });
+    if (prevJson !== nextJson) modified.push(node);
+  }
+
+  return { added, removed, modified };
+}
+
+function buildDiffFallbackMessage(diff) {
+  const parts = [];
+  if (diff.added.length) {
+    parts.push(`新增了 ${diff.added.map(nodeDisplayName).join('、')} 節點`);
+  }
+  if (diff.removed.length) {
+    parts.push(`移除了 ${diff.removed.join('、')} 節點`);
+  }
+  if (diff.modified.length) {
+    parts.push(`更新了 ${diff.modified.map(nodeDisplayName).join('、')} 的設定`);
+  }
+  if (!parts.length) return '已依照你的指示更新 workflow';
+  return parts.join('，');
+}
+
+function buildCompletionMessage(session, snapshot, working) {
+  const tasks = (session.tasks || []).filter((t) => {
+    const op = (t.operation || '').toLowerCase();
+    return op === 'modify' || op === 'delete' || op === 'insert';
+  });
+  const diff = summarizeWorkflowDiff(snapshot, working);
+
+  const descriptions = tasks
+    .map((t) => String(t.description || '').trim())
+    .filter(Boolean);
+
+  if (descriptions.length === 1) {
+    return `好的，沒問題！${ensureSentence(descriptions[0])}你可以在畫布上直接看到更新。`;
+  }
+
+  if (descriptions.length > 1) {
+    const body = descriptions
+      .map((d, i) => `${i + 1}. ${ensureSentence(d)}`)
+      .join('\n');
+    return `好的，我依序完成了這些調整：\n\n${body}\n\n你可以在畫布上直接看到更新。`;
+  }
+
+  const summary = buildDiffFallbackMessage(diff);
+  return `好的，沒問題！${ensureSentence(summary)}你可以在畫布上直接看到更新。`;
+}
+
 async function startExecutePhase({ n8nBaseUrl, n8nApiKey, sessionId, session, workflowId, apiKey }) {
   const needsCanvas = session.tasks.some((t) =>
     ['modify', 'delete', 'insert'].includes((t.operation || '').toLowerCase())
@@ -733,24 +873,34 @@ async function advanceTasks({
       session.workingWorkflow
     );
     const saved = await putWorkflowToN8(workflowId, payload, n8nBaseUrl, n8nApiKey);
+    const completionMessage = buildCompletionMessage(
+      session,
+      session.workflowSnapshot,
+      session.workingWorkflow
+    );
     sessions.delete(sessionId);
     return {
       ok: true,
       sessionId,
       action: 'done',
-      message: '所有步驟已完成，workflow 已寫回 n8n。',
+      message: completionMessage,
       workflow: saved,
       workflowUrl: `${process.env.N8N_PUBLIC_URL || 'http://localhost:5678'}/workflow/${saved.id}`,
     };
   }
 
   const finalWf = session.workingWorkflow;
+  const completionMessage = buildCompletionMessage(
+    session,
+    session.workflowSnapshot,
+    finalWf
+  );
   sessions.delete(sessionId);
   return {
     ok: true,
     sessionId,
     action: 'done',
-    message: '處理完成（未寫入 n8n，無 workflow id 或 API key）。',
+    message: completionMessage || '好的，已處理你的請求。',
     workflow: finalWf,
   };
 }
@@ -760,4 +910,5 @@ module.exports = {
   generateCreateWorkflow,
   stripWorkflowPayload,
   getOrCreateSession,
+  verifyN8nApiKey,
 };

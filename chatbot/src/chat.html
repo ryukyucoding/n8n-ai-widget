@@ -207,6 +207,7 @@
     var GENERATE_URL = 'http://localhost:3001/generate';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
+    var WIDGET_MSG_TYPE = 'n8n-ai-widget';
 
     var messagesEl = document.getElementById('messages');
     var inputEl    = document.getElementById('input');
@@ -217,6 +218,76 @@
       var q = new URLSearchParams(window.location.search || '');
       var w = q.get('workflowId');
       return w && String(w).trim() ? String(w).trim() : null;
+    }
+
+    function notifyParentCanvasRefresh(workflow) {
+      return new Promise(function (resolve) {
+        if (!window.parent || window.parent === window || !workflow) {
+          resolve({ ok: false, reason: 'skip' });
+          return;
+        }
+        var id = workflow.id || workflow.workflowId;
+        if (!id) {
+          resolve({ ok: false, reason: 'no_id' });
+          return;
+        }
+        var openId = currentWorkflowId();
+        if (openId && String(openId) !== String(id)) {
+          resolve({ ok: false, reason: 'mismatch' });
+          return;
+        }
+
+        var requestId = 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        var settled = false;
+        var timer = setTimeout(function () {
+          if (settled) return;
+          settled = true;
+          window.removeEventListener('message', onRefreshResult);
+          resolve({ ok: false, reason: 'timeout' });
+        }, 8000);
+
+        function onRefreshResult(event) {
+          if (!event.data || typeof event.data !== 'object') return;
+          if (event.data.type !== WIDGET_MSG_TYPE) return;
+          if (event.data.action !== 'refreshCanvasResult') return;
+          if (event.data.requestId !== requestId) return;
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          window.removeEventListener('message', onRefreshResult);
+          resolve({
+            ok: !!event.data.ok,
+            method: event.data.method,
+            reason: event.data.reason,
+          });
+        }
+
+        window.addEventListener('message', onRefreshResult);
+        try {
+          window.parent.postMessage({
+            type: WIDGET_MSG_TYPE,
+            action: 'refreshCanvas',
+            requestId: requestId,
+            payload: { workflowId: id, workflow: workflow },
+          }, '*');
+        } catch (e) {
+          clearTimeout(timer);
+          window.removeEventListener('message', onRefreshResult);
+          resolve({ ok: false, reason: 'postMessage_failed' });
+        }
+      });
+    }
+
+    function canvasRefreshNote(refreshResult) {
+      if (!refreshResult || refreshResult.ok) return '';
+      if (refreshResult.reason === 'mismatch' || refreshResult.reason === 'skip') return '';
+      return '<br><span style="font-size:12px;opacity:0.75;color:#b45309;">（若畫布沒有更新，請從左側重新點選此 workflow。）</span>';
+    }
+
+    function formatBotReply(message, refreshResult) {
+      var text = escHtml(message || '完成').replace(/\n/g, '<br>');
+      text += canvasRefreshNote(refreshResult);
+      return text;
     }
 
     function loadSessionId() {
@@ -334,33 +405,19 @@
         } else if (data.action === 'done') {
           saveSessionId(null);
           try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
-          var html = '✅ ' + escHtml(data.message || '完成');
-          if (data.workflowUrl) {
-            html += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
-          }
-          if (data.workflow) {
-            html += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
-          }
-          addBubble(html, 'bot');
+          var refreshResult = data.workflow
+            ? await notifyParentCanvasRefresh(data.workflow)
+            : null;
+          addBubble(formatBotReply(data.message, refreshResult), 'bot');
         } else if (useQuick) {
-          var htmlQ = '✅ ' + escHtml(data.message || '');
+          var htmlQ = escHtml(data.message || '已建立 workflow。').replace(/\n/g, '<br>');
           if (data.workflowUrl) {
             htmlQ += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
-          }
-          if (data.workflow) {
-            htmlQ += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
           }
           addBubble(htmlQ, 'bot');
         } else {
           saveSessionId(data.sessionId);
-          var html2 = '✅ ' + escHtml(data.message || '已處理');
-          if (data.workflowUrl) {
-            html2 += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
-          }
-          if (data.workflow) {
-            html2 += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
-          }
-          addBubble(html2, 'bot');
+          addBubble(formatBotReply(data.message || '已處理', null), 'bot');
         }
       } catch (err) {
         typing.remove();

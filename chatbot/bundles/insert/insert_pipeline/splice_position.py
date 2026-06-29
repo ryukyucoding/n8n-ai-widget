@@ -555,3 +555,41 @@ def parse_phase0_splice_json(text: str) -> Optional[JSONDict]:
 def location_is_resolvable_on_template(template: JSONDict, loc: JSONDict) -> bool:
     """True iff ``apply_insert_splice`` will change connections (not append-only orphan)."""
     return splice_location_resolvable(template, loc)
+
+
+def format_graph_digest_for_planner(wf: JSONDict) -> str:
+    """Short graph digest for the insert header planner (paths + branching hints)."""
+    trace = format_main_quick_traces_for_llm(wf)
+    parallel = format_parallel_main_same_group(wf)
+    branch = format_multi_outgoing_main_summary(wf)
+    return trace + "\n" + parallel + "\n" + branch
+
+
+def build_splice_clarification_message(wf: JSONDict, loc: JSONDict) -> str:
+    """
+    User-facing message when splice location cannot be resolved without more detail.
+    """
+    lines: List[str] = [
+        "無法唯一決定新節點要接在哪條 main 連線上，請補充更具體的插入位置。",
+        "",
+        "建議擇一說明：",
+        "- 使用 between「節點A」and「節點B」（兩節點之間已有直接連線）",
+        "- 或 after「節點A」to_existing「節點B」/ before「節點B」from_source「節點A」",
+        "- 若有 IF/Switch 分支，請註明 from_output 是第幾個輸出（見下方 [i] 索引）",
+        "",
+    ]
+    kind = str(loc.get("kind") or "")
+    if kind == "after" and loc.get("after"):
+        lines.append(f"目前解析為 after「{loc.get('after')}」。")
+    elif kind == "before" and loc.get("before"):
+        lines.append(f"目前解析為 before「{loc.get('before')}」。")
+    elif kind == "between" and loc.get("between"):
+        pair = loc.get("between")
+        if isinstance(pair, list) and len(pair) >= 2:
+            lines.append(f"目前解析為 between「{pair[0]}」and「{pair[1]}」。")
+    lines.append("")
+    lines.append(format_main_quick_traces_for_llm(wf))
+    lines.append(format_parallel_main_same_group(wf))
+    lines.append(format_multi_outgoing_main_summary(wf))
+    lines.append(_format_template_main_graph_core(wf).split("IN / OUT MAIN DEGREE")[0])
+    return "\n".join(lines)

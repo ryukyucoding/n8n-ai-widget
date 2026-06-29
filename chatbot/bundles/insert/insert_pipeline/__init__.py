@@ -23,7 +23,9 @@ from .merge import apply_insert_splice, splice_location_resolvable
 from .schema_store import NodeSchemaStore
 from .splice_position import (
     build_phase0_splice_messages,
+    build_splice_clarification_message,
     default_phase0_splice_system_prompt,
+    format_graph_digest_for_planner,
     format_template_main_graph_for_llm,
     location_is_resolvable_on_template,
     parse_phase0_splice_json,
@@ -55,6 +57,8 @@ __all__ = [
     "build_phase0_splice_messages",
     "default_phase0_splice_system_prompt",
     "format_template_main_graph_for_llm",
+    "format_graph_digest_for_planner",
+    "build_splice_clarification_message",
     "location_is_resolvable_on_template",
     "parse_phase0_splice_json",
     "build_neighbor_context",

@@ -37,6 +37,8 @@ Return ONLY JSON:
 
 Rules:
 - Names in quotes MUST exist in the provided name list (copy spelling exactly).
+- Use the WORKFLOW GRAPH DIGEST (MAIN QUICK TRACE, parallel/branching lines) to pick anchors on the intended main path.
+- Prefer between \"A\" and \"B\" when A and B appear consecutively on a MAIN QUICK TRACE line.
 - If the user does not specify position, prefer inserting after the last node in the main data path or after the leftmost trigger.
 - LangChain / AI Agent tools: When the user wants a **tool** that plugs into an **AI Agent** node's Tool port
   (sub-workflow, dashed connection, not a normal left-to-right main canvas edge), you MUST set
@@ -65,6 +67,7 @@ def _plan_insert_header(
     model: str,
     workflow: JSONDict,
     instruction: str,
+    graph_digest: str = "",
 ) -> JSONDict:
     names: List[str] = []
     for n in workflow.get("nodes") or []:
@@ -74,6 +77,7 @@ def _plan_insert_header(
         {
             "user_instruction": instruction,
             "existing_node_names": names,
+            "workflow_graph_digest": graph_digest or "",
         },
         ensure_ascii=False,
     )
@@ -108,11 +112,13 @@ def run_insert_widget(
         build_phase0_splice_messages,
         build_phase1_messages,
         build_phase2_messages,
+        build_splice_clarification_message,
         coerce_to_langchain_tool_node_type,
         deep_merge_parameters,
         default_phase1_system_prompt,
         default_phase2_system_prompt,
         extract_template_workflow,
+        format_graph_digest_for_planner,
         format_template_main_graph_for_llm,
         infer_openai_node_parameters_from_instruction,
         location_is_resolvable_on_template,
@@ -122,6 +128,7 @@ def run_insert_widget(
         parse_phase0_splice_json,
         parse_phase1_json,
         parse_phase2_json,
+        splice_location_resolvable,
     )
     from n8n_type_version_fix import resolve_insert_type_version
 
@@ -130,7 +137,8 @@ def run_insert_widget(
     if dbg:
         _ins_trace("START", f"instruction ({len(instruction)} chars):\n{instruction}")
 
-    plan = _plan_insert_header(client, model, workflow, instruction)
+    graph_digest = format_graph_digest_for_planner(workflow)
+    plan = _plan_insert_header(client, model, workflow, instruction, graph_digest)
     ins_name = str(plan.get("inserted_node_name") or "New node").strip() or "New node"
     tail = str(plan.get("tail_sentence") or "").strip()
     if not tail.lower().startswith(("after ", "before ", "between ")):
@@ -177,14 +185,23 @@ def run_insert_widget(
     )
 
     phase0_probe: JSONDict = {"attempted": False, "accepted": False}
-    if template and isinstance(loc, dict) and str(loc.get("kind") or "") in ("", "unknown"):
+    regex_loc = dict(loc) if isinstance(loc, dict) else {}
+    needs_phase0 = (
+        template
+        and isinstance(loc, dict)
+        and (
+            str(loc.get("kind") or "") in ("", "unknown")
+            or not location_is_resolvable_on_template(template, loc)
+        )
+    )
+    if needs_phase0:
         phase0_probe["attempted"] = True
         graph_txt = format_template_main_graph_for_llm(template)
-        hint = ""
+        regex_hint = json.dumps(regex_loc, ensure_ascii=False) if regex_loc else ""
         p0m = build_phase0_splice_messages(
             instruction_head=pinfo.get("instruction_head") or head,
             graph_text=graph_txt,
-            regex_location_hint=hint,
+            regex_location_hint=regex_hint,
         )
         phase0_raw = _complete_messages(client, model, p0m, max_tokens=900)
         loc_llm = parse_phase0_splice_json(phase0_raw)
@@ -197,6 +214,19 @@ def run_insert_widget(
         if loc_llm and location_is_resolvable_on_template(template, loc_llm):
             loc = loc_llm
             phase0_probe["accepted"] = True
+
+    if template and isinstance(loc, dict) and not splice_location_resolvable(template, loc):
+        clarify_msg = build_splice_clarification_message(template, loc)
+        if dbg:
+            _ins_trace("Splice ambiguous — needs user clarification", clarify_msg)
+        return {
+            "ok": False,
+            "needs_clarification": True,
+            "step": "splice_ambiguous",
+            "message": clarify_msg,
+            "phase0": phase0_probe,
+            "location": loc,
+        }
 
     if not types_list:
         p1m = build_phase1_messages(
@@ -246,6 +276,19 @@ def run_insert_widget(
             )
         if heur_changed and location_is_resolvable_on_template(template, loc_h):
             loc = loc_h
+
+    if template and isinstance(loc, dict) and not splice_location_resolvable(template, loc):
+        clarify_msg = build_splice_clarification_message(template, loc)
+        if dbg:
+            _ins_trace("Splice ambiguous after heuristics — needs clarification", clarify_msg)
+        return {
+            "ok": False,
+            "needs_clarification": True,
+            "step": "splice_ambiguous",
+            "message": clarify_msg,
+            "phase0": phase0_probe,
+            "location": loc,
+        }
 
     if chosen_type.endswith(".openAi") or ".openAi" in chosen_type:
         oa_hints = infer_openai_node_parameters_from_instruction(instruction)
