@@ -2,7 +2,16 @@
 (function () {
   'use strict';
 
-  var CHAT_BASE = 'http://localhost:3001';
+  var CHAT_BASE = (function () {
+    var scripts = document.getElementsByTagName('script');
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].src;
+      if (src && src.indexOf('/widget.js') !== -1) {
+        return src.substring(0, src.indexOf('/widget.js'));
+      }
+    }
+    return 'http://localhost:3001';
+  })();
   var MSG_TYPE = 'n8n-ai-widget';
   var n8nHookStore = null;
 

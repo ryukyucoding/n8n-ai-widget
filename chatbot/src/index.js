@@ -25,7 +25,13 @@ sanitizeProxyEnv();
 const app = express();
 const port = process.env.PORT || 3000;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_BASE_URL || undefined,
+  defaultHeaders: process.env.OLLAMA_BASIC_AUTH ? {
+    'Authorization': process.env.OLLAMA_BASIC_AUTH
+  } : undefined
+});
 const N8N_BASE_URL = normalizeN8nBaseUrl(
   process.env.N8N_BASE_URL || 'http://localhost:5678'
 );
@@ -187,7 +193,7 @@ app.post('/generate', async (req, res) => {
   let workflowJson;
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       max_tokens: 4096,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },

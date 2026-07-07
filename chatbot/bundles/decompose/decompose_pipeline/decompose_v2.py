@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL = "gpt-4o"
+MODEL = os.environ.get("DECOMPOSER_MODEL") or os.environ.get("OPENAI_MODEL") or "gpt-4o"
 
 # ── Prompt ────────────────────────────────────────────────────────────────────
 
@@ -123,7 +123,14 @@ def decompose_widget_turn(
 
     When satisfied, returns ``{"ok": True, "tasks": [{"operation", "description"}, ...]}``.
     """
-    client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
+    base_url = os.environ.get("OPENAI_BASE_URL")
+    basic_auth = os.environ.get("OLLAMA_BASIC_AUTH")
+    headers = {"Authorization": basic_auth} if basic_auth else None
+    client = OpenAI(
+        api_key=api_key or os.environ.get("OPENAI_API_KEY"),
+        base_url=base_url if base_url else None,
+        default_headers=headers,
+    )
     if qa_pairs:
         user_message = _build_enriched_query(user_query, qa_pairs)
     else:
@@ -162,7 +169,14 @@ def decompose_v2(user_query: str, api_key: str | None = None) -> dict:
     Returns:
         {"tasks": [{"operation": "...", "description": "..."}, ...]}
     """
-    client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
+    base_url = os.environ.get("OPENAI_BASE_URL")
+    basic_auth = os.environ.get("OLLAMA_BASIC_AUTH")
+    headers = {"Authorization": basic_auth} if basic_auth else None
+    client = OpenAI(
+        api_key=api_key or os.environ.get("OPENAI_API_KEY"),
+        base_url=base_url if base_url else None,
+        default_headers=headers,
+    )
 
     print("Decomposing query...")
     result = _call_llm(client, user_query)

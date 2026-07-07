@@ -203,8 +203,8 @@
   </div>
 
   <script>
-    var AGENT_URL = 'http://localhost:3001/agent/run';
-    var GENERATE_URL = 'http://localhost:3001/generate';
+    var AGENT_URL = window.location.origin + '/agent/run';
+    var GENERATE_URL = window.location.origin + '/generate';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
     var WIDGET_MSG_TYPE = 'n8n-ai-widget';
