@@ -14,9 +14,13 @@ try {
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { Agent } = require('undici');
+
+const PYTHON = process.env.PYTHON_BIN || 'python3';
+const REPAIR_SCRIPT = path.join(__dirname, '..', 'python', 'workflow_repair.py');
 const OpenAI = require('openai');
-const { processAgentMessage, verifyN8nApiKey } = require('./n8nAgent');
+const { processAgentMessage, verifyN8nApiKey, stripWorkflowPayload } = require('./n8nAgent');
 const { normalizeN8nBaseUrl, sanitizeProxyEnv } = require('./normalizeN8nBaseUrl');
 
 // HTTP(S)_PROXY with unbracketed IPv6 breaks Node fetch before the request URL is used.
@@ -28,6 +32,14 @@ const port = process.env.PORT || 3000;
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.OPENAI_BASE_URL || undefined,
+  defaultHeaders: (process.env.OPENAI_BASE_URL && process.env.OLLAMA_BASIC_AUTH) ? {
+    'Authorization': process.env.OLLAMA_BASIC_AUTH
+  } : undefined
+});
+
+const openaiLocal = new OpenAI({
+  apiKey: 'ollama-key',
+  baseURL: process.env.OLLAMA_BASE_URL || undefined,
   defaultHeaders: process.env.OLLAMA_BASIC_AUTH ? {
     'Authorization': process.env.OLLAMA_BASIC_AUTH
   } : undefined
@@ -189,11 +201,11 @@ app.post('/generate', async (req, res) => {
     return res.status(400).json({ error: 'message is required' });
   }
 
-  // 1. Call Claude
+  // 1. Call Local LLM
   let workflowJson;
   try {
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+    const response = await openaiLocal.chat.completions.create({
+      model: process.env.OLLAMA_MODEL || 'qwen2.5-coder-32b-ft-original:latest',
       max_tokens: 4096,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -203,13 +215,30 @@ app.post('/generate', async (req, res) => {
 
     const raw = response.choices[0]?.message?.content ?? '';
 
-    // Strip markdown code fences if Claude adds them despite instructions
-    const jsonText = raw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/, '')
-      .trim();
+    // 1.5. Spawn Python post-inference validation & repair pipeline
+    const repairRes = spawnSync(PYTHON, [REPAIR_SCRIPT], {
+      input: JSON.stringify({
+        raw_output: raw,
+        n8n_url: N8N_BASE_URL,
+        api_key: N8N_API_KEY
+      }),
+      encoding: 'utf-8',
+      env: { ...process.env, PYTHONUTF8: '1' }
+    });
 
-    workflowJson = JSON.parse(jsonText);
+    if (repairRes.error) {
+      throw repairRes.error;
+    }
+    if (repairRes.status !== 0) {
+      throw new Error((repairRes.stderr || repairRes.stdout || '').trim() || `workflow_repair exited ${repairRes.status}`);
+    }
+
+    const repairOut = JSON.parse((repairRes.stdout || '').trim());
+    if (!repairOut.ok) {
+      throw new Error(repairOut.error || 'Failed to repair workflow JSON');
+    }
+
+    workflowJson = repairOut.workflow;
   } catch (err) {
     console.error('Claude error:', err);
     return res.status(500).json({ error: `AI generation failed: ${err.message}` });
@@ -225,6 +254,7 @@ app.post('/generate', async (req, res) => {
   }
 
   try {
+    const cleanedWf = stripWorkflowPayload(workflowJson);
     const n8nRes = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows`, {
       method: 'POST',
       headers: {
@@ -232,7 +262,7 @@ app.post('/generate', async (req, res) => {
         'X-N8N-API-KEY': N8N_API_KEY,
         Connection: 'close',
       },
-      body: JSON.stringify(workflowJson),
+      body: JSON.stringify(cleanedWf),
       dispatcher: DIRECT_FETCH,
     }, 2);
 
@@ -246,7 +276,7 @@ app.post('/generate', async (req, res) => {
       message: `好的，已為你建立 workflow「${created.name}」。`,
       workflowId: created.id,
       workflowName: created.name,
-      workflowUrl: `http://localhost:5678/workflow/${created.id}`,
+      workflowUrl: `${process.env.N8N_PUBLIC_URL || 'http://localhost:5678'}/workflow/${created.id}`,
       workflow: created,
     });
   } catch (err) {

@@ -99,7 +99,7 @@ def cmd_modify(payload: JSONDict) -> JSONDict:
             confirmed = None
 
     basic_auth = os.environ.get("OLLAMA_BASIC_AUTH")
-    headers = {"Authorization": basic_auth} if basic_auth else None
+    headers = {"Authorization": basic_auth} if (base_url and basic_auth) else None
     cfg = TwoPhaseConfig(
         model=model,
         api_key=api_key,
@@ -141,7 +141,7 @@ def cmd_delete(payload: JSONDict) -> JSONDict:
     from delete_pipeline.pipeline import run_deletion
 
     basic_auth = os.environ.get("OLLAMA_BASIC_AUTH")
-    headers = {"Authorization": basic_auth} if basic_auth else None
+    headers = {"Authorization": basic_auth} if (base_url and basic_auth) else None
     cfg = TwoPhaseConfig(
         model=model,
         api_key=api_key,
@@ -175,7 +175,7 @@ def cmd_insert(payload: JSONDict) -> JSONDict:
         return {"ok": False, "error": "OPENAI_API_KEY missing"}
     base_url = payload.get("base_url") or os.environ.get("OPENAI_BASE_URL") or None
     basic_auth = os.environ.get("OLLAMA_BASIC_AUTH")
-    headers = {"Authorization": basic_auth} if basic_auth else None
+    headers = {"Authorization": basic_auth} if (base_url and basic_auth) else None
     out = run_insert_widget(
         wf,
         instruction,

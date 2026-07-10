@@ -570,12 +570,11 @@ def build_splice_clarification_message(wf: JSONDict, loc: JSONDict) -> str:
     User-facing message when splice location cannot be resolved without more detail.
     """
     lines: List[str] = [
-        "無法唯一決定新節點要接在哪條 main 連線上，請補充更具體的插入位置。",
+        "無法唯一決定新節點要接在哪條連線上，請補充更具體的插入位置。",
         "",
         "建議擇一說明：",
         "- 使用 between「節點A」and「節點B」（兩節點之間已有直接連線）",
-        "- 或 after「節點A」to_existing「節點B」/ before「節點B」from_source「節點A」",
-        "- 若有 IF/Switch 分支，請註明 from_output 是第幾個輸出（見下方 [i] 索引）",
+        "- 或 after「節點A」/ before「節點B」",
         "",
     ]
     kind = str(loc.get("kind") or "")
@@ -588,8 +587,16 @@ def build_splice_clarification_message(wf: JSONDict, loc: JSONDict) -> str:
         if isinstance(pair, list) and len(pair) >= 2:
             lines.append(f"目前解析為 between「{pair[0]}」and「{pair[1]}」。")
     lines.append("")
-    lines.append(format_main_quick_traces_for_llm(wf))
-    lines.append(format_parallel_main_same_group(wf))
-    lines.append(format_multi_outgoing_main_summary(wf))
-    lines.append(_format_template_main_graph_core(wf).split("IN / OUT MAIN DEGREE")[0])
+
+    nodes = wf.get("nodes") if isinstance(wf.get("nodes"), list) else []
+    node_names = []
+    for n in nodes:
+        if isinstance(n, dict) and n.get("name"):
+            node_names.append(str(n["name"]))
+
+    if node_names:
+        lines.append("目前畫布上的所有節點名稱（供對照）：")
+        for name in sorted(node_names):
+            lines.append(f"- {name}")
+
     return "\n".join(lines)
