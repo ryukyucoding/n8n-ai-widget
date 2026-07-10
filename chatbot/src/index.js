@@ -184,16 +184,69 @@ Common node types and their typeVersion:
 - n8n-nodes-base.if (typeVersion 2.2) — parameters: { "conditions": { "options": { "caseSensitive": true }, "conditions": [{ "leftValue": "={{ $json.field }}", "rightValue": "expected", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" } }
 - n8n-nodes-base.code (typeVersion 2) — parameters: { "jsCode": "return items;" }
 - n8n-nodes-base.noOp (typeVersion 1) — no parameters, use as placeholder
+- @n8n/n8n-nodes-langchain.agent (typeVersion 2) — AI Agent that consumes AI language models and tools
 - @n8n/n8n-nodes-langchain.lmChatOpenAi (typeVersion 1) — LLM node for AI chains
+- n8n-nodes-base.googleSheetsTool (typeVersion 4.7) — Google Sheets tool for AI Agents
 - @n8n/n8n-nodes-langchain.chainLlm (typeVersion 1.5) — basic LLM chain
 
 Position nodes left-to-right, starting at [240, 300], each subsequent node +220 on the x axis.
 
 Rules:
 1. Every workflow must start with a trigger node (manualTrigger, scheduleTrigger, or webhook).
-2. Node "id" values must be unique within the workflow.
-3. "connections" keys are the source node's "name" field.
-4. Return ONLY the JSON — no explanation, no markdown.`;
+2. Build the smallest workflow that satisfies the user's request. Do not add nodes, credentials, HTTP calls, email steps, sticky notes, schedules, or explanations unless the user explicitly asks for them.
+3. Every node MUST include a non-empty, unique "name". Node "id" values must also be unique.
+4. Every connection source key and every connection "node" target MUST exactly match an existing node "name". Never reference a node that is not in "nodes".
+5. Each connection output MUST use a two-dimensional array: "main": [[{ "node": "Target", "type": "main", "index": 0 }]]. Do not use a flat array of connection objects.
+6. For an AI Agent, connect the LLM node to the agent with "ai_languageModel", and connect each tool node to the agent with "ai_tool". The connection "type" must match its output key.
+7. Do not include JavaScript comments, trailing commas, placeholder nodes, or explanatory text in the JSON.
+8. Return ONLY the JSON — no explanation, no markdown.`;
+
+const MAX_WORKFLOW_GENERATION_ATTEMPTS = 2;
+
+function repairWorkflowOutput(raw) {
+  const repairRes = spawnSync(PYTHON, [REPAIR_SCRIPT], {
+    input: JSON.stringify({
+      raw_output: raw,
+      n8n_url: N8N_BASE_URL,
+      api_key: N8N_API_KEY,
+    }),
+    encoding: 'utf-8',
+    env: { ...process.env, PYTHONUTF8: '1' },
+  });
+
+  if (repairRes.error) {
+    throw repairRes.error;
+  }
+
+  const output = (repairRes.stdout || '').trim();
+  let repairOut;
+  try {
+    repairOut = JSON.parse(output);
+  } catch (_) {
+    throw new Error(
+      (repairRes.stderr || output || `workflow_repair exited ${repairRes.status}`).trim()
+    );
+  }
+
+  if (!repairOut.ok) {
+    throw new Error(repairOut.error || 'Workflow validation failed');
+  }
+  if (repairRes.status !== 0) {
+    throw new Error(`workflow_repair exited ${repairRes.status}`);
+  }
+
+  return repairOut.workflow;
+}
+
+function buildRegenerationInstruction(validationError) {
+  return `Your previous workflow JSON was rejected by deterministic validation.
+Generate a fresh, smaller COMPLETE workflow from the original user request. Do not reuse, quote, or patch the previous answer.
+
+Validation errors:
+${validationError}
+
+Before responding, verify every array item in "nodes" is a JSON object with id, name, type, typeVersion, position, and parameters. Put all node configuration inside "parameters". Use only nodes required by the user. Every type must be a real n8n node type, and every connection must reference an existing node. For conditional branches, use "main": [[...], [...]], never trueBranch or falseBranch. Do not emit comments, trailing commas, or escaped text outside JSON strings. Return raw JSON only.`;
+}
 
 app.post('/generate', async (req, res) => {
   const { message } = req.body;
@@ -203,44 +256,42 @@ app.post('/generate', async (req, res) => {
 
   // 1. Call Local LLM
   let workflowJson;
+  let raw = '';
   try {
-    const response = await openaiLocal.chat.completions.create({
-      model: process.env.OLLAMA_MODEL || 'qwen2.5-coder-32b-ft-original:latest',
-      max_tokens: 4096,
-      messages: [
+    let validationError = '';
+    for (let attempt = 0; attempt < MAX_WORKFLOW_GENERATION_ATTEMPTS; attempt += 1) {
+      const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: message.trim() },
-      ],
-    });
+      ];
+      if (attempt > 0) {
+        messages.push({ role: 'user', content: buildRegenerationInstruction(validationError) });
+      }
 
-    const raw = response.choices[0]?.message?.content ?? '';
+      const response = await openaiLocal.chat.completions.create({
+        model: process.env.OLLAMA_MODEL || 'qwen2.5-coder-32b-ft-original:latest',
+        max_tokens: 4096,
+        // JSON mode prevents comments, markdown, and other non-JSON tokens.
+        response_format: { type: 'json_object' },
+        temperature: Number.parseFloat(process.env.OLLAMA_TEMPERATURE || '0') || 0,
+        messages,
+      });
 
-    // 1.5. Spawn Python post-inference validation & repair pipeline
-    const repairRes = spawnSync(PYTHON, [REPAIR_SCRIPT], {
-      input: JSON.stringify({
-        raw_output: raw,
-        n8n_url: N8N_BASE_URL,
-        api_key: N8N_API_KEY
-      }),
-      encoding: 'utf-8',
-      env: { ...process.env, PYTHONUTF8: '1' }
-    });
-
-    if (repairRes.error) {
-      throw repairRes.error;
+      raw = response.choices[0]?.message?.content ?? '';
+      try {
+        workflowJson = repairWorkflowOutput(raw);
+        break;
+      } catch (validationErr) {
+        validationError = validationErr.message || String(validationErr);
+        if (attempt + 1 >= MAX_WORKFLOW_GENERATION_ATTEMPTS) {
+          throw validationErr;
+        }
+        console.warn('[chatbot] workflow validation failed; requesting one regeneration:', validationError);
+      }
     }
-    if (repairRes.status !== 0) {
-      throw new Error((repairRes.stderr || repairRes.stdout || '').trim() || `workflow_repair exited ${repairRes.status}`);
-    }
-
-    const repairOut = JSON.parse((repairRes.stdout || '').trim());
-    if (!repairOut.ok) {
-      throw new Error(repairOut.error || 'Failed to repair workflow JSON');
-    }
-
-    workflowJson = repairOut.workflow;
   } catch (err) {
     console.error('Claude error:', err);
+    console.error('Raw LLM output was:', raw);
     return res.status(500).json({ error: `AI generation failed: ${err.message}` });
   }
 
