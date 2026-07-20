@@ -1,0 +1,1 @@
+Insert the node "SE Ranking AI Summarizer" of type "@n8n/n8n-nodes-langchain.informationExtractor" between "SE Ranking AI Request" and "Enrich Data".

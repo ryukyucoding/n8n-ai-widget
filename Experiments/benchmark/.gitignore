@@ -1,0 +1,21 @@
+# Benchmark data — ignore everything except the shareable creation benchmark
+data/**
+!data/creation/
+!data/creation/**
+!data/creation_edit/
+!data/creation_edit/**
+!data/manifest_creation.json
+!data/manifest_creation_edit.json
+
+results/
+.venv/
+node_modules/
+playwright/.auth/
+playwright/**/.auth/
+.env
+*.log
+
+# Personal n8n workflow URLs (regenerate with manual_*_local.mjs prepare)
+run_sheets/*_local.json
+run_sheets/*_local.md
+data/gold_template_refs.json

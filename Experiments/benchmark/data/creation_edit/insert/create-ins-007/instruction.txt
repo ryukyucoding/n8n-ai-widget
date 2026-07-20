@@ -1,0 +1,1 @@
+Insert the node "Read Binary Files" of type "n8n-nodes-base.readBinaryFiles" between "When clicking "Execute Workflow"" and "Split In Batches".

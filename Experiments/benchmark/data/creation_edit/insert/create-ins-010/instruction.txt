@@ -1,0 +1,1 @@
+Insert the node "Download Photos" of type "n8n-nodes-base.googleDrive" between "Photos To List" and "Resize For AI".

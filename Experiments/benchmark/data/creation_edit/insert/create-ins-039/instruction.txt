@@ -1,0 +1,1 @@
+Insert the node "NWS1" of type "n8n-nodes-base.httpRequest" between "NWS" and "Slack".

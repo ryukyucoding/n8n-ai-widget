@@ -1,0 +1,1 @@
+Insert the node "Config - Set Fields" of type "n8n-nodes-base.set" between "Error Trigger" and "Use AI Analysis?".

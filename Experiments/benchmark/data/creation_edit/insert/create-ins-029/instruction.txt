@@ -1,0 +1,1 @@
+Insert the node "Build Workflow Version Links" of type "n8n-nodes-base.set" between "Save Renamed Workflow Version" and "Check Trigger Source Type".

@@ -1,0 +1,28 @@
+請根據以下需求描述，生成一個節點與連線皆無缺失且能成功執行的 n8n workflow JSON。
+
+This workflow allows you to complete the entire process of creating and publishing detailed Instagram Carousels—from research to posting—without ever leaving Slack. It leverages **Nano Banana Pro**, a state-of-the-art image generation model capable of rendering perfect text, to create professional "consultant-style" slides that AI previously struggled with.
+
+## How it works
+1.  **Start in Slack**: You trigger the workflow by entering a topic ensuring the entire process starts in Slack.
+2.  **Research (AI Agent)**: An AI agent searches the web for deep insights on the topic.
+3.  **Drafting (AI Agent)**: Structures research into a carousel format designed for engagement.
+4.  **Review in Slack**: The draft is sent to Slack as a formatted message. You approve it with a single click.
+5.  **Image Generation**: Upon approval, **Nano Banana Pro** generates professional infographic-style images with legible, high-density text.
+6.  **Final Review in Slack**: The created images and caption are sent back to Slack.
+7.  **Publish from Slack**: One final approval in Slack automatically publishes the Carousel to Instagram.
+
+## Setup steps
+1.  **Configure Credentials**:
+    *   **OpenAI API**: Required for the Research and Drafting agents (GPT-4o/GPT-5 recommended).
+    *   **Slack API**: Required for notifications and approval buttons.
+    *   **Kie.ai (Nano Banana Pro)**: Required for high-quality text-in-image generation.
+    *   **Facebook Graph API**: Required for publishing to Instagram.
+2.  **Set IDs**:
+    *   Open the "Slack Approval" nodes and set your `Channel ID`.
+    *   Open the "Instagram" nodes and set your `Instagram Business Account ID`.
+3.  **Customize Prompts (Optional)**: Adjust the system prompts in the AI nodes to match your brand's tone of voice.
+
+## Requirements
+*   **n8n version**: 1.0+ (AI nodes required)
+*   **Kie.ai Account**: For using the Nano Banana Pro model (excellent at rendering text).
+*   **Slack Workspace**: For the Human-in-the-loop approval process.

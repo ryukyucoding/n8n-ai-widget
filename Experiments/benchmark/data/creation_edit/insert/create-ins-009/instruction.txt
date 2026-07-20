@@ -1,0 +1,1 @@
+Insert the node "n8n | Get all executions" of type "n8n-nodes-base.n8n" between "When clicking ‘Test workflow’" and "Convert to CSV".

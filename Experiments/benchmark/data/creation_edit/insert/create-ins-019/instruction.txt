@@ -1,0 +1,1 @@
+Insert the node "Append or update row in sheet" of type "n8n-nodes-base.googleSheets" between "Code in JavaScript" and "Loop Over Items".

@@ -1,0 +1,1 @@
+Insert the node "Assign Training Modules" of type "@n8n/n8n-nodes-langchain.agent" between "Get Employee Data" and "Save Training Assignments".

@@ -1,0 +1,1 @@
+Insert the node "OpenAI - SEO Copywriting1" of type "@n8n/n8n-nodes-langchain.openAi" between "Code - Generate Mockup URLs1" and "Shopify - Create Draft Product1".

@@ -1,0 +1,1 @@
+Insert the node "AI Agent Weekly Report" of type "@n8n/n8n-nodes-langchain.agent" between "Read sheet (weekly)" and "Send Weekly Summary".

@@ -1,0 +1,1 @@
+Insert the node "GET Request to OpenAI" of type "n8n-nodes-base.httpRequest" between "POST Request to OpenAI" and "Send Video to Email".

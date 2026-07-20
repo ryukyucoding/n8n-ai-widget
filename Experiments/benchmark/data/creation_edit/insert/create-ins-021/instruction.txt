@@ -1,0 +1,1 @@
+Insert the node "President" of type "@n8n/n8n-nodes-langchain.agent" between "WhatsApp Trigger" and "Send message".

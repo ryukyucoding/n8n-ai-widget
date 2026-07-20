@@ -1,0 +1,1 @@
+Insert the node "AI Agent" of type "@n8n/n8n-nodes-langchain.agent" between "Extract from File" and "Generate Script With AI".

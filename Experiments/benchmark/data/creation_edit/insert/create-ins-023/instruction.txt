@@ -1,0 +1,1 @@
+Insert the node "Sort1" of type "n8n-nodes-base.sort" between "Get row(s) in sheet1" and "Limit1".

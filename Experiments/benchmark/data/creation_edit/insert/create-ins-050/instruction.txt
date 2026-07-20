@@ -1,0 +1,1 @@
+Insert the node "Create Suitable Content Including Image" of type "@n8n/n8n-nodes-langchain.agent" between "Pexels Image Search" and "View the Result".

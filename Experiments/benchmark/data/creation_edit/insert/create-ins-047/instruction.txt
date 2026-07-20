@@ -1,0 +1,1 @@
+Insert the node "Extract from File" of type "n8n-nodes-base.extractFromFile" between "Gmail Trigger" and "Extract Invoice Record".

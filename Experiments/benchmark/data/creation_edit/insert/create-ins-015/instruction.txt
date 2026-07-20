@@ -1,0 +1,1 @@
+Insert the node "Generate Video Script" of type "n8n-nodes-base.openAi" between "Prepare Script Prompt" and "Parse Script into Scenes".

@@ -1,0 +1,1 @@
+Insert the node "Aggregate" of type "n8n-nodes-base.aggregate" between "Merge" and "HTTP Request".
