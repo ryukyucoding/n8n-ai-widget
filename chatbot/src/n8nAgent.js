@@ -36,7 +36,9 @@ async function fetchWithRetry(url, options, retries = 1) {
   throw lastErr;
 }
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+// The edit pipeline is deliberately kept separate from workflow creation.  It
+// can use a model fine-tuned for insert/delete/modify without affecting create.
+const DEFAULT_EDIT_MODEL = process.env.EDIT_MODEL || process.env.OPENAI_MODEL || 'gpt-4o';
 
 function runPythonBridge(envelope) {
   const res = spawnSync(PYTHON, [BRIDGE], {
@@ -212,9 +214,9 @@ Rules:
 3. "connections" keys are the source node's "name" field.
 4. Return ONLY the JSON — no explanation, no markdown.`;
 
-async function generateCreateWorkflow(openai, userMessage) {
+async function generateCreateWorkflow(openai, userMessage, model = DEFAULT_EDIT_MODEL) {
   const response = await openai.chat.completions.create({
-    model: MODEL,
+    model,
     max_tokens: 4096,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT_CREATE },
@@ -336,6 +338,8 @@ async function processAgentMessage({
   message,
   workflowId,
   clearSession,
+  model,
+  modelConfig,
 }) {
   if (clearSession && incomingSessionId && sessions.has(incomingSessionId)) {
     sessions.delete(incomingSessionId);
@@ -344,6 +348,12 @@ async function processAgentMessage({
   const { id: sessionId, session } = getOrCreateSession(
     clearSession ? null : incomingSessionId
   );
+
+  // Pin a multi-turn edit session to the first selected model.  Switching a
+  // dropdown while answering a clarification must not mix two trained models.
+  const selectedModelConfig = session.modelConfig || modelConfig || { model: model || DEFAULT_EDIT_MODEL };
+  session.modelConfig = selectedModelConfig;
+  const selectedModel = selectedModelConfig.model;
 
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -360,8 +370,10 @@ async function processAgentMessage({
       payload: {
         workflow: ctx.workflow,
         instruction: enriched,
-        model: MODEL,
-        api_key: apiKey,
+        model: selectedModel,
+        api_key: selectedModelConfig.apiKey || apiKey,
+        base_url: selectedModelConfig.baseUrl,
+        basic_auth: selectedModelConfig.basicAuth,
       },
     });
     if (!ins.ok) {
@@ -398,6 +410,8 @@ async function processAgentMessage({
       session,
       workflowId,
       apiKey,
+      model: selectedModel,
+      modelConfig: selectedModelConfig,
     });
   }
 
@@ -420,8 +434,10 @@ async function processAgentMessage({
     const payloadBase = {
       workflow: p.workflow,
       instruction: p.instruction,
-      model: MODEL,
-      api_key: apiKey,
+      model: selectedModel,
+      api_key: selectedModelConfig.apiKey || apiKey,
+      base_url: selectedModelConfig.baseUrl,
+      basic_auth: selectedModelConfig.basicAuth,
       confirmed_node_names: names,
     };
     let bridgeOut;
@@ -466,6 +482,8 @@ async function processAgentMessage({
       session,
       workflowId,
       apiKey,
+      model: selectedModel,
+      modelConfig: selectedModelConfig,
     });
   }
 
@@ -523,6 +541,8 @@ async function processAgentMessage({
       session,
       workflowId,
       apiKey,
+      model: selectedModel,
+      modelConfig: selectedModelConfig,
     });
   }
 
@@ -566,6 +586,8 @@ async function processAgentMessage({
     session,
     workflowId,
     apiKey,
+    model: selectedModel,
+    modelConfig: selectedModelConfig,
   });
 }
 
@@ -669,7 +691,7 @@ function buildCompletionMessage(session, snapshot, working) {
   return `好的，沒問題！${ensureSentence(summary)}你可以在畫布上直接看到更新。`;
 }
 
-async function startExecutePhase({ n8nBaseUrl, n8nApiKey, sessionId, session, workflowId, apiKey }) {
+async function startExecutePhase({ n8nBaseUrl, n8nApiKey, sessionId, session, workflowId, apiKey, model, modelConfig }) {
   const needsCanvas = session.tasks.some((t) =>
     ['modify', 'delete', 'insert'].includes((t.operation || '').toLowerCase())
   );
@@ -701,6 +723,8 @@ async function startExecutePhase({ n8nBaseUrl, n8nApiKey, sessionId, session, wo
     session,
     workflowId,
     apiKey,
+    model,
+    modelConfig,
   });
 }
 
@@ -712,6 +736,8 @@ async function advanceTasks({
   session,
   workflowId,
   apiKey,
+  model,
+  modelConfig,
 }) {
   while (session.taskIndex < session.tasks.length) {
     const task = session.tasks[session.taskIndex];
@@ -744,8 +770,10 @@ async function advanceTasks({
         payload: {
           workflow: wf,
           instruction: desc,
-          model: MODEL,
-          api_key: apiKey,
+          model,
+          api_key: modelConfig?.apiKey || apiKey,
+          base_url: modelConfig?.baseUrl,
+          basic_auth: modelConfig?.basicAuth,
         },
       });
       if (!bridgeOut.ok) {
@@ -781,8 +809,10 @@ async function advanceTasks({
         payload: {
           workflow: wf,
           instruction: desc,
-          model: MODEL,
-          api_key: apiKey,
+          model,
+          api_key: modelConfig?.apiKey || apiKey,
+          base_url: modelConfig?.baseUrl,
+          basic_auth: modelConfig?.basicAuth,
         },
       });
       if (!bridgeOut.ok) {
@@ -835,8 +865,10 @@ async function advanceTasks({
         payload: {
           workflow: wf,
           instruction: desc,
-          model: MODEL,
-          api_key: apiKey,
+          model,
+          api_key: modelConfig?.apiKey || apiKey,
+          base_url: modelConfig?.baseUrl,
+          basic_auth: modelConfig?.basicAuth,
         },
       });
       if (!bridgeOut.ok) {

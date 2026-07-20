@@ -29,6 +29,20 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - N8N_API_KEY=${N8N_API_KEY}
+      # Create-model Ollama server (qwen).
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://140.115.54.63:11434/v1}
+      - OLLAMA_BASIC_AUTH=${OLLAMA_BASIC_AUTH:-}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder-32b-ft-original:latest}
+      # Each pool can contain comma-separated model IDs. Create uses Ollama;
+      # edit is used by the insert/delete/modify agent pipelines.
+      - CREATE_MODELS=${CREATE_MODELS:-qwen2.5-coder-32b-ft-original:latest}
+      - EDIT_MODELS=${EDIT_MODELS:-gpt-4o}
+      # Ollama-backed edit models appear in the same UI dropdown as EDIT_MODELS.
+      # gpt-oss is hosted separately from the Create-model Ollama server.
+      - EDIT_OLLAMA_MODELS=${EDIT_OLLAMA_MODELS:-gpt-oss:120b}
+      - EDIT_OLLAMA_BASE_URL=${EDIT_OLLAMA_BASE_URL:-http://140.115.54.62:11434/v1}
+      - EDIT_OLLAMA_API_KEY=${EDIT_OLLAMA_API_KEY:-ollama-key}
+      - EDIT_OLLAMA_BASIC_AUTH=${EDIT_OLLAMA_BASIC_AUTH:-}
       # server-to-server: use docker service name
       - N8N_BASE_URL=http://n8n:5678
       - PORT=3001

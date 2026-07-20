@@ -72,7 +72,13 @@ Open [http://localhost:5678](http://localhost:5678) — the orange chat button a
 | `N8N_BASE_URL`      | No       | Defaults to `http://n8n:5678` (docker internal). If you use a **raw IPv6** host, use brackets, e.g. `http://[fd12:b51a:cc66:f0::1]:5678` — the server will also try to auto-fix unbracketed IPv6. |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` | No | If set with an IPv6 host, it **must** use brackets (`http://[...]:port`). The server rewrites common mistakes at startup; if you still see `Invalid port: 'b51a:...'`, unset these in your shell or Docker env and try again. |
 | `N8N_PUBLIC_URL`    | No       | Browser URL for workflow links after save, default `http://localhost:5678` |
-| `OPENAI_MODEL`      | No       | Model for agent pipelines, default `gpt-4o`                          |
+| `CREATE_MODELS` | No | 逗號分隔的「建立 workflow」模型清單；前端只會顯示這些模型。預設為 `qwen2.5-coder-32b-ft-original:latest`。 |
+| `EDIT_MODELS` | No | 逗號分隔的「插入／刪除／修改」模型清單；前端只會顯示這些模型。預設為 `gpt-4o`。 |
+| `EDIT_OLLAMA_MODELS` | No | 逗號分隔的 Ollama 編輯模型；會合併顯示於同一個 Edit 模型下拉選單，預設含 `gpt-oss:120b`。 |
+| `EDIT_OLLAMA_BASE_URL` | No | Edit Ollama 的 OpenAI-compatible URL；預設 `http://140.115.54.62:11434/v1`（gpt-oss）。 |
+| `EDIT_OLLAMA_API_KEY` | No | Ollama 所需的相容 API key，通常使用 `ollama-key` 即可。 |
+| `CREATE_MODEL` / `EDIT_MODEL` | No | 在未設定對應 `*_MODELS` 時，分別指定建立／編輯的單一預設模型。 |
+| `OPENAI_MODEL`      | No       | `EDIT_MODEL` 未設定時的編輯模型預設值，預設 `gpt-4o`。 |
 | `PORT`              | No       | Chatbot server port, default `3001`                                   |
 | `WIDGET_INSERT_DEBUG` / `N8N_INSERT_DEBUG` | No | Set to `1` (or `true`) to print **insert** pipeline traces (planner, phase0/1/2, coercion, splice) from Python to **stderr**. The Node bridge forwards stderr to the chatbot process so it appears in `docker compose logs -f chatbot`. |
 | `WIDGET_MODIFY_DEBUG` / `N8N_MODIFY_DEBUG` | No | Same for the **modify** pipeline (resolve + modify LLM inputs/outputs, schema path). Does nothing for insert-only tasks. |
@@ -103,6 +109,21 @@ Python 端把 trace 寫到 **stderr**；`chatbot` 的 Node 在每次呼叫 `widg
    搜尋 `[insert-pipeline]`、`[modify-pipeline]` 區塊即可。
 
 本機 `npm run dev` 時同樣設定環境變數後，trace 會出現在跑 `node` 的那個終端機。
+
+### 模型分組與前端切換
+
+Widget 內有兩個模式：**建立 workflow**（從零建立）與 **插入／刪除／修改**（目前畫布）。兩者的模型清單完全分開；伺服器會拒絕不在該群組清單中的 model ID。編輯模式的追問對話會固定使用開始時的模型。
+
+例如在根目錄 `.env` 設定：
+
+```env
+CREATE_MODELS=create-v1,create-v2
+EDIT_MODELS=insert-delete-v1,insert-delete-v2
+EDIT_OLLAMA_MODELS=gpt-oss:120b
+EDIT_OLLAMA_BASE_URL=http://140.115.54.62:11434/v1
+```
+
+Create 的 qwen 會走 `OLLAMA_BASE_URL`（預設 `http://140.115.54.63:11434/v1`）；`EDIT_MODELS` 則需可由 `OPENAI_BASE_URL`／OpenAI API 使用。`EDIT_OLLAMA_MODELS`（例如老師要測的 `gpt-oss:120b`）會自動改走 `EDIT_OLLAMA_BASE_URL`（預設 `http://140.115.54.62:11434/v1`），使用者只需在同一個下拉選單選擇模型。
 
 ```bash
 cd chatbot

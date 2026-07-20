@@ -50,6 +50,35 @@ const N8N_BASE_URL = normalizeN8nBaseUrl(
 const N8N_API_KEY = process.env.N8N_API_KEY;
 const DIRECT_FETCH = new Agent({});
 
+function parseModelList(value, fallback) {
+  return [...new Set(String(value || fallback).split(',').map((m) => m.trim()).filter(Boolean))];
+}
+
+// Creation and canvas editing may use independently trained model families.
+const CREATE_MODELS = parseModelList(process.env.CREATE_MODELS, process.env.CREATE_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5-coder-32b-ft-original:latest');
+const EDIT_CLOUD_MODELS = parseModelList(process.env.EDIT_MODELS, process.env.EDIT_MODEL || process.env.OPENAI_MODEL || 'gpt-4o');
+const EDIT_OLLAMA_MODELS = parseModelList(process.env.EDIT_OLLAMA_MODELS, '');
+const EDIT_MODELS = [...new Set([...EDIT_CLOUD_MODELS, ...EDIT_OLLAMA_MODELS])];
+const DEFAULT_CREATE_MODEL = CREATE_MODELS[0];
+const DEFAULT_EDIT_MODEL = EDIT_MODELS[0];
+
+function allowedModel(requested, allowed, fallback) {
+  if (!requested) return fallback;
+  return allowed.includes(requested) ? requested : null;
+}
+
+function editModelConfig(model) {
+  if (EDIT_OLLAMA_MODELS.includes(model)) {
+    return {
+      model,
+      apiKey: process.env.EDIT_OLLAMA_API_KEY || 'ollama-key',
+      baseUrl: process.env.EDIT_OLLAMA_BASE_URL || 'http://140.115.54.62:11434/v1',
+      basicAuth: process.env.EDIT_OLLAMA_BASIC_AUTH || process.env.OLLAMA_BASIC_AUTH || undefined,
+    };
+  }
+  return { model };
+}
+
 async function fetchWithRetry(url, options, retries = 1) {
   let lastErr;
   for (let i = 0; i <= retries; i += 1) {
@@ -96,6 +125,13 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.get('/models', (req, res) => {
+  res.json({
+    create: { models: CREATE_MODELS, defaultModel: DEFAULT_CREATE_MODEL },
+    edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
+  });
+});
+
 // ---------------------------------------------------------------------------
 // POST /agent/run — intent decompose + modify/delete/insert station pipelines
 // ---------------------------------------------------------------------------
@@ -106,10 +142,15 @@ app.post('/agent/run', async (req, res) => {
     sessionId,
     workflowId,
     clearSession,
+    model,
   } = req.body || {};
 
   if (!message || typeof message !== 'string' || message.trim() === '') {
     return res.status(400).json({ ok: false, error: 'message is required' });
+  }
+  const selectedModel = allowedModel(model, EDIT_MODELS, DEFAULT_EDIT_MODEL);
+  if (!selectedModel) {
+    return res.status(400).json({ ok: false, error: '選擇的編輯模型不在伺服器允許清單中。' });
   }
 
   try {
@@ -121,6 +162,8 @@ app.post('/agent/run', async (req, res) => {
       message: message.trim(),
       workflowId: workflowId || null,
       clearSession: !!clearSession,
+      model: selectedModel,
+      modelConfig: editModelConfig(selectedModel),
     });
     if (!out.ok) {
       return res.status(400).json(out);
@@ -249,9 +292,13 @@ Before responding, verify every array item in "nodes" is a JSON object with id, 
 }
 
 app.post('/generate', async (req, res) => {
-  const { message } = req.body;
+  const { message, model } = req.body;
   if (!message || typeof message !== 'string' || message.trim() === '') {
     return res.status(400).json({ error: 'message is required' });
+  }
+  const selectedModel = allowedModel(model, CREATE_MODELS, DEFAULT_CREATE_MODEL);
+  if (!selectedModel) {
+    return res.status(400).json({ error: '選擇的建立模型不在伺服器允許清單中。' });
   }
 
   // 1. Call Local LLM
@@ -269,7 +316,7 @@ app.post('/generate', async (req, res) => {
       }
 
       const response = await openaiLocal.chat.completions.create({
-        model: process.env.OLLAMA_MODEL || 'qwen2.5-coder-32b-ft-original:latest',
+        model: selectedModel,
         max_tokens: 4096,
         // JSON mode prevents comments, markdown, and other non-JSON tokens.
         response_format: { type: 'json_object' },
