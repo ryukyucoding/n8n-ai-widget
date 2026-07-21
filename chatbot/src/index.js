@@ -57,7 +57,9 @@ function parseModelList(value, fallback) {
 // Creation and canvas editing may use independently trained model families.
 const CREATE_MODELS = parseModelList(process.env.CREATE_MODELS, process.env.CREATE_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5-coder-32b-ft-original:latest');
 const EDIT_CLOUD_MODELS = parseModelList(process.env.EDIT_MODELS, process.env.EDIT_MODEL || process.env.OPENAI_MODEL || 'gpt-4o');
-const EDIT_OLLAMA_MODELS = parseModelList(process.env.EDIT_OLLAMA_MODELS, '');
+// Keep gpt-oss selectable even on existing deployments whose older Compose
+// file does not yet pass EDIT_OLLAMA_MODELS into the chatbot container.
+const EDIT_OLLAMA_MODELS = parseModelList(process.env.EDIT_OLLAMA_MODELS, 'gpt-oss:120b');
 const EDIT_MODELS = [...new Set([...EDIT_CLOUD_MODELS, ...EDIT_OLLAMA_MODELS])];
 const DEFAULT_CREATE_MODEL = CREATE_MODELS[0];
 const DEFAULT_EDIT_MODEL = EDIT_MODELS[0];

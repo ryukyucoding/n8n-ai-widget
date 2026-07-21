@@ -219,10 +219,26 @@
     var GENERATE_URL = window.location.origin + '/generate';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
+    var MODE_KEY = 'n8n-widget-active-mode';
     var WIDGET_MSG_TYPE = 'n8n-ai-widget';
     var MODELS_URL = window.location.origin + '/models';
-    var activeMode = 'create';
-    var modelConfig = { create: { models: [], defaultModel: '' }, edit: { models: [], defaultModel: '' } };
+    // Edit sessions can span iframe reloads. Restore their mode so a pending
+    // clarification is never accidentally sent to the Create endpoint.
+    var activeMode = (function () {
+      try {
+        if (localStorage.getItem(SESSION_KEY)) return 'edit';
+        return localStorage.getItem(MODE_KEY) === 'edit' ? 'edit' : 'create';
+      } catch (e) {
+        return 'create';
+      }
+    })();
+    // The fallback prevents an empty selector when a reverse proxy exposes
+    // /chat but has not yet exposed /models. The server still validates every
+    // submitted model against its configured allow-list.
+    var modelConfig = {
+      create: { models: ['qwen2.5-coder-32b-ft-original:latest'], defaultModel: 'qwen2.5-coder-32b-ft-original:latest' },
+      edit: { models: ['gpt-4o', 'gpt-oss:120b'], defaultModel: 'gpt-4o' }
+    };
 
     var messagesEl = document.getElementById('messages');
     var inputEl    = document.getElementById('input');
@@ -252,13 +268,18 @@
     }
 
     function switchMode(mode) {
+      if (mode === 'create' && loadSessionId()) {
+        modeHint.textContent = '目前有未完成的畫布編輯追問；請先完成或按「清空」再建立新的 workflow。';
+        return;
+      }
       activeMode = mode;
+      try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
       document.querySelectorAll('.mode-btn').forEach(function (button) { button.classList.toggle('active', button.dataset.mode === mode); });
-      try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
       renderModelOptions();
     }
 
     document.querySelectorAll('.mode-btn').forEach(function (button) { button.addEventListener('click', function () { switchMode(button.dataset.mode); }); });
+    switchMode(activeMode);
     fetch(MODELS_URL).then(function (res) { return res.ok ? res.json() : null; }).then(function (config) { if (config) { modelConfig = config; renderModelOptions(); } }).catch(function () { renderModelOptions(); });
 
     function currentWorkflowId() {
@@ -448,6 +469,11 @@
             ? '<br><br>候選：<em>' + escHtml(data.candidates.join(', ')) + '</em>'
             : '';
           saveSessionId(data.sessionId);
+          // A clarification belongs to the edit pipeline even after an iframe reload.
+          activeMode = 'edit';
+          try { localStorage.setItem(MODE_KEY, activeMode); } catch (e) {}
+          document.querySelectorAll('.mode-btn').forEach(function (button) { button.classList.toggle('active', button.dataset.mode === 'edit'); });
+          renderModelOptions();
           addBubble('❓ ' + escHtml(data.message || '') + cands, 'bot');
         } else if (data.action === 'done') {
           saveSessionId(null);
