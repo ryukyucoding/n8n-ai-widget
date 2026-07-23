@@ -1,0 +1,758 @@
+{
+  "total": 30,
+  "delete_success": 30,
+  "pipeline_ok": 30,
+  "rows": [
+    {
+      "case_id": "create-del-001",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Wait"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-002",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Config - Set Fields"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-003",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Aggregate"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-004",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "HubSpot Get Companies"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-005",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "SE Ranking AI Summarizer"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-006",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Generate Payment Reminder"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-007",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Read Binary Files"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-008",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Combine chat input with the binary"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-009",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "n8n | Get all executions"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-010",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Download Photos"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-011",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "upload_output_video"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-012",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Project Manager Agent"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-013",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "GET Request to OpenAI"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-014",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Check Render Status"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-015",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Generate Video Script"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-016",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Insert row"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-017",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Generate Outline"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-018",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Download file"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-019",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Append or update row in sheet"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-020",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Split Out"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-021",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "President"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-022",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Upload a file"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-023",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Sort1"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-024",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Intent Agent"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-025",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Split URLs"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-026",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Set app details"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-027",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "create video"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-028",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Upload Chunk"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-029",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Build Workflow Version Links"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    },
+    {
+      "case_id": "create-del-030",
+      "delete_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "pipeline_message": "",
+      "score": {
+        "success": true,
+        "primary_metric": "delete_success",
+        "metrics": {
+          "delete_n_target_nodes": 1.0,
+          "delete_target_node_names": [
+            "Search files"
+          ],
+          "delete_targets_removed": 1.0,
+          "delete_only_intended_removed": 1.0,
+          "delete_survivors_match_oracle": 1.0,
+          "delete_connections_match_oracle": 1.0,
+          "delete_no_extra_raw_nodes": 1.0,
+          "delete_resolve_matches_oracle": null,
+          "delete_success": 1.0,
+          "delete_error_type": "ok_delete_task"
+        }
+      }
+    }
+  ],
+  "delete_success_rate": 1.0
+}

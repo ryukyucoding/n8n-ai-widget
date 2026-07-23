@@ -1,0 +1,25 @@
+{
+  "case_id": "create-ins-015",
+  "model": "gpt-oss:120b",
+  "instruction": "Insert the node \"Generate Video Script\" of type \"n8n-nodes-base.openAi\" between \"Prepare Script Prompt\" and \"Parse Script into Scenes\".",
+  "bridge_execution": {
+    "exit_code": 0,
+    "stdout": "{\"ok\": true, \"result\": {\"ok\": false, \"step\": \"phase1\", \"message\": \"Could not resolve node type for insert (phase1).\", \"phase0\": {\"attempted\": false, \"accepted\": false}}}",
+    "stderr": "",
+    "bridge": {
+      "ok": true,
+      "result": {
+        "ok": false,
+        "step": "phase1",
+        "message": "Could not resolve node type for insert (phase1).",
+        "phase0": {
+          "attempted": false,
+          "accepted": false
+        }
+      }
+    }
+  },
+  "pipeline_ok": false,
+  "pipeline_step": "phase1",
+  "pipeline_message": "Could not resolve node type for insert (phase1)."
+}

@@ -1,0 +1,212 @@
+[
+  {
+    "case_id": "create-ins-001",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-002",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-003",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-004",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-005",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-006",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-007",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-008",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-009",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-010",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-011",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-012",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-013",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-014",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-015",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": false,
+    "pipeline_step": "phase1",
+    "pipeline_message": "Could not resolve node type for insert (phase1)."
+  },
+  {
+    "case_id": "create-ins-016",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-017",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-018",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-019",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-020",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-021",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-022",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-023",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-024",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-025",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-026",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-027",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-028",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-029",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  },
+  {
+    "case_id": "create-ins-030",
+    "model": "gpt-oss:120b",
+    "pipeline_ok": true,
+    "pipeline_step": "done",
+    "pipeline_message": null
+  }
+]

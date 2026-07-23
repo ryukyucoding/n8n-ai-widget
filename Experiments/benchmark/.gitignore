@@ -8,6 +8,10 @@ data/**
 !data/manifest_creation_edit.json
 
 results/
+!results/
+results/*
+!results/gpt-oss-120b/
+!results/gpt-oss-120b/**
 .venv/
 node_modules/
 playwright/.auth/

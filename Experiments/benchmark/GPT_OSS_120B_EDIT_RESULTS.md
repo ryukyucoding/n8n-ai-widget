@@ -9,17 +9,37 @@
   not save or modify a workflow in n8n.
 - **Scoring:** local benchmark scoring scripts in `Experiments/benchmark/scoring`.
 
-The per-case raw outputs remain local in `results/gpt-oss-120b/`; that directory is
-ignored because it contains many generated artifacts. The commands used to reproduce
-this run are `run_delete_container.py`, `score_delete_batch.py`,
+The complete per-case raw outputs are versioned in `results/gpt-oss-120b/`, including
+each prediction (`pred.json`), execution record (`run.json`), and generated score
+summary. The commands used to reproduce this run are `run_delete_container.py`, `score_delete_batch.py`,
 `run_insert_container.py`, and `score_insert_batch.py`.
 
-## Summary
+## Results tables
 
-| Operation | Cases | Pipeline completed | Strict success | Other measures |
-| --- | ---: | ---: | ---: | --- |
-| Delete | 30 | 30 / 30 (100.00%) | 30 / 30 (100.00%) | All target removals, survivor graphs, and resulting connections matched the oracle. |
-| Insert | 30 | 29 / 30 (96.67%) | 5 / 30 (16.67%) | Position: 28 / 30 (93.33%); node type: 29 / 30 (96.67%); mean parameter coverage: 32.61%. |
+### Delete
+
+| Metric | GPT-OSS 120B |
+| --- | ---: |
+| `delete_success` | 100.0% |
+| Targets removed | 100.0% |
+| Only intended removed | 100.0% |
+| Survivors match oracle | 100.0% |
+| Connections match oracle | 100.0% |
+| No extra raw nodes | 100.0% |
+
+### Insert
+
+| Metric | GPT-OSS 120B |
+| --- | ---: |
+| `insert_success` | 16.7% |
+| Position OK | 93.3% |
+| Type OK | 96.7% |
+| Mean param. (complete coverage) | 16.7% |
+| Survivors match oracle | 100.0% |
+| No extra raw nodes | 96.7% |
+
+The diagnostic mean parameter-path coverage is 32.61%. This is not used for the
+`Mean param.` table row, which is the stricter complete-coverage binary metric.
 
 ## Interpretation
 

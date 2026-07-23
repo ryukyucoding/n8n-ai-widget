@@ -1,0 +1,2887 @@
+{
+  "total": 30,
+  "insert_success": 5,
+  "insert_success_rate": 0.1667,
+  "pipeline_ok": 29,
+  "mean_position_ok": 0.9333,
+  "mean_type_ok": 0.9667,
+  "mean_parameter_coverage": 0.3261,
+  "rows": [
+    {
+      "case_id": "create-ins-001",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.5,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Wait",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.5,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Wait",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Wait",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.wait",
+              "pred_type": "n8n-nodes-base.wait"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Update Link tracks"
+              ],
+              "gold_outgoing": [
+                "Loop Over Items"
+              ],
+              "pred_incoming": [
+                "Update Link tracks"
+              ],
+              "pred_outgoing": [
+                "Loop Over Items"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 2,
+              "covered_paths": 1,
+              "coverage_rate": 0.5,
+              "missing_paths": [
+                "unit"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-002",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Config - Set Fields",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Config - Set Fields",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Config - Set Fields",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.set",
+              "pred_type": "n8n-nodes-base.set"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Error Trigger"
+              ],
+              "gold_outgoing": [
+                "Use AI Analysis?"
+              ],
+              "pred_incoming": [
+                "Error Trigger"
+              ],
+              "pred_outgoing": [
+                "Use AI Analysis?"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 1,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "assignments"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-003",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Aggregate",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Aggregate",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Aggregate",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.aggregate",
+              "pred_type": "n8n-nodes-base.aggregate"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Merge"
+              ],
+              "gold_outgoing": [
+                "HTTP Request"
+              ],
+              "pred_incoming": [
+                "Merge"
+              ],
+              "pred_outgoing": [
+                "HTTP Request"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 1,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "fieldsToAggregate"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-004",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.75,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "HubSpot Get Companies",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.75,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "HubSpot Get Companies",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "HubSpot Get Companies",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.hubspot",
+              "pred_type": "n8n-nodes-base.hubspot"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Schedule Trigger"
+              ],
+              "gold_outgoing": [
+                "Filter Best"
+              ],
+              "pred_incoming": [
+                "Schedule Trigger"
+              ],
+              "pred_outgoing": [
+                "Filter Best"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 4,
+              "covered_paths": 3,
+              "coverage_rate": 0.75,
+              "missing_paths": [
+                "authentication"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-005",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.4,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "SE Ranking AI Summarizer",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.4,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "SE Ranking AI Summarizer",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "SE Ranking AI Summarizer",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "@n8n/n8n-nodes-langchain.informationExtractor",
+              "pred_type": "@n8n/n8n-nodes-langchain.informationExtractor"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "SE Ranking AI Request"
+              ],
+              "gold_outgoing": [
+                "Enrich Data"
+              ],
+              "pred_incoming": [
+                "SE Ranking AI Request"
+              ],
+              "pred_outgoing": [
+                "Enrich Data"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 5,
+              "covered_paths": 2,
+              "coverage_rate": 0.4,
+              "missing_paths": [
+                "text",
+                "inputSchema.properties.comprehensive_summary",
+                "inputSchema.properties.abstract_summary"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-006",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Generate Payment Reminder",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Generate Payment Reminder",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Generate Payment Reminder",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "@n8n/n8n-nodes-langchain.openAi",
+              "pred_type": "@n8n/n8n-nodes-langchain.openAi"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Extract Customer & Payment Data"
+              ],
+              "gold_outgoing": [
+                "Create New Invoice"
+              ],
+              "pred_incoming": [
+                "Extract Customer & Payment Data"
+              ],
+              "pred_outgoing": [
+                "Create New Invoice"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 2,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "options",
+                "responses"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-007",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Read Binary Files",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Read Binary Files",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Read Binary Files",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.readBinaryFiles",
+              "pred_type": "n8n-nodes-base.readBinaryFiles"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "When clicking \"Execute Workflow\""
+              ],
+              "gold_outgoing": [
+                "Split In Batches"
+              ],
+              "pred_incoming": [
+                "When clicking \"Execute Workflow\""
+              ],
+              "pred_outgoing": [
+                "Split In Batches"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 1,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "fileSelector"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-008",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Combine chat input with the binary",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Combine chat input with the binary",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Combine chat input with the binary",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.set",
+              "pred_type": "n8n-nodes-base.set"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Load local chinook.db"
+              ],
+              "gold_outgoing": [
+                "AI Agent"
+              ],
+              "pred_incoming": [
+                "Load local chinook.db"
+              ],
+              "pred_outgoing": [
+                "AI Agent"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 3,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "mode",
+                "options.includeBinary",
+                "jsonOutput"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-009",
+      "insert_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Perfect",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 1.0,
+      "score": {
+        "success": true,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": true,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "ok_insert_params_cover_gold",
+          "insert_target_node_name": "n8n | Get all executions",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 1.0,
+          "insert_param_coverage_rate": 1.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 1.0,
+          "insert_error_type": "ok_insert_task"
+        },
+        "insert_detail": {
+          "inserted_node_name": "n8n | Get all executions",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "n8n | Get all executions",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.n8n",
+              "pred_type": "n8n-nodes-base.n8n"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "When clicking ‘Test workflow’"
+              ],
+              "gold_outgoing": [
+                "Convert to CSV"
+              ],
+              "pred_incoming": [
+                "When clicking ‘Test workflow’"
+              ],
+              "pred_outgoing": [
+                "Convert to CSV"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": true,
+              "total_paths": 2,
+              "covered_paths": 2,
+              "coverage_rate": 1.0,
+              "missing_paths": []
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": []
+        },
+        "insert_status": "perfect",
+        "insert_status_label": "Perfect",
+        "insert_tier": "perfect"
+      }
+    },
+    {
+      "case_id": "create-ins-010",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.5,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Download Photos",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.5,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Download Photos",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Download Photos",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.googleDrive",
+              "pred_type": "n8n-nodes-base.googleDrive"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Photos To List"
+              ],
+              "gold_outgoing": [
+                "Resize For AI"
+              ],
+              "pred_incoming": [
+                "Photos To List"
+              ],
+              "pred_outgoing": [
+                "Resize For AI"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 2,
+              "covered_paths": 1,
+              "coverage_rate": 0.5,
+              "missing_paths": [
+                "fileId"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-011",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.2,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "upload_output_video",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.2,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "upload_output_video",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "upload_output_video",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.googleDrive",
+              "pred_type": "n8n-nodes-base.googleDrive"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "download_video"
+              ],
+              "gold_outgoing": [
+                "iterate_products"
+              ],
+              "pred_incoming": [
+                "download_video"
+              ],
+              "pred_outgoing": [
+                "iterate_products"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 5,
+              "covered_paths": 1,
+              "coverage_rate": 0.2,
+              "missing_paths": [
+                "name",
+                "driveId.__rl",
+                "driveId.value",
+                "folderId"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-012",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Project Manager Agent",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Project Manager Agent",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Project Manager Agent",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "@n8n/n8n-nodes-langchain.agent",
+              "pred_type": "@n8n/n8n-nodes-langchain.agent"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Chat Trigger"
+              ],
+              "gold_outgoing": [
+                "Have All Info?"
+              ],
+              "pred_incoming": [
+                "Chat Trigger"
+              ],
+              "pred_outgoing": [
+                "Have All Info?"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 2,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "options.systemMessage",
+                "hasOutputParser"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-013",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "GET Request to OpenAI",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "GET Request to OpenAI",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "GET Request to OpenAI",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.httpRequest",
+              "pred_type": "n8n-nodes-base.httpRequest"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "POST Request to OpenAI"
+              ],
+              "gold_outgoing": [
+                "Send Video to Email"
+              ],
+              "pred_incoming": [
+                "POST Request to OpenAI"
+              ],
+              "pred_outgoing": [
+                "Send Video to Email"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 5,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "url",
+                "options.redirect",
+                "options.response",
+                "authentication",
+                "genericAuthType"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-014",
+      "insert_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Perfect",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 1.0,
+      "score": {
+        "success": true,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": true,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "ok_insert_params_cover_gold",
+          "insert_target_node_name": "Check Render Status",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 1.0,
+          "insert_param_coverage_rate": 1.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 1.0,
+          "insert_error_type": "ok_insert_task"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Check Render Status",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Check Render Status",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.httpRequest",
+              "pred_type": "n8n-nodes-base.httpRequest"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Wait for Render"
+              ],
+              "gold_outgoing": [
+                "Video created"
+              ],
+              "pred_incoming": [
+                "Wait for Render"
+              ],
+              "pred_outgoing": [
+                "Video created"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": true,
+              "total_paths": 0,
+              "covered_paths": 0,
+              "coverage_rate": 1.0,
+              "missing_paths": []
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": []
+        },
+        "insert_status": "perfect",
+        "insert_status_label": "Perfect",
+        "insert_tier": "perfect"
+      }
+    },
+    {
+      "case_id": "create-ins-015",
+      "insert_success": 0,
+      "pipeline_ok": 0,
+      "pipeline_step": "phase1",
+      "insert_status": "Ambiguous",
+      "position_ok": 0.0,
+      "type_ok": 0.0,
+      "parameter_coverage": 1.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": false,
+          "inserted_node_name_ok": false,
+          "inserted_node_type_ok": false,
+          "insert_main_neighbors_ok": false,
+          "gold_params_subset_ok": null,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "inserted_node_missing",
+          "insert_target_node_name": "Generate Video Script",
+          "insert_position_ok": 0.0,
+          "insert_type_ok": 0.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 1.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 0.0,
+          "insert_success": 0.0,
+          "insert_error_type": "inserted_node_missing"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Generate Video Script",
+          "checks": {
+            "node_name_present": {
+              "ok": false,
+              "expected_name": "Generate Video Script",
+              "in_pred": false
+            },
+            "node_type_match": {
+              "ok": false,
+              "gold_type": "n8n-nodes-base.openAi",
+              "pred_type": null
+            },
+            "splice_position": {
+              "ok": false,
+              "gold_incoming": [
+                "Prepare Script Prompt"
+              ],
+              "gold_outgoing": [
+                "Parse Script into Scenes"
+              ],
+              "pred_incoming": [],
+              "pred_outgoing": []
+            },
+            "parameters": {
+              "gold_params_subset_ok": null,
+              "total_paths": 0,
+              "covered_paths": 0,
+              "coverage_rate": null,
+              "missing_paths": []
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": true
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "inserted_node_missing"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "inserted_node_missing"
+        ],
+        "insert_ambiguity_label": "inserted_node_missing"
+      }
+    },
+    {
+      "case_id": "create-ins-016",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.1818,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Insert row",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.1818,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Insert row",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Insert row",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.dataTable",
+              "pred_type": "n8n-nodes-base.dataTable"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Video Prompt Agent"
+              ],
+              "gold_outgoing": [
+                "Sora2 POST Request"
+              ],
+              "pred_incoming": [
+                "Video Prompt Agent"
+              ],
+              "pred_outgoing": [
+                "Sora2 POST Request"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 11,
+              "covered_paths": 2,
+              "coverage_rate": 0.1818,
+              "missing_paths": [
+                "columns.value",
+                "columns.schema",
+                "columns.matchingColumns",
+                "columns.attemptToConvertTypes",
+                "columns.convertFieldsToString",
+                "dataTableId.__rl",
+                "dataTableId.value",
+                "dataTableId.cachedResultUrl",
+                "dataTableId.cachedResultName"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-017",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.25,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Generate Outline",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.25,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Generate Outline",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Generate Outline",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "@n8n/n8n-nodes-langchain.agent",
+              "pred_type": "@n8n/n8n-nodes-langchain.agent"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Input Topic Plans"
+              ],
+              "gold_outgoing": [
+                "Get Subtopic Array (For Looping)"
+              ],
+              "pred_incoming": [
+                "Input Topic Plans"
+              ],
+              "pred_outgoing": [
+                "Get Subtopic Array (For Looping)"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 4,
+              "covered_paths": 1,
+              "coverage_rate": 0.25,
+              "missing_paths": [
+                "text",
+                "options.systemMessage",
+                "hasOutputParser"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-018",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.5,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Download file",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.5,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Download file",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Download file",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.googleDrive",
+              "pred_type": "n8n-nodes-base.googleDrive"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Google Drive Trigger"
+              ],
+              "gold_outgoing": [
+                "Extract from File"
+              ],
+              "pred_incoming": [
+                "Google Drive Trigger"
+              ],
+              "pred_outgoing": [
+                "Extract from File"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 2,
+              "covered_paths": 1,
+              "coverage_rate": 0.5,
+              "missing_paths": [
+                "fileId"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-019",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Append or update row in sheet",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Append or update row in sheet",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Append or update row in sheet",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.googleSheets",
+              "pred_type": "n8n-nodes-base.googleSheets"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Code in JavaScript"
+              ],
+              "gold_outgoing": [
+                "Loop Over Items"
+              ],
+              "pred_incoming": [
+                "Code in JavaScript"
+              ],
+              "pred_outgoing": [
+                "Loop Over Items"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 4,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "columns",
+                "operation",
+                "sheetName",
+                "documentId"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-020",
+      "insert_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Perfect",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 1.0,
+      "score": {
+        "success": true,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": true,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "ok_insert_params_cover_gold",
+          "insert_target_node_name": "Split Out",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 1.0,
+          "insert_param_coverage_rate": 1.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 1.0,
+          "insert_error_type": "ok_insert_task"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Split Out",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Split Out",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.splitOut",
+              "pred_type": "n8n-nodes-base.splitOut"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "parsedInfo"
+              ],
+              "gold_outgoing": [
+                "Remove Duplicates"
+              ],
+              "pred_incoming": [
+                "parsedInfo"
+              ],
+              "pred_outgoing": [
+                "Remove Duplicates"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": true,
+              "total_paths": 1,
+              "covered_paths": 1,
+              "coverage_rate": 1.0,
+              "missing_paths": []
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": []
+        },
+        "insert_status": "perfect",
+        "insert_status_label": "Perfect",
+        "insert_tier": "perfect"
+      }
+    },
+    {
+      "case_id": "create-ins-021",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "President",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "President",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "President",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "@n8n/n8n-nodes-langchain.agent",
+              "pred_type": "@n8n/n8n-nodes-langchain.agent"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "WhatsApp Trigger"
+              ],
+              "gold_outgoing": [
+                "Send message"
+              ],
+              "pred_incoming": [
+                "WhatsApp Trigger"
+              ],
+              "pred_outgoing": [
+                "Send message"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 4,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "text",
+                "options.systemMessage",
+                "promptType",
+                "needsFallback"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-022",
+      "insert_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Perfect",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 1.0,
+      "score": {
+        "success": true,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": true,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "ok_insert_params_cover_gold",
+          "insert_target_node_name": "Upload a file",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 1.0,
+          "insert_param_coverage_rate": 1.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 1.0,
+          "insert_error_type": "ok_insert_task"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Upload a file",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Upload a file",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "@n8n/n8n-nodes-langchain.googleGemini",
+              "pred_type": "@n8n/n8n-nodes-langchain.googleGemini"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Conver To CSV"
+              ],
+              "gold_outgoing": [
+                "Analyze document"
+              ],
+              "pred_incoming": [
+                "Conver To CSV"
+              ],
+              "pred_outgoing": [
+                "Analyze document"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": true,
+              "total_paths": 2,
+              "covered_paths": 2,
+              "coverage_rate": 1.0,
+              "missing_paths": []
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": []
+        },
+        "insert_status": "perfect",
+        "insert_status_label": "Perfect",
+        "insert_tier": "perfect"
+      }
+    },
+    {
+      "case_id": "create-ins-023",
+      "insert_success": 1,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Perfect",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 1.0,
+      "score": {
+        "success": true,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": true,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "ok_insert_params_cover_gold",
+          "insert_target_node_name": "Sort1",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 1.0,
+          "insert_param_coverage_rate": 1.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 1.0,
+          "insert_error_type": "ok_insert_task"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Sort1",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Sort1",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.sort",
+              "pred_type": "n8n-nodes-base.sort"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Get row(s) in sheet1"
+              ],
+              "gold_outgoing": [
+                "Limit1"
+              ],
+              "pred_incoming": [
+                "Get row(s) in sheet1"
+              ],
+              "pred_outgoing": [
+                "Limit1"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": true,
+              "total_paths": 0,
+              "covered_paths": 0,
+              "coverage_rate": 1.0,
+              "missing_paths": []
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": []
+        },
+        "insert_status": "perfect",
+        "insert_status_label": "Perfect",
+        "insert_tier": "perfect"
+      }
+    },
+    {
+      "case_id": "create-ins-024",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Intent Agent",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Intent Agent",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Intent Agent",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "@n8n/n8n-nodes-langchain.agent",
+              "pred_type": "@n8n/n8n-nodes-langchain.agent"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "WhatsApp Trigger"
+              ],
+              "gold_outgoing": [
+                "Set Intent"
+              ],
+              "pred_incoming": [
+                "WhatsApp Trigger"
+              ],
+              "pred_outgoing": [
+                "Set Intent"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 3,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "text",
+                "options.systemMessage",
+                "promptType"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-025",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.5,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Split URLs",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.5,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Split URLs",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Split URLs",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.splitOut",
+              "pred_type": "n8n-nodes-base.splitOut"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Pick URLs"
+              ],
+              "gold_outgoing": [
+                "Scrape content"
+              ],
+              "pred_incoming": [
+                "Pick URLs"
+              ],
+              "pred_outgoing": [
+                "Scrape content"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 2,
+              "covered_paths": 1,
+              "coverage_rate": 0.5,
+              "missing_paths": [
+                "fieldToSplitOut"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-026",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Set app details",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Set app details",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Set app details",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.set",
+              "pred_type": "n8n-nodes-base.set"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Weekly trigger"
+              ],
+              "gold_outgoing": [
+                "Split Out1"
+              ],
+              "pred_incoming": [
+                "Weekly trigger"
+              ],
+              "pred_outgoing": [
+                "Split Out1"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 1,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "assignments"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-027",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "create video",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "create video",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "create video",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.httpRequest",
+              "pred_type": "n8n-nodes-base.httpRequest"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "AI Agent"
+              ],
+              "gold_outgoing": [
+                "Wait1"
+              ],
+              "pred_incoming": [
+                "AI Agent"
+              ],
+              "pred_outgoing": [
+                "Wait1"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 10,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "url",
+                "method",
+                "jsonBody",
+                "sendBody",
+                "jsonHeaders",
+                "sendHeaders",
+                "specifyBody",
+                "authentication",
+                "specifyHeaders",
+                "genericAuthType"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-028",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Splice Error",
+      "position_ok": 0.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": false,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "insert_splice_mismatch",
+          "insert_target_node_name": "Upload Chunk",
+          "insert_position_ok": 0.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_position_mismatch"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Upload Chunk",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Upload Chunk",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.httpRequest",
+              "pred_type": "n8n-nodes-base.httpRequest"
+            },
+            "splice_position": {
+              "ok": false,
+              "gold_incoming": [
+                "Chunk"
+              ],
+              "gold_outgoing": [
+                "Loop Over Chunks"
+              ],
+              "pred_incoming": [
+                "Loop Over Chunks"
+              ],
+              "pred_outgoing": [
+                "Chunk"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 5,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "url",
+                "method",
+                "sendBody",
+                "contentType",
+                "bodyParameters"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": true
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "splice_position_mismatch",
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "splice_error",
+        "insert_status_label": "Splice Error",
+        "insert_tier": "splice_error"
+      }
+    },
+    {
+      "case_id": "create-ins-029",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Build Workflow Version Links",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Build Workflow Version Links",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Build Workflow Version Links",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.set",
+              "pred_type": "n8n-nodes-base.set"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Save Renamed Workflow Version"
+              ],
+              "gold_outgoing": [
+                "Check Trigger Source Type"
+              ],
+              "pred_incoming": [
+                "Save Renamed Workflow Version"
+              ],
+              "pred_outgoing": [
+                "Check Trigger Source Type"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 1,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "assignments"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    },
+    {
+      "case_id": "create-ins-030",
+      "insert_success": 0,
+      "pipeline_ok": 1,
+      "pipeline_step": "done",
+      "insert_status": "Ambiguous",
+      "position_ok": 1.0,
+      "type_ok": 1.0,
+      "parameter_coverage": 0.0,
+      "score": {
+        "success": false,
+        "primary_metric": "insert_success",
+        "metrics": {
+          "ok_kind": true,
+          "ok_parse_wf": true,
+          "strict_match": false,
+          "relaxed_match": false,
+          "inserted_node_ok": true,
+          "inserted_node_name_ok": true,
+          "inserted_node_type_ok": true,
+          "insert_main_neighbors_ok": true,
+          "gold_params_subset_ok": false,
+          "ok_no_dangling": true,
+          "ok_has_connections": true,
+          "ask_token_recall": null,
+          "error_type": "mismatch_other",
+          "insert_target_node_name": "Search files",
+          "insert_position_ok": 1.0,
+          "insert_type_ok": 1.0,
+          "insert_params_cover_gold": 0.0,
+          "insert_param_coverage_rate": 0.0,
+          "insert_survivors_match_oracle": 1.0,
+          "insert_no_extra_raw_nodes": 1.0,
+          "insert_success": 0.0,
+          "insert_error_type": "insert_params_incomplete"
+        },
+        "insert_detail": {
+          "inserted_node_name": "Search files",
+          "checks": {
+            "node_name_present": {
+              "ok": true,
+              "expected_name": "Search files",
+              "in_pred": true
+            },
+            "node_type_match": {
+              "ok": true,
+              "gold_type": "n8n-nodes-base.googleDrive",
+              "pred_type": "n8n-nodes-base.googleDrive"
+            },
+            "splice_position": {
+              "ok": true,
+              "gold_incoming": [
+                "Clear collection"
+              ],
+              "gold_outgoing": [
+                "Loop Over Items"
+              ],
+              "pred_incoming": [
+                "Clear collection"
+              ],
+              "pred_outgoing": [
+                "Loop Over Items"
+              ]
+            },
+            "parameters": {
+              "gold_params_subset_ok": false,
+              "total_paths": 2,
+              "covered_paths": 0,
+              "coverage_rate": 0.0,
+              "missing_paths": [
+                "filter",
+                "resource"
+              ]
+            },
+            "graph_integrity": {
+              "ok_no_dangling": true,
+              "connections_differ_from_gold": false
+            },
+            "collateral": {
+              "other_nodes_semantically_changed": [],
+              "extra_nodes_beyond_insert": [],
+              "base_nodes_missing_from_pred": []
+            }
+          },
+          "ambiguity_reasons": [
+            "parameters_incomplete"
+          ]
+        },
+        "insert_status": "ambiguous",
+        "insert_status_label": "Ambiguous",
+        "insert_tier": "ambiguous",
+        "insert_ambiguity_reasons": [
+          "parameters_incomplete"
+        ],
+        "insert_ambiguity_label": "parameters_incomplete"
+      }
+    }
+  ]
+}
