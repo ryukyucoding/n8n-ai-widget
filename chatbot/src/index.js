@@ -20,6 +20,12 @@ const OpenAI = require('openai');
 const { processAgentMessage, verifyN8nApiKey } = require('./n8nAgent');
 const { sanitizeCreateWorkflowPayload } = require('./workflowCreatePayload');
 const { normalizeN8nBaseUrl, sanitizeProxyEnv } = require('./normalizeN8nBaseUrl');
+const { normalizeAcceptanceContract } = require('./acceptanceContract');
+const {
+  buildCreateCandidateMessages,
+  buildSemanticReviewerInput,
+  createContractReady,
+} = require('./createContractPrompt');
 
 const { verifyCandidateWorkflow } = require('./candidateWorkflowVerifier');
 const { runTimedStage, GenerateStageError } = require('./generateLifecycle');
@@ -375,17 +381,25 @@ Reply ONLY with this JSON object:
   "goal": "short description",
   "trigger": "how the workflow starts",
   "data_sources": [{ "name": "source", "required_fields": ["field"] }],
-  "output_contract": ["required final field or side effect"],
+  "output_contract_required": false,
+  "output_contract": {
+    "required": false,
+    "delivery_shape": "single_object_item",
+    "item_count": 1,
+    "fields": [{ "path": "fieldName", "required": true, "expected_type": "string" }]
+  },
   "data_flow_requirements": ["facts that must be true for the workflow to work"],
   "assumptions": ["safe default selected for an omitted optional detail"],
   "required_user_inputs": [{ "question": "one necessary question", "reason": "why it cannot be guessed" }],
   "generator_instruction": "concise instruction describing the smallest valid workflow"
 }
 
+Set output_contract_required to true when the user explicitly requires final output fields, their types, a final item count, or a delivery shape. When true, output_contract must declare a single_object_item, item_count 1, and every required field with its exact canonical path, required true, and expected_type. Do not emit aliases for the same field. When false, use an empty fields array and do not invent an output schema.
+
 For a request that can be created without private values, required_user_inputs must be an empty array. Do not mention node versions, do not write code, and do not include markdown.`;
 
 const SEMANTIC_REVIEW_PROMPT = `You are a strict, read-only reviewer of an n8n workflow.
-Compare the user's original request, the workflow specification, and the supplied workflow JSON. Do not rewrite the workflow and do not discuss credentials, external API availability, or execution results that cannot be known before running it.
+Compare the immutable acceptance contract and the supplied workflow JSON. The contract is authoritative for output fields, types, item count, and delivery shape; do not replace it with inferred aliases. The original request is context only. Do not rewrite the workflow and do not discuss credentials, external API availability, or execution results that cannot be known before running it.
 
 Check only material request-to-workflow mismatches, including missing requested steps, wrong requested outputs, required data that never reaches a downstream step, and branches that do not implement the requested condition. A workflow is allowed to use optional inputs or a subset of a multi-input node when the user request does not require those inputs.
 
@@ -469,11 +483,20 @@ function normalizeWorkflowPlan(rawPlan) {
     throw new Error('workflow planner returned no generator_instruction');
   }
 
+  const outputContract = plan.output_contract && typeof plan.output_contract === 'object' && !Array.isArray(plan.output_contract)
+    ? {
+      required: plan.output_contract.required === true,
+      delivery_shape: typeof plan.output_contract.delivery_shape === 'string' ? plan.output_contract.delivery_shape.trim() : '',
+      item_count: Number.isInteger(plan.output_contract.item_count) ? plan.output_contract.item_count : null,
+      fields: objects(plan.output_contract.fields),
+    }
+    : stringList(plan.output_contract);
   return {
     goal: plan.goal.trim(),
     trigger: typeof plan.trigger === 'string' ? plan.trigger.trim() : '',
     data_sources: objects(plan.data_sources),
-    output_contract: stringList(plan.output_contract),
+    output_contract_required: plan.output_contract_required === true || outputContract?.required === true,
+    output_contract: outputContract,
     data_flow_requirements: stringList(plan.data_flow_requirements),
     assumptions: stringList(plan.assumptions),
     required_user_inputs: objects(plan.required_user_inputs),
@@ -517,7 +540,7 @@ function normalizeSemanticReview(rawReview) {
   return { verdict: review.verdict, issues, repairInstruction };
 }
 
-async function reviewWorkflowSemantics(userRequest, plan, workflow, dataflowSummary, signal) {
+async function reviewWorkflowSemantics(userRequest, acceptanceContract, workflow, dataflowSummary, signal) {
   const modelConfig = editModelConfig(SEMANTIC_REVIEW_MODEL);
   const reviewer = clientForModelConfig(modelConfig);
   let lastError;
@@ -533,7 +556,7 @@ async function reviewWorkflowSemantics(userRequest, plan, workflow, dataflowSumm
           { role: 'system', content: SEMANTIC_REVIEW_PROMPT },
           {
             role: 'user',
-            content: `Original user request:\n${userRequest}\n\nWorkflow specification:\n${JSON.stringify(plan)}\n\nStatic dataflow summary:\n${JSON.stringify(dataflowSummary)}\n\nWorkflow JSON to review:\n${JSON.stringify(workflow)}`,
+            content: buildSemanticReviewerInput({ userRequest, acceptanceContract, workflow, dataflowSummary }),
           },
         ],
       }, { signal });
@@ -566,13 +589,6 @@ async function planWorkflow(userRequest, signal) {
     ],
   }, { signal });
   return normalizeWorkflowPlan(response.choices[0]?.message?.content ?? '');
-}
-
-function workflowPlanInstruction(plan) {
-  return `Use this workflow specification as a contract. It was derived from the user's request.
-Do not include the specification itself or any planner metadata in the workflow JSON.
-
-${JSON.stringify(plan)}`;
 }
 
 app.post('/generate', async (req, res) => {
@@ -644,6 +660,7 @@ app.post('/generate', async (req, res) => {
   let raw = '';
   try {
     let workflowPlan = null;
+    let createAcceptanceContract = null;
     const shadowRepairHistory = [];
     const shadowStartedAt = Date.now();
     const correctnessFirstRepairHistory = [];
@@ -668,27 +685,31 @@ app.post('/generate', async (req, res) => {
           .filter((question) => typeof question === 'string' && question.trim());
         throw new Error(`workflow needs required user input before it can be created: ${questions.join(' ')}`);
       }
+      createAcceptanceContract = normalizeAcceptanceContract({
+        userRequest: message.trim(),
+        plannerResult: workflowPlan,
+        deliveryMode: 'candidate-only',
+      });
+      if (!createContractReady(createAcceptanceContract)) {
+        throw new Error('workflow needs a complete typed output contract before it can be created');
+      }
     }
     let verificationError = '';
     for (let attempt = 0; attempt < generationCandidateLimit; attempt += 1) {
       progress('generate', attempt === 0
         ? `正在使用 ${selectedModel} 生成 workflow…`
         : '正在依驗證結果重新生成 workflow…');
-      const messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: message.trim() },
-      ];
-      if (workflowPlan) {
-        messages.push({ role: 'user', content: workflowPlanInstruction(workflowPlan) });
-      }
-      if (attempt > 0) {
-        messages.push({
-          role: 'user',
-          content: CORRECTNESS_FIRST_REPAIR_ENABLED && correctnessFirstRepairPrompt
-            ? correctnessFirstRepairPrompt
-            : buildRegenerationInstruction(message.trim(), verificationError),
-        });
-      }
+      const repairPrompt = attempt > 0
+        ? (CORRECTNESS_FIRST_REPAIR_ENABLED && correctnessFirstRepairPrompt
+          ? correctnessFirstRepairPrompt
+          : buildRegenerationInstruction(message.trim(), verificationError))
+        : null;
+      const messages = buildCreateCandidateMessages({
+        systemPrompt: SYSTEM_PROMPT,
+        userRequest: message.trim(),
+        acceptanceContract: createAcceptanceContract,
+        repairPrompt,
+      });
 
       const response = await runTimedStage({
         stage: 'generation',
@@ -718,9 +739,9 @@ app.post('/generate', async (req, res) => {
           operation: 'create',
           userRequest: message.trim(),
           candidateWorkflow: raw,
-          acceptanceContract: workflowPlan
+          acceptanceContract: createAcceptanceContract || (workflowPlan
             ? { requiredUserInputs: workflowPlan.required_user_inputs }
-            : undefined,
+            : undefined),
         }, {
           n8nBaseUrl: N8N_BASE_URL,
           n8nApiKey: N8N_API_KEY,
@@ -733,7 +754,7 @@ app.post('/generate', async (req, res) => {
               emit: lifecycleEvent,
               task: (stageSignal) => reviewWorkflowSemantics(
                 context.userRequest,
-                workflowPlan,
+                context.acceptanceContract || createAcceptanceContract,
                 context.workflow,
                 context.dataflowSummary,
                 stageSignal,
@@ -800,7 +821,7 @@ app.post('/generate', async (req, res) => {
             plannerOutput: workflowPlan || {},
             candidateWorkflow: verification.workflow || raw,
             verificationResult: verification,
-            existingContract: correctnessFirstContract,
+            existingContract: correctnessFirstContract || createAcceptanceContract,
             repairState: {
               history: correctnessFirstRepairHistory,
               elapsedMs: Math.max(0, Date.now() - shadowStartedAt),

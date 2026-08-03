@@ -4,6 +4,8 @@ const { createHash } = require('node:crypto');
 
 const CONTRACT_VERSION = '1.0';
 const DELIVERY_MODES = new Set(['candidate-only', 'n8n-draft', 'ready-to-run']);
+const OUTPUT_DELIVERY_SHAPES = new Set(['single_object_item']);
+const OUTPUT_FIELD_TYPES = new Set(['string', 'number', 'boolean', 'object', 'array', 'null']);
 const SECRET_KEY_PATTERN = /(api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|client[_-]?secret|oauth[_-]?secret|private[_-]?key|secret)/i;
 const SECRET_VALUE_PATTERN = /^(?:sk-|pk_live_|ghp_|xox[baprs]-|bearer\s+)/i;
 
@@ -87,6 +89,72 @@ function normalizeRequirement(item, index) {
   };
 }
 
+function normalizedFieldPath(value) {
+  const path = normalizedText(value);
+  if (!path || path.split('.').some((segment) => !segment || /^(?:__proto__|prototype|constructor)$/i.test(segment))) return null;
+  return path;
+}
+
+function canonicalFieldPath(path) {
+  return path.split('.').map((segment) => segment.toLowerCase().replace(/[_-]/g, '')).join('.');
+}
+
+function normalizeOutputField(field) {
+  const source = field && typeof field === 'object' && !Array.isArray(field) ? field : {};
+  const path = normalizedFieldPath(valueAt(source, 'path', 'name', 'field'));
+  const expectedType = normalizedText(valueAt(source, 'expectedType', 'expected_type', 'type'));
+  return {
+    path,
+    required: source.required === true,
+    expectedType: OUTPUT_FIELD_TYPES.has(expectedType) ? expectedType : null,
+  };
+}
+
+function normalizeOutputSchema(planner, rawOutputContract) {
+  const source = rawOutputContract && typeof rawOutputContract === 'object' && !Array.isArray(rawOutputContract)
+    ? rawOutputContract
+    : {};
+  const required = planner.outputContractRequired === true || planner.output_contract_required === true || source.required === true;
+  const deliveryShape = normalizedText(valueAt(source, 'deliveryShape', 'delivery_shape')) || null;
+  const rawItemCount = valueAt(source, 'itemCount', 'item_count');
+  const itemCount = Number.isInteger(rawItemCount) && rawItemCount >= 0 ? rawItemCount : null;
+  const rawFields = Array.isArray(source.fields) ? source.fields : [];
+  const fields = rawFields.map(normalizeOutputField);
+  const malformedField = fields.some((field) => !field.path || !field.required || !field.expectedType);
+  const aliases = new Map();
+  for (const field of fields) {
+    if (!field.path) continue;
+    const canonical = canonicalFieldPath(field.path);
+    const existing = aliases.get(canonical);
+    if (existing && existing !== field.path) {
+      throw new TypeError('acceptance contract output fields must not mix aliases');
+    }
+    if (existing === field.path) throw new TypeError('acceptance contract output fields must not duplicate a path');
+    aliases.set(canonical, field.path);
+  }
+  const complete = !required || (
+    OUTPUT_DELIVERY_SHAPES.has(deliveryShape)
+    && itemCount === 1
+    && fields.length > 0
+    && !malformedField
+  );
+  return {
+    required,
+    deliveryShape,
+    itemCount,
+    fields,
+    status: complete ? (required ? 'complete' : 'not_required') : 'clarification_required',
+  };
+}
+
+function derivedExecutionAssertions(outputSchema) {
+  if (outputSchema.status !== 'complete' || !outputSchema.required) return [];
+  return [
+    { kind: 'item_count', equals: outputSchema.itemCount },
+    ...outputSchema.fields.map((field) => ({ path: field.path, required: field.required, expectedType: field.expectedType })),
+  ];
+}
+
 function isConfigured(requirement) {
   if (!requirement.required) return true;
   const value = requirement.value ?? requirement.credentialReference ?? requirement.credentialSelector ?? requirement.resourceId;
@@ -96,6 +164,8 @@ function isConfigured(requirement) {
 function normalizePlannerResult(plannerResult) {
   const planner = plannerResult && typeof plannerResult === 'object' ? plannerResult : {};
   assertNoCredentialValues(planner);
+  const rawOutputContract = valueAt(planner, 'outputContract', 'output_contract');
+  const outputSchema = normalizeOutputSchema(planner, rawOutputContract);
   const requiredConfiguration = asArray(valueAt(planner, 'requiredConfiguration', 'required_configuration'))
     .map(normalizeRequirement);
   return {
@@ -103,7 +173,8 @@ function normalizePlannerResult(plannerResult) {
     trigger: clone(valueAt(planner, 'trigger')) ?? null,
     requiredCapabilities: clone(asArray(valueAt(planner, 'requiredCapabilities', 'required_capabilities'))),
     dataSources: clone(asArray(valueAt(planner, 'dataSources', 'data_sources'))),
-    outputAssertions: clone(asArray(valueAt(planner, 'outputAssertions', 'output_contract'))),
+    outputAssertions: clone(Array.isArray(rawOutputContract) ? rawOutputContract : outputSchema.fields),
+    outputSchema,
     dataflowAssertions: clone(asArray(valueAt(planner, 'dataflowAssertions', 'data_flow_requirements'))),
     // Execution assertions are only retained when a planner or trusted fixture
     // explicitly declares them. This normalizer never infers assertions from
@@ -143,7 +214,7 @@ function normalizeAcceptanceContract({ userRequest, plannerResult, deliveryMode 
   const normalized = normalizePlannerResult(plannerResult);
   const unresolvedConfiguration = normalized.requiredConfiguration.filter((requirement) => !isConfigured(requirement));
   const requiredUserInputs = normalized.requiredUserInputs;
-  const configurationStatus = unresolvedConfiguration.length || requiredUserInputs.length
+  const configurationStatus = unresolvedConfiguration.length || requiredUserInputs.length || normalized.outputSchema.status === 'clarification_required'
     ? 'clarification_required'
     : 'complete';
   // `ready-to-run` cannot silently turn unresolved requirements into a usable
@@ -163,8 +234,9 @@ function normalizeAcceptanceContract({ userRequest, plannerResult, deliveryMode 
     requiredCapabilities: normalized.requiredCapabilities,
     dataSources: normalized.dataSources,
     outputAssertions: normalized.outputAssertions,
+    outputSchema: normalized.outputSchema,
     dataflowAssertions: normalized.dataflowAssertions,
-    executionAssertions: normalized.executionAssertions,
+    executionAssertions: [...derivedExecutionAssertions(normalized.outputSchema), ...normalized.executionAssertions],
     requiredConfiguration: normalized.requiredConfiguration,
     allowedAssumptions: normalized.allowedAssumptions,
     requiredUserInputs,
@@ -173,4 +245,8 @@ function normalizeAcceptanceContract({ userRequest, plannerResult, deliveryMode 
   };
 }
 
-module.exports = { CONTRACT_VERSION, normalizeAcceptanceContract, requestHash, stableJson };
+function acceptanceContractFingerprint(contract) {
+  return createHash('sha256').update(stableJson(contract), 'utf8').digest('hex');
+}
+
+module.exports = { CONTRACT_VERSION, normalizeAcceptanceContract, acceptanceContractFingerprint, requestHash, stableJson };

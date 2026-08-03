@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeAcceptanceContract } = require('./acceptanceContract');
+const { normalizeAcceptanceContract, acceptanceContractFingerprint } = require('./acceptanceContract');
 const { verifyCandidateWorkflow } = require('./candidateWorkflowVerifier');
 const { evaluateShadowRepair } = require('./shadowRepairOrchestrator');
 const {
@@ -25,7 +25,13 @@ function plannerOutput() {
     trigger: { type: 'manual' },
     required_capabilities: ['aggregate'],
     data_sources: [{ kind: 'fixture', resourceId: 'source-selector' }],
-    output_contract: [{ field: 'aggregate', type: 'object' }],
+    output_contract_required: true,
+    output_contract: {
+      required: true,
+      delivery_shape: 'single_object_item',
+      item_count: 1,
+      fields: [{ path: 'aggregate', required: true, expected_type: 'object' }],
+    },
     data_flow_requirements: [{ kind: 'upstream-before-code' }],
     assumptions: [],
     required_user_inputs: [],
@@ -90,6 +96,8 @@ async function runScriptedCreate({ correctnessFirstEnabled, candidates, normaliz
   const history = [];
   const attempted = [];
   const contractRevisions = [];
+  const contractFingerprints = [];
+  const controllerContractFingerprints = [];
   let controllerCalls = 0;
   let postCalls = 0;
   let readbackCalls = 0;
@@ -114,6 +122,7 @@ async function runScriptedCreate({ correctnessFirstEnabled, candidates, normaliz
   for (let attempt = 0; attempt < limit && attempt < candidates.length; attempt += 1) {
     const candidate = candidates[attempt];
     contractRevisions.push(contract.contractRevision);
+    contractFingerprints.push(acceptanceContractFingerprint(contract));
     const verification = await verifyCandidateWorkflow({
       operation: 'create', userRequest: REQUEST, candidateWorkflow: candidate, acceptanceContract: contract,
     }, { structuralValidator, runtimeSchemas: RUNTIME_SCHEMAS });
@@ -125,7 +134,7 @@ async function runScriptedCreate({ correctnessFirstEnabled, candidates, normaliz
     if (verification.status !== 'repair' && verification.status !== 'clarify') {
       postCalls += 1;
       readbackCalls += 1;
-      return { attempted, contractRevisions, controllerCalls, postCalls, readbackCalls, lastControllerReport, controllerFingerprints };
+      return { attempted, contractRevisions, contractFingerprints, controllerContractFingerprints, controllerCalls, postCalls, readbackCalls, lastControllerReport, controllerFingerprints };
     }
     const retry = await decideCreateCandidateRetry({
       correctnessFirstEnabled,
@@ -142,6 +151,7 @@ async function runScriptedCreate({ correctnessFirstEnabled, candidates, normaliz
     if (retry.controller?.report) {
       lastControllerReport = retry.controller.report;
       controllerFingerprints.push(lastControllerReport.summary.candidateBehaviorFingerprint);
+      controllerContractFingerprints.push(acceptanceContractFingerprint(lastControllerReport.contract));
       contract = retry.controller.report.contract;
       history.push({
         behaviorFingerprint: lastControllerReport.summary.candidateBehaviorFingerprint,
@@ -152,7 +162,7 @@ async function runScriptedCreate({ correctnessFirstEnabled, candidates, normaliz
     }
     if (retry.action !== 'retry') break;
   }
-  return { attempted, contractRevisions, controllerCalls, postCalls, readbackCalls, lastControllerReport, controllerFingerprints };
+  return { attempted, contractRevisions, contractFingerprints, controllerContractFingerprints, controllerCalls, postCalls, readbackCalls, lastControllerReport, controllerFingerprints };
 }
 
 test('flag false uses the shared adapter but stops after scripted A, B, and C', async () => {
@@ -162,6 +172,8 @@ test('flag false uses the shared adapter but stops after scripted A, B, and C', 
   assert.equal(result.controllerCalls, 0);
   assert.equal(result.postCalls, 0);
   assert.equal(result.readbackCalls, 0);
+  assert.equal(new Set(result.contractFingerprints).size, 1);
+  assert.deepEqual(result.controllerContractFingerprints, []);
 });
 
 test('scripted A/B/C failures with C first introducing a blocker permit passing D, with one post/readback', async () => {
@@ -175,6 +187,8 @@ test('scripted A/B/C failures with C first introducing a blocker permit passing 
   assert.equal(result.readbackCalls, 1);
   assert.equal(result.lastControllerReport.repairDecision.reason, 'terminal_repair_for_new_blocking_finding');
   assert.deepEqual(result.contractRevisions, [1, 1, 1, 1]);
+  assert.equal(new Set(result.contractFingerprints).size, 1);
+  assert.equal(new Set(result.controllerContractFingerprints).size, 1);
 });
 
 test('the fourth candidate cannot trigger a fifth generation', async () => {

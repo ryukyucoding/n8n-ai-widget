@@ -3,6 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizeAcceptanceContract } = require('./acceptanceContract');
+const { verifyExecutionOutput } = require('./executionAssertion');
+const { createContractReady } = require('./createContractPrompt');
 
 const REQUEST = 'Create a daily sales report workflow.';
 
@@ -126,4 +128,68 @@ test('retains only explicitly declared execution assertions without inferring th
 
   const absent = normalizeAcceptanceContract({ userRequest: REQUEST, plannerResult: completePlanner() });
   assert.deepEqual(absent.executionAssertions, []);
+});
+
+function typedOutputPlanner(overrides = {}) {
+  return completePlanner({
+    output_contract_required: true,
+    output_contract: {
+      required: true,
+      delivery_shape: 'single_object_item',
+      item_count: 1,
+      fields: [
+        { path: 'summary', required: true, expected_type: 'object' },
+        { path: 'count', required: true, expected_type: 'number' },
+      ],
+    },
+    ...overrides,
+  });
+}
+
+test('normalizes a typed single-object output contract into immutable execution assertions', () => {
+  const contract = normalizeAcceptanceContract({ userRequest: REQUEST, plannerResult: typedOutputPlanner() });
+  assert.equal(contract.configurationStatus, 'complete');
+  assert.equal(contract.outputSchema.deliveryShape, 'single_object_item');
+  assert.equal(contract.outputSchema.itemCount, 1);
+  assert.deepEqual(contract.executionAssertions, [
+    { kind: 'item_count', equals: 1 },
+    { path: 'summary', required: true, expectedType: 'object' },
+    { path: 'count', required: true, expectedType: 'number' },
+  ]);
+});
+
+test('typed contract rejects a stringified final object through the same assertions', () => {
+  const contract = normalizeAcceptanceContract({ userRequest: REQUEST, plannerResult: typedOutputPlanner() });
+  const result = verifyExecutionOutput({
+    executionOutput: [{ json: { summary: '{"count":1}', count: 1 } }],
+    acceptanceContract: contract,
+    executionSafety: true,
+  });
+  assert.equal(result.status, 'fail');
+  assert.ok(result.findings.some((finding) => finding.rule === 'execution_assertion.type'));
+});
+
+test('rejects mixed canonical field aliases within one typed contract', () => {
+  assert.throws(() => normalizeAcceptanceContract({
+    userRequest: REQUEST,
+    plannerResult: typedOutputPlanner({
+      output_contract: {
+        required: true, delivery_shape: 'single_object_item', item_count: 1,
+        fields: [
+          { path: 'resultCount', required: true, expected_type: 'number' },
+          { path: 'result_count', required: true, expected_type: 'number' },
+        ],
+      },
+    }),
+  }), /must not mix aliases/);
+});
+
+test('required typed output contract without a complete schema stays on the clarify path', () => {
+  const contract = normalizeAcceptanceContract({
+    userRequest: REQUEST,
+    plannerResult: completePlanner({ output_contract_required: true, output_contract: [] }),
+  });
+  assert.equal(contract.configurationStatus, 'clarification_required');
+  assert.equal(contract.outputSchema.status, 'clarification_required');
+  assert.equal(createContractReady(contract), false);
 });

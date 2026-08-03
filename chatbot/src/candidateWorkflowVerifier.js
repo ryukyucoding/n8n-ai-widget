@@ -182,6 +182,10 @@ function requiredClarifications(acceptanceContract) {
     .map((item) => item.trim());
 }
 
+function incompleteOutputContract(acceptanceContract) {
+  return acceptanceContract?.outputSchema?.status === 'clarification_required';
+}
+
 /**
  * Verify a complete candidate workflow from any producer (Create, Modify,
  * Insert, or Delete).  ``semanticReview`` is optional and supplied by the
@@ -243,6 +247,17 @@ async function verifyCandidateWorkflow(input, options = {}) {
         ruleId: 'acceptance_contract.required_user_input', severity: 'clarify', evidenceSource: 'runtime_contract', category: 'configuration',
         location: { kind: 'acceptance_contract_input', index }, message: `required user input: ${question}`, repairable: false,
       })),
+    };
+  }
+  if (incompleteOutputContract(input.acceptanceContract)) {
+    return {
+      ...base,
+      status: 'clarify',
+      errors: ['acceptance contract requires a complete typed output schema'],
+      findings: [structuredFinding({
+        ruleId: 'acceptance_contract.output_schema.required', severity: 'clarify', evidenceSource: 'runtime_contract', category: 'configuration',
+        location: { kind: 'acceptance_contract_output_schema' }, message: 'acceptance contract requires a complete typed output schema', repairable: false,
+      })],
     };
   }
 

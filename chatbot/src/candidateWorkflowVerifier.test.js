@@ -107,6 +107,15 @@ test('returns precise clarification without guessing required inputs', async () 
   assert.deepEqual(result.errors, ['required user input: Which node should be deleted?']);
 });
 
+test('returns clarification before validation when the contract requires a missing typed output schema', async () => {
+  const result = await verifyCandidateWorkflow({
+    operation: 'create', userRequest: 'Return a typed output', candidateWorkflow: validWorkflow(),
+    acceptanceContract: { outputSchema: { status: 'clarification_required' } },
+  }, { structuralValidator });
+  assert.equal(result.status, 'clarify');
+  assert.equal(result.findings[0].ruleId, 'acceptance_contract.output_schema.required');
+});
+
 test('normalizes one source output port and reports sibling any-input Code findings together', async () => {
   const candidate = {
     name: 'Combined verifier feedback',
