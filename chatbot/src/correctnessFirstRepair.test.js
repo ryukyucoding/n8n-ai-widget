@@ -8,6 +8,7 @@ const {
   buildCorrectnessFirstRepairPrompt,
   repairControllerLogPayload,
   evaluateCorrectnessFirstRepair,
+  decideCreateCandidateRetry,
 } = require('./correctnessFirstRepair');
 
 function finding(overrides = {}) {
@@ -32,18 +33,34 @@ function report(overrides = {}) {
   };
 }
 
-test('flag false retains the legacy two-candidate limit and never calls the controller', async () => {
+test('flag false retains the configured three-candidate limit and never calls the controller', async () => {
   let calls = 0;
   const result = await evaluateCorrectnessFirstRepair({
     enabled: false,
     evaluateShadowRepair: async () => { calls += 1; return report(); },
   });
-  assert.equal(createCandidateLimit(false, 2), 2);
+  assert.equal(createCandidateLimit(false, 3), 3);
   assert.equal(result.action, 'legacy');
   assert.equal(calls, 0);
 });
 
-test('two distinct C07-style candidates may permit the third repair candidate', async () => {
+test('flag false stops after at most three candidates', async () => {
+  let calls = 0;
+  const actions = [];
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const result = await decideCreateCandidateRetry({
+      correctnessFirstEnabled: false,
+      attempt,
+      legacyMaxCandidates: 3,
+      evaluateCorrectnessFirstRepair: async () => { calls += 1; return report(); },
+    });
+    actions.push(result.action);
+  }
+  assert.deepEqual(actions, ['retry', 'retry', 'stop', 'stop']);
+  assert.equal(calls, 0);
+});
+
+test('enabled mode reserves one terminal loop slot beyond the normal repair budget', async () => {
   const first = report();
   const second = report({
     repairDecision: { ...report().repairDecision, reason: 'blocking_findings_with_progress', budgetSummary: { llmCandidatesUsed: 2, maxLlmCandidates: 3, llmRepairsUsed: 1, maxLlmRepairs: 2 } },
@@ -54,7 +71,7 @@ test('two distinct C07-style candidates may permit the third repair candidate', 
   for (const item of reports) {
     outcomes.push(await evaluateCorrectnessFirstRepair({ enabled: true, evaluateShadowRepair: async () => item }));
   }
-  assert.equal(createCandidateLimit(true, 2), 3);
+  assert.equal(createCandidateLimit(true, 3), 4);
   assert.equal(REPAIR_POLICY.maxLlmRepairs, 2);
   assert.ok(outcomes.every((outcome) => outcome.action === 'repair' && outcome.repairPrompt));
   assert.notEqual(outcomes[0].report.summary.candidateBehaviorFingerprint, outcomes[1].report.summary.candidateBehaviorFingerprint);

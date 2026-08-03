@@ -76,7 +76,9 @@ const CANDIDATE_A = siblingCandidate("const left = $('Left').all(); const right 
 // This changes execution-relevant Code behavior, not UI metadata, while
 // deliberately retaining the unsafe sibling any-input fan-in topology.
 const CANDIDATE_B = siblingCandidate("const left = $('Left').all(); const right = $('Right').all(); return [{ json: { total: left.length + right.length, mode: 'revised' } }];");
-const CANDIDATE_C = fixedCandidate();
+const CANDIDATE_C = siblingCandidate("const missing = $('Missing').all(); return [{ json: { total: missing.length } }];");
+const CANDIDATE_D = fixedCandidate();
+const CANDIDATE_D_FAILURE = siblingCandidate("const missing = $('Other').all(); return [{ json: { total: missing.length } }];");
 
 function identityStructuralValidator(input) {
   return input.candidateWorkflow;
@@ -93,7 +95,7 @@ async function runScriptedCreate({ correctnessFirstEnabled, candidates, normaliz
   let readbackCalls = 0;
   let lastControllerReport;
   const controllerFingerprints = [];
-  const limit = createCandidateLimit(correctnessFirstEnabled, 2);
+  const limit = createCandidateLimit(correctnessFirstEnabled, 3);
   const structuralValidator = normalizeWarning
     ? (input) => ({
       workflow: input.candidateWorkflow,
@@ -128,7 +130,7 @@ async function runScriptedCreate({ correctnessFirstEnabled, candidates, normaliz
     const retry = await decideCreateCandidateRetry({
       correctnessFirstEnabled,
       attempt,
-      legacyMaxCandidates: 2,
+      legacyMaxCandidates: 3,
       evaluateCorrectnessFirstRepair: evaluateController,
       controllerInput: {
         evaluateShadowRepair,
@@ -153,29 +155,42 @@ async function runScriptedCreate({ correctnessFirstEnabled, candidates, normaliz
   return { attempted, contractRevisions, controllerCalls, postCalls, readbackCalls, lastControllerReport, controllerFingerprints };
 }
 
-test('flag false uses the shared adapter but stops after scripted A and B', async () => {
-  const result = await runScriptedCreate({ correctnessFirstEnabled: false, candidates: [CANDIDATE_A, CANDIDATE_B, CANDIDATE_C] });
-  assert.deepEqual(result.attempted.map((item) => item.candidate), ['A', 'B']);
+test('flag false uses the shared adapter but stops after scripted A, B, and C', async () => {
+  const result = await runScriptedCreate({ correctnessFirstEnabled: false, candidates: [CANDIDATE_A, CANDIDATE_B, CANDIDATE_C, CANDIDATE_D] });
+  assert.deepEqual(result.attempted.map((item) => item.candidate), ['A', 'B', 'C']);
   assert.ok(result.attempted.every((item) => item.status === 'repair'));
   assert.equal(result.controllerCalls, 0);
   assert.equal(result.postCalls, 0);
   assert.equal(result.readbackCalls, 0);
 });
 
-test('flag true allows A, B, then a passing C through real verifier and one mock post/readback', async () => {
-  const result = await runScriptedCreate({ correctnessFirstEnabled: true, candidates: [CANDIDATE_A, CANDIDATE_B, CANDIDATE_C] });
-  assert.deepEqual(result.attempted.map((item) => item.candidate), ['A', 'B', 'C']);
-  assert.deepEqual(result.attempted.map((item) => item.status), ['repair', 'repair', 'pass']);
+test('scripted A/B/C failures with C first introducing a blocker permit passing D, with one post/readback', async () => {
+  const result = await runScriptedCreate({ correctnessFirstEnabled: true, candidates: [CANDIDATE_A, CANDIDATE_B, CANDIDATE_C, CANDIDATE_D] });
+  assert.deepEqual(result.attempted.map((item) => item.candidate), ['A', 'B', 'C', 'D']);
+  assert.deepEqual(result.attempted.map((item) => item.status), ['repair', 'repair', 'repair', 'pass']);
   assert.ok(result.attempted.slice(0, 2).every((item) => item.findingRuleIds.filter((ruleId) => ruleId === 'dataflow.code_reference.must_execute_before').length === 2));
-  assert.equal(result.controllerCalls, 2);
+  assert.equal(result.controllerCalls, 3);
   assert.notEqual(result.controllerFingerprints[0], result.controllerFingerprints[1]);
   assert.equal(result.postCalls, 1);
   assert.equal(result.readbackCalls, 1);
-  assert.deepEqual(result.contractRevisions, [1, 1, 1]);
+  assert.equal(result.lastControllerReport.repairDecision.reason, 'terminal_repair_for_new_blocking_finding');
+  assert.deepEqual(result.contractRevisions, [1, 1, 1, 1]);
+});
+
+test('the fourth candidate cannot trigger a fifth generation', async () => {
+  const result = await runScriptedCreate({
+    correctnessFirstEnabled: true,
+    candidates: [CANDIDATE_A, CANDIDATE_B, CANDIDATE_C, CANDIDATE_D_FAILURE, CANDIDATE_D],
+  });
+  assert.deepEqual(result.attempted.map((item) => item.candidate), ['A', 'B', 'C', 'D']);
+  assert.equal(result.controllerCalls, 4);
+  assert.equal(result.lastControllerReport.repairDecision.reason, 'repair_budget_exhausted');
+  assert.equal(result.postCalls, 0);
+  assert.equal(result.readbackCalls, 0);
 });
 
 test('same behavior and same blocking findings stop before C', async () => {
-  const result = await runScriptedCreate({ correctnessFirstEnabled: true, candidates: [CANDIDATE_A, CANDIDATE_A, CANDIDATE_C] });
+  const result = await runScriptedCreate({ correctnessFirstEnabled: true, candidates: [CANDIDATE_A, CANDIDATE_A, CANDIDATE_D] });
   assert.deepEqual(result.attempted.map((item) => item.candidate), ['A', 'B']);
   assert.equal(result.controllerCalls, 2);
   assert.equal(result.postCalls, 0);

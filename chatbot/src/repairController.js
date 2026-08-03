@@ -133,6 +133,8 @@ function normalizeCandidate({ currentCandidate, findingSet, acceptanceContract }
   return {
     behaviorFingerprint,
     blockingFindingFingerprints,
+    repairableBlockingFindingFingerprints: sortedUnique(candidate.repairableBlockingFindingFingerprints || [])
+      .filter((fingerprint) => blockingFindingFingerprints.includes(fingerprint)),
     clarificationFindingFingerprints,
     normalizationWarningCount: normalizationWarnings.length,
     findingCount: findings.length,
@@ -172,6 +174,7 @@ function progressSignals(candidate, history) {
       comparedToPrevious: false,
       behaviorChanged: false,
       newBlockingFindingFingerprints: [...candidate.blockingFindingFingerprints],
+      firstSeenBlockingFindingFingerprints: [...candidate.blockingFindingFingerprints],
       resolvedBlockingFindingFingerprints: [],
       severityDecreased: false,
       contractCoverageIncreased: false,
@@ -179,7 +182,10 @@ function progressSignals(candidate, history) {
     };
   }
   const previousFindings = historyBlockingFingerprints(previous);
+  const priorFindingFingerprints = sortedUnique(previousCandidatesBlockingFindingFingerprints(history));
   const newBlockingFindingFingerprints = candidate.blockingFindingFingerprints.filter((value) => !previousFindings.includes(value));
+  const firstSeenBlockingFindingFingerprints = candidate.blockingFindingFingerprints
+    .filter((value) => !priorFindingFingerprints.includes(value));
   const resolvedBlockingFindingFingerprints = previousFindings.filter((value) => !candidate.blockingFindingFingerprints.includes(value));
   const severityDecreased = candidate.severityRank < severityRank(previous.severity);
   const contractCoverageIncreased = candidate.contractCoverage > coverage(previous.contractCoverage);
@@ -187,11 +193,32 @@ function progressSignals(candidate, history) {
     comparedToPrevious: true,
     behaviorChanged: candidate.behaviorFingerprint !== historyBehaviorFingerprint(previous),
     newBlockingFindingFingerprints,
+    firstSeenBlockingFindingFingerprints,
     resolvedBlockingFindingFingerprints,
     severityDecreased,
     contractCoverageIncreased,
     progressDetected: newBlockingFindingFingerprints.length > 0 || resolvedBlockingFindingFingerprints.length > 0
       || severityDecreased || contractCoverageIncreased,
+  };
+}
+
+function previousCandidatesBlockingFindingFingerprints(history) {
+  return historyCandidates(history).flatMap(historyBlockingFingerprints);
+}
+
+function terminalRepairEligibility(candidate, budget, progress, policy) {
+  const firstSeenRepairableBlockingFindingFingerprints = progress.firstSeenBlockingFindingFingerprints
+    .filter((fingerprint) => candidate.repairableBlockingFindingFingerprints.includes(fingerprint));
+  return {
+    eligible: budget.llmCandidatesUsed === budget.maxLlmCandidates
+      && budget.llmRepairsUsed === budget.maxLlmRepairs
+      && policy.allowRepair
+      && candidate.hasSafeRepairPath
+      && candidate.clarificationFindingFingerprints.length === 0
+      && !budget.durationExhausted
+      && !progress.repeatedCandidateState
+      && firstSeenRepairableBlockingFindingFingerprints.length > 0,
+    firstSeenRepairableBlockingFindingFingerprints,
   };
 }
 
@@ -247,6 +274,7 @@ function evaluateRepairDecision({ currentCandidate, findingSet, acceptanceContra
     ...progressSignals(candidate, history),
     repeatedCandidateState,
   };
+  const terminalRepair = terminalRepairEligibility(candidate, budget, progress, normalizedPolicy);
 
   let action;
   let reason;
@@ -262,12 +290,12 @@ function evaluateRepairDecision({ currentCandidate, findingSet, acceptanceContra
   } else if (budget.durationExhausted) {
     action = 'stop';
     reason = 'global_duration_exhausted';
-  } else if (budget.candidateBudgetExhausted || budget.repairBudgetExhausted) {
-    action = 'stop';
-    reason = 'repair_budget_exhausted';
   } else if (!normalizedPolicy.allowRepair || !candidate.hasSafeRepairPath) {
     action = 'stop';
     reason = 'no_safe_repair_path';
+  } else if (budget.candidateBudgetExhausted || budget.repairBudgetExhausted) {
+    action = terminalRepair.eligible ? 'repair' : 'stop';
+    reason = terminalRepair.eligible ? 'terminal_repair_for_new_blocking_finding' : 'repair_budget_exhausted';
   } else {
     action = 'repair';
     reason = progress.progressDetected ? 'blocking_findings_with_progress' : 'blocking_findings_require_repair';
@@ -276,6 +304,7 @@ function evaluateRepairDecision({ currentCandidate, findingSet, acceptanceContra
   const normalizedMetadataSummary = {
     behaviorFingerprintPresent: Boolean(candidate.behaviorFingerprint),
     blockingFindingFingerprints: [...candidate.blockingFindingFingerprints],
+    repairableBlockingFindingFingerprints: [...candidate.repairableBlockingFindingFingerprints],
     blockingFindingCount: candidate.blockingFindingFingerprints.length,
     clarificationFindingFingerprints: [...candidate.clarificationFindingFingerprints],
     clarificationFindingCount: candidate.clarificationFindingFingerprints.length,
@@ -289,7 +318,7 @@ function evaluateRepairDecision({ currentCandidate, findingSet, acceptanceContra
   };
   const shadowEvent = redactedShadowEvent({ action, reason, candidate, budget, progress });
 
-  return { action, reason, normalizedMetadataSummary, budgetSummary: budget, progressSignals: progress, shadowEvent };
+  return { action, reason, normalizedMetadataSummary, budgetSummary: budget, progressSignals: progress, terminalRepair, shadowEvent };
 }
 
 module.exports = { DEFAULT_POLICY, evaluateRepairDecision };

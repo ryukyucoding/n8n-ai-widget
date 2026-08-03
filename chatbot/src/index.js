@@ -346,7 +346,7 @@ Rules:
 9. When a requested Code node creates or transforms static test data, make the Code node produce that data directly. Do not add a Set node merely as a data container.
 10. Return ONLY the JSON — no explanation, no markdown.`;
 
-const MAX_WORKFLOW_GENERATION_ATTEMPTS = 2;
+const MAX_WORKFLOW_GENERATION_ATTEMPTS = 3;
 
 function buildRegenerationInstruction(originalRequest, validationError) {
   return `Your previous workflow JSON was rejected by workflow verification.

@@ -8,6 +8,7 @@ function candidate(overrides = {}) {
   return {
     behaviorFingerprint: 'behavior-v1',
     blockingFindingFingerprints: ['finding-a'],
+    repairableBlockingFindingFingerprints: ['finding-a'],
     severity: 'high',
     contractCoverage: 0.4,
     ...overrides,
@@ -97,6 +98,62 @@ test('stops when repair candidate budget or global duration is exhausted', () =>
   const timeoutResult = evaluateRepairDecision({ currentCandidate: candidate(), elapsedMs: 360000 });
   assert.equal(timeoutResult.action, 'stop');
   assert.equal(timeoutResult.reason, 'global_duration_exhausted');
+});
+
+test('permits one terminal repair only for a first-seen repairable blocking finding at the normal limit', () => {
+  const first = candidate({ behaviorFingerprint: 'behavior-v1' });
+  const second = candidate({ behaviorFingerprint: 'behavior-v2' });
+  const third = candidate({
+    behaviorFingerprint: 'behavior-v3',
+    blockingFindingFingerprints: ['finding-a', 'finding-new'],
+    repairableBlockingFindingFingerprints: ['finding-a', 'finding-new'],
+  });
+  const result = evaluateRepairDecision({ currentCandidate: third, history: [first, second] });
+
+  assert.equal(result.action, 'repair');
+  assert.equal(result.reason, 'terminal_repair_for_new_blocking_finding');
+  assert.equal(result.terminalRepair.eligible, true);
+  assert.deepEqual(result.terminalRepair.firstSeenRepairableBlockingFindingFingerprints, ['finding-new']);
+});
+
+test('the terminal repair cannot authorize a fifth candidate', () => {
+  const result = evaluateRepairDecision({
+    currentCandidate: candidate({
+      behaviorFingerprint: 'behavior-v4',
+      blockingFindingFingerprints: ['finding-a', 'finding-newer'],
+      repairableBlockingFindingFingerprints: ['finding-a', 'finding-newer'],
+    }),
+    history: [
+      candidate({ behaviorFingerprint: 'behavior-v1' }),
+      candidate({ behaviorFingerprint: 'behavior-v2' }),
+      candidate({ behaviorFingerprint: 'behavior-v3', blockingFindingFingerprints: ['finding-a', 'finding-new'], repairableBlockingFindingFingerprints: ['finding-a', 'finding-new'] }),
+    ],
+  });
+  assert.equal(result.action, 'stop');
+  assert.equal(result.reason, 'repair_budget_exhausted');
+  assert.equal(result.terminalRepair.eligible, false);
+});
+
+test('repeated, clarify, unsafe, timeout, and normalization-only states cannot authorize a terminal repair', () => {
+  const history = [candidate({ behaviorFingerprint: 'behavior-v1' }), candidate({ behaviorFingerprint: 'behavior-v2' })];
+  const terminalCandidate = candidate({
+    behaviorFingerprint: 'behavior-v3',
+    blockingFindingFingerprints: ['finding-a', 'finding-new'],
+    repairableBlockingFindingFingerprints: ['finding-a', 'finding-new'],
+  });
+  const cases = [
+    evaluateRepairDecision({ currentCandidate: candidate({ behaviorFingerprint: 'behavior-v1' }), history }),
+    evaluateRepairDecision({ currentCandidate: terminalCandidate, history, findingSet: { findings: [finding('need-input', { action: 'clarify' })] } }),
+    evaluateRepairDecision({ currentCandidate: terminalCandidate, history, policy: { maxLlmCandidates: 3, maxLlmRepairs: 2 }, elapsedMs: 360000 }),
+    evaluateRepairDecision({ currentCandidate: candidate({ ...terminalCandidate, hasSafeRepairPath: false }), history }),
+    evaluateRepairDecision({
+      currentCandidate: candidate({ behaviorFingerprint: 'behavior-v3', blockingFindingFingerprints: ['normalization-only'], repairableBlockingFindingFingerprints: [] }),
+      history,
+      findingSet: { findings: [finding('normalization-only', { kind: 'deterministic_normalization_warning', blocking: false })] },
+    }),
+  ];
+  for (const result of cases) assert.equal(result.terminalRepair.eligible, false);
+  assert.deepEqual(cases.map((result) => result.action), ['stop', 'clarify', 'stop', 'stop', 'pass']);
 });
 
 test('stops when the caller reports no safe repair path', () => {

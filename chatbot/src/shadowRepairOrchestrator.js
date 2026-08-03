@@ -118,7 +118,7 @@ function normalizedFindingLocation(location, nodeRoles) {
 function structuredFindingSummary(findings, behavior) {
   const structured = Array.isArray(findings) ? findings.filter((finding) => finding && typeof finding === 'object') : [];
   const blocking = structured.filter((finding) => BLOCKING_SEVERITIES.has(finding.severity) && finding.normalized !== true);
-  const blockingFindingFingerprints = [...new Set(blocking.map((finding) => hash({
+  const fingerprintBlockingFinding = (finding) => hash({
     ruleId: finding.ruleId,
     severity: finding.severity,
     evidenceSource: finding.evidenceSource,
@@ -126,7 +126,11 @@ function structuredFindingSummary(findings, behavior) {
     location: normalizedFindingLocation(finding.location, behavior.nodeRoles),
     repairable: finding.repairable === true,
     normalized: finding.normalized === true,
-  })))].sort();
+  });
+  const blockingFindingFingerprints = [...new Set(blocking.map(fingerprintBlockingFinding))].sort();
+  const repairableBlockingFindingFingerprints = [...new Set(blocking
+    .filter((finding) => finding.repairable === true)
+    .map(fingerprintBlockingFinding))].sort();
   const highest = structured.reduce((current, finding) => Math.max(current, SEVERITY_RANK[finding.severity] || 0), 0);
   const severity = highest >= 4 ? 'critical' : highest >= 3 ? 'high' : highest >= 2 ? 'medium' : highest ? 'low' : 'none';
   const repairableCount = blocking.filter((finding) => finding.repairable === true).length;
@@ -136,6 +140,7 @@ function structuredFindingSummary(findings, behavior) {
     + (Array.isArray(behavior.contract?.dataflowAssertions) ? behavior.contract.dataflowAssertions.length : 0));
   return {
     blockingFindingFingerprints,
+    repairableBlockingFindingFingerprints,
     severity,
     repairableCount,
     nonRepairableBlockingCount: blocking.length - repairableCount,
@@ -184,6 +189,7 @@ async function evaluateShadowRepair({ operation, userRequest, plannerOutput, can
     currentCandidate: {
       behaviorFingerprint: behavior.fingerprint,
       blockingFindingFingerprints: findingSummary.blockingFindingFingerprints,
+      repairableBlockingFindingFingerprints: findingSummary.repairableBlockingFindingFingerprints,
       severity: findingSummary.severity,
       contractCoverage: findingSummary.contractCoverage,
       hasSafeRepairPath: findingSummary.nonRepairableBlockingCount === 0,
@@ -201,6 +207,7 @@ async function evaluateShadowRepair({ operation, userRequest, plannerOutput, can
     summary: {
       candidateBehaviorFingerprint: behavior.fingerprint,
       blockingFindingFingerprints: findingSummary.blockingFindingFingerprints,
+      repairableBlockingFindingFingerprints: findingSummary.repairableBlockingFindingFingerprints,
       severity: findingSummary.severity,
       contractCoverage: findingSummary.contractCoverage,
       repairableFindingCount: findingSummary.repairableCount,

@@ -7,7 +7,10 @@ const REPAIR_POLICY = Object.freeze({
 });
 
 function createCandidateLimit(enabled, legacyMaxCandidates) {
-  return enabled ? REPAIR_POLICY.maxLlmCandidates : legacyMaxCandidates;
+  // The controller still treats the policy limit as the normal repair budget.
+  // The one extra loop slot is reachable only when it explicitly authorizes a
+  // terminal repair after the final normal candidate.
+  return enabled ? REPAIR_POLICY.maxLlmCandidates + 1 : legacyMaxCandidates;
 }
 
 function safeFindingSummary(findings) {
@@ -57,7 +60,7 @@ function repairControllerLogPayload({ operation, report, timestamp }) {
 }
 
 /**
- * Evaluate the already-verified candidate for an optional third candidate.
+ * Evaluate the already-verified candidate for an optional repair candidate.
  * Exceptions are converted into a safe fallback result, never thrown into the
  * Create route. The caller keeps legacy retry behavior for that fallback.
  */
@@ -89,7 +92,7 @@ async function evaluateCorrectnessFirstRepair({ enabled, evaluateShadowRepair, o
 
 /**
  * Shared Create retry adapter. The legacy branch deliberately does not call
- * the controller, so a disabled flag preserves the two-candidate behavior.
+ * the controller, so a disabled flag preserves its configured limit.
  */
 async function decideCreateCandidateRetry({ correctnessFirstEnabled, attempt, legacyMaxCandidates, evaluateCorrectnessFirstRepair, controllerInput } = {}) {
   const candidateLimit = createCandidateLimit(correctnessFirstEnabled, legacyMaxCandidates);
@@ -105,8 +108,8 @@ async function decideCreateCandidateRetry({ correctnessFirstEnabled, attempt, le
   if (controller.action === 'repair' && attempt + 1 < candidateLimit) {
     return { action: 'retry', candidateLimit, controller, repairPrompt: controller.repairPrompt };
   }
-  // A controller failure must not crash Create. Fall back to the existing
-  // two-candidate behavior, never to an unbounded repair loop.
+  // A controller failure must not crash Create. Fall back to the configured
+  // legacy behavior, never to an unbounded repair loop.
   if (controller.action === 'fallback' && attempt + 1 < legacyMaxCandidates) {
     return { action: 'retry', candidateLimit, controller, repairPrompt: null };
   }
