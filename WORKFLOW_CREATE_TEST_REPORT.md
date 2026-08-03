@@ -26,7 +26,7 @@ can be executed with the expected result where execution is applicable.
 | C04 | Manual + Code test-data filter | Pass after fixes | Pass | Pass | Pass |
 | C05 | Manual + HTTP + IF + Set branches | Pass | Pass | Pass | Pass with layout issue |
 | C06 | Schedule + HTTP + Code filtering/formatting | Pass | Pass | Pass | Pass |
-| C07 | User + todo HTTP summary | Blocked before creation or execution failure | Pass | Partial | Regression case |
+| C07 | User + todo HTTP summary | Pass | Pass | Pass | Pass on 2026-08-04; prior regressions retained below as history |
 
 ## C01: Manual Trigger, HTTP GET, and Set
 
@@ -318,6 +318,31 @@ truly required user inputs. Both Qwen and the Semantic Reviewer receive that
 same contract. This is intended to make requirements such as "user name and
 email must reach the aggregate step" explicit without adding a C07-specific
 rule.
+
+### End-to-end execution evidence — 2026-08-04
+
+This evidence was collected after deployment of the bounded terminal repair
+candidate mechanism and the immutable acceptance contract.
+
+- Workflow: `Get User 1 Data and Todos`
+- Workflow UI: <https://widm-n8n.csie.ncu.edu.tw/workflow/6m9IQUGGrzjwoD6t>
+- Execution UI: <https://widm-n8n.csie.ncu.edu.tw/workflow/6m9IQUGGrzjwoD6t/executions/546>
+- UI status: success; total duration was approximately 1.581 seconds.
+- Observed path: `Manual Trigger -> Get User Data -> Get Todos -> Process Data -> Output Data`.
+- Observed final output: one object item with `name = Leanne Graham`,
+  `email = Sincere@april.biz`, `totalTodos = 20`, and
+  `incompleteTodos = 9`.
+
+#### What this passes
+
+The workflow was generated and created, could be run in the n8n UI, and its
+observed final output matched the requested one-item summary and values above.
+
+#### What this does not claim
+
+A single successful C07 execution does not establish that the model will
+successfully generate every workflow. It also does not establish completion of
+a multi-model comparison or isolated Code-sandbox validation.
 
 ## Conclusion
 
