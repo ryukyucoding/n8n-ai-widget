@@ -1,0 +1,142 @@
+{
+  "displayName": "SeaTable Trigger",
+  "name": "n8n-nodes-base.seaTableTrigger",
+  "icon": "file:seaTable.svg",
+  "group": [
+    "trigger"
+  ],
+  "defaultVersion": 2,
+  "description": "Starts the workflow when SeaTable events occur",
+  "version": 2,
+  "subtitle": "={{$parameter[\"event\"]}}",
+  "defaults": {
+    "name": "SeaTable Trigger"
+  },
+  "credentials": [
+    {
+      "name": "seaTableApi",
+      "required": true
+    }
+  ],
+  "polling": true,
+  "inputs": [],
+  "outputs": [
+    "main"
+  ],
+  "properties": [
+    {
+      "displayName": "Event",
+      "name": "event",
+      "type": "options",
+      "options": [
+        {
+          "name": "New Row",
+          "value": "newRow",
+          "description": "Trigger on newly created rows"
+        },
+        {
+          "name": "New or Updated Row",
+          "value": "updatedRow",
+          "description": "Trigger has recently created or modified rows"
+        },
+        {
+          "name": "New Signature",
+          "value": "newAsset",
+          "description": "Trigger on new signatures"
+        }
+      ],
+      "default": "newRow"
+    },
+    {
+      "displayName": "Table Name",
+      "name": "tableName",
+      "type": "options",
+      "required": true,
+      "typeOptions": {
+        "loadOptionsMethod": "getTableNames"
+      },
+      "default": "",
+      "description": "The name of SeaTable table to access. Choose from the list, or specify the name using an <a href=\"https://docs.n8n.io/code-examples/expressions/\">expression</a>."
+    },
+    {
+      "displayName": "View Name",
+      "name": "viewName",
+      "type": "options",
+      "displayOptions": {
+        "show": {
+          "event": [
+            "newRow",
+            "updatedRow"
+          ]
+        }
+      },
+      "typeOptions": {
+        "loadOptionsDependsOn": [
+          "tableName"
+        ],
+        "loadOptionsMethod": "getTableViews"
+      },
+      "default": "",
+      "description": "The name of SeaTable view to access. Choose from the list, or specify the name using an <a href=\"https://docs.n8n.io/code-examples/expressions/\">expression</a>."
+    },
+    {
+      "displayName": "Signature Column",
+      "name": "assetColumn",
+      "type": "options",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "event": [
+            "newAsset"
+          ]
+        }
+      },
+      "typeOptions": {
+        "loadOptionsDependsOn": [
+          "tableName"
+        ],
+        "loadOptionsMethod": "getSignatureColumns"
+      },
+      "default": "",
+      "description": "Select the digital-signature column that should be tracked. Choose from the list, or specify the name using an <a href=\"https://docs.n8n.io/code-examples/expressions/\">expression</a>."
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "placeholder": "Add Option",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Simplify",
+          "name": "simple",
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to return a simplified version of the response instead of the raw data"
+        },
+        {
+          "displayName": "Return Column Names",
+          "name": "convert",
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to return the column keys (false) or the column names (true)",
+          "displayOptions": {
+            "show": {
+              "/event": [
+                "newRow",
+                "updatedRow"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "displayName": "\"Fetch Test Event\" returns max. three items of the last hour.",
+      "name": "notice",
+      "type": "notice",
+      "default": ""
+    }
+  ],
+  "typeVersion": 2
+}

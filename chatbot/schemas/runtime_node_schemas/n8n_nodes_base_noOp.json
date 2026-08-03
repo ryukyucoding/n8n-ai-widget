@@ -1,0 +1,22 @@
+{
+  "displayName": "No Operation, do nothing",
+  "name": "n8n-nodes-base.noOp",
+  "icon": "node:no-operation",
+  "iconColor": "neutral",
+  "group": [
+    "organization"
+  ],
+  "version": 1,
+  "description": "No Operation",
+  "defaults": {
+    "name": "No Operation, do nothing"
+  },
+  "inputs": [
+    "main"
+  ],
+  "outputs": [
+    "main"
+  ],
+  "properties": [],
+  "typeVersion": 1
+}

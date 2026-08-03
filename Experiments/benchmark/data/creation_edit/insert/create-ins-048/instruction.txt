@@ -1,0 +1,1 @@
+Insert the node "Find_Certification_By_ID" of type "n8n-nodes-base.dataTable" between "Generate_Certification_ID" and "Certification_ID_Exists".

@@ -1,0 +1,1 @@
+Insert the node "Generate Outline" of type "@n8n/n8n-nodes-langchain.agent" between "Input Topic Plans" and "Get Subtopic Array (For Looping)".

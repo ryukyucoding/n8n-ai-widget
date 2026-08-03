@@ -1,0 +1,1 @@
+Insert the node "Download file" of type "n8n-nodes-base.googleDrive" between "Google Drive Trigger" and "Extract from File".

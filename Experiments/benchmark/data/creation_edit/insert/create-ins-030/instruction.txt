@@ -1,0 +1,1 @@
+Insert the node "Search files" of type "n8n-nodes-base.googleDrive" between "Clear collection" and "Loop Over Items".

@@ -1,0 +1,1 @@
+Insert the node "upload_output_video" of type "n8n-nodes-base.googleDrive" between "download_video" and "iterate_products".

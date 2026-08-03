@@ -1,0 +1,1 @@
+Insert the node "Google Docs" of type "n8n-nodes-base.googleDocs" between "Google Drive " and "Generate Summary AI".

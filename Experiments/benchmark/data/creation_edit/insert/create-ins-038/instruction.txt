@@ -1,0 +1,1 @@
+Insert the node "Expense text to JSON parser" of type "@n8n/n8n-nodes-langchain.informationExtractor" between "Workflow Input Trigger" and "Save expense into Google Sheets".

@@ -1,0 +1,1 @@
+Insert the node "Download Image" of type "n8n-nodes-base.httpRequest" between "Parse Result" and "Upload to S3".

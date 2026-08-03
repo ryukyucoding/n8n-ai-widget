@@ -1,0 +1,1 @@
+Insert the node "Upload File" of type "n8n-nodes-base.httpRequest" between "Merge" and "Import to Store".

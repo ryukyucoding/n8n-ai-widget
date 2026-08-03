@@ -1,0 +1,1 @@
+Insert the node "Generate Payment Reminder" of type "@n8n/n8n-nodes-langchain.openAi" between "Extract Customer & Payment Data" and "Create New Invoice".

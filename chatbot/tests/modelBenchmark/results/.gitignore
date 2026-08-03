@@ -1,0 +1,2 @@
+# Local benchmark reports are de-identified run artifacts, not source fixtures.
+*.json

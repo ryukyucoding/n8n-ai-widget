@@ -1,0 +1,1 @@
+Insert the node "Intent Agent" of type "@n8n/n8n-nodes-langchain.agent" between "WhatsApp Trigger" and "Set Intent".

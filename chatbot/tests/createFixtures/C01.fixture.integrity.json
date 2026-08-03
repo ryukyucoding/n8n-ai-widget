@@ -1,0 +1,8 @@
+{
+  "caseId": "C01",
+  "templateChecksum": "ef01df1d081993832f4f773667aef60a794141b0fa36c2f9bf7ab09d6dd10e84",
+  "manifestHash": "bbef1f381266980353d7578f86568c715f2ce5729361b76c41ad17157b726805",
+  "authoringTemplateChecksum": "3904f5d2676ba6d3a4ae56480f3f3ecb118483a4312870ffc9e61a17c99bd9f0",
+  "compiledPayloadChecksum": "e1a74bc878e4ec80a32bc27b64f15182ffa30d1c4d8d69c5679be27d782ffcea",
+  "compilerManifestChecksum": "bbef1f381266980353d7578f86568c715f2ce5729361b76c41ad17157b726805"
+}

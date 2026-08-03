@@ -1,0 +1,1 @@
+Insert the node "Prepare API Payload " of type "n8n-nodes-base.code" between "Combine Image & Analysis " and "Generate Enhanced Image ".

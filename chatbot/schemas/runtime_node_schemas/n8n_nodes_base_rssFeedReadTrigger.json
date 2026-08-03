@@ -1,0 +1,31 @@
+{
+  "displayName": "RSS Feed Trigger",
+  "name": "n8n-nodes-base.rssFeedReadTrigger",
+  "icon": "node:rss-feed-trigger",
+  "iconColor": "orange-red",
+  "group": [
+    "trigger"
+  ],
+  "version": 1,
+  "description": "Starts a workflow when an RSS feed is updated",
+  "subtitle": "={{$parameter[\"event\"]}}",
+  "defaults": {
+    "name": "RSS Feed Trigger"
+  },
+  "polling": true,
+  "inputs": [],
+  "outputs": [
+    "main"
+  ],
+  "properties": [
+    {
+      "displayName": "Feed URL",
+      "name": "feedUrl",
+      "type": "string",
+      "default": "https://blog.n8n.io/rss/",
+      "required": true,
+      "description": "URL of the RSS feed to poll"
+    }
+  ],
+  "typeVersion": 1
+}

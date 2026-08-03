@@ -1,0 +1,23 @@
+請根據以下需求描述，生成一個節點與連線皆無缺失且能成功執行的 n8n workflow JSON。
+
+## How It Works
+Automates daily learner engagement monitoring, progress analysis, and personalized feedback delivery for training programs. Target audience: learning and development teams, corporate training managers, and online education platforms scaling instructor workload. Problem solved: manual progress tracking consumes instructor time; AI analysis identifies struggling learners early for intervention. Workflow runs daily checks on learner activity, retrieves course data and progress, analyzes engagement with OpenAI models, evaluates quiz scores, generates performance summaries, sends progress reports to learners, emails instructors on at-risk cases, generates learning paths, and triggers manager notifications.
+
+## Setup Steps
+1. Configure daily schedule trigger. 
+2. Connect learning management system APIs (LMS). 
+3. Set OpenAI keys for progress analysis. 
+4. Enable Gmail for multi-recipient notifications. 
+5. Map learner risk thresholds and escalation rules.
+
+## Prerequisites
+LMS platform credentials, OpenAI API key, learner database, email service for notifications, manager contact lists.
+
+## Use Cases
+Corporate onboarding programs tracking employee progress, online learning platforms identifying struggling students 
+
+## Customization
+Adjust AI analysis criteria for your curriculum. Integrate Slack for instructor alerts.  
+
+## Benefits
+Reduces instructor workload by 70%, identifies at-risk learners 2 weeks early

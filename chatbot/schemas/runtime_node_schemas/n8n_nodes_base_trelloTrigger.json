@@ -1,0 +1,49 @@
+{
+  "displayName": "Trello Trigger",
+  "name": "n8n-nodes-base.trelloTrigger",
+  "icon": "file:trello.svg",
+  "group": [
+    "trigger"
+  ],
+  "version": 1,
+  "description": "Starts the workflow when Trello events occur",
+  "defaults": {
+    "name": "Trello Trigger"
+  },
+  "inputs": [],
+  "outputs": [
+    "main"
+  ],
+  "credentials": [
+    {
+      "name": "trelloApi",
+      "required": true
+    }
+  ],
+  "webhooks": [
+    {
+      "name": "setup",
+      "httpMethod": "HEAD",
+      "responseMode": "onReceived",
+      "path": "webhook"
+    },
+    {
+      "name": "default",
+      "httpMethod": "POST",
+      "responseMode": "onReceived",
+      "path": "webhook"
+    }
+  ],
+  "properties": [
+    {
+      "displayName": "Model ID",
+      "name": "id",
+      "type": "string",
+      "default": "",
+      "placeholder": "4d5ea62fd76aa1136000000c",
+      "required": true,
+      "description": "ID of the model of which to subscribe to events"
+    }
+  ],
+  "typeVersion": 1
+}

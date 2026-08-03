@@ -1,0 +1,141 @@
+{
+  "id": "JMfwq2Xn60pWz2Hy",
+  "meta": {
+    "instanceId": "2e75c9fb3cdcf631da470c0180f0739986baa0ee860de53281e9edc3491b82a3",
+    "templateCredsSetupCompleted": true
+  },
+  "name": "Send Telegram Alerts for New WooCommerce Orders",
+  "tags": [],
+  "nodes": [
+    {
+      "id": "bc66fcc7-55d4-46b3-929a-6e4359733601",
+      "name": "Check if Order Status is Processing",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        260,
+        760
+      ],
+      "parameters": {
+        "options": {},
+        "conditions": {
+          "options": {
+            "version": 1,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "0509abb0-c655-49de-8f2c-c4649b478983",
+              "operator": {
+                "name": "filter.operator.equals",
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.body.status }}",
+              "rightValue": "processing"
+            }
+          ]
+        }
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "c2c49759-5309-42bc-872d-7b34faf34f62",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1120,
+        540
+      ],
+      "parameters": {
+        "color": 3,
+        "width": 1035.4009739750634,
+        "height": 868.2813781621796,
+        "content": "## ⚙️ Setup Instructions\n\n### 1. 🛒 **Configure WooCommerce Webhook**\n- Navigate to **WooCommerce ➡️ Settings ➡️ Advanced ➡️ Webhooks** in your WordPress dashboard.\n- Click on ➕ **Add Webhook**.\n- Set the **Status** to **Active**.\n- Choose **Topic**: **Order updated**.\n- Paste the **Webhook URL** from the 🔗 Webhook node in this workflow into the **Delivery URL** field.\n- Click 💾 **Save Webhook**.\n\n### 2. 🤖 **Create a Telegram Bot**\n- Open **Telegram** and start a chat with **@BotFather**.\n- Send the command **/newbot** and follow the instructions to create your bot.\n- Copy the **API Token** provided by **BotFather**.\n\n### 3. 🔑 **Set Up Telegram Credentials in n8n**\n- In **n8n**, go to **Credentials**.\n- Click ➕ **Create** and select **Telegram Bot**.\n- Paste the **API Token** you copied earlier.\n- **Save** the credentials.\n\n### 4. ✏️ **Configure the Telegram Node**\n- Open the 📨 **Send Order Notification to Telegram** node.\n- Select your **Telegram credentials**.\n- Enter your **Chat ID** where you want to receive notifications.  \n  **Tip**: Use **@userinfobot** in Telegram to find your **Chat ID**.\n\n### 5. 🚀 **Activate and Test the Workflow**\n- Ensure the workflow is 🟢 **Active**.\n- Place a new order in your **WooCommerce store**.\n- Update the order status to **\"Processing\"**.\n- You should receive a **Telegram notification** with the **order details**!\n\n## 💡 Notes\n- **Customize the message format** in the 🖋️ **Design Message Template** node to include additional order details if needed.\n"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "5555e7ff-46d9-4b91-a42c-4d83fc9b5edb",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1120,
+        300
+      ],
+      "parameters": {
+        "color": 5,
+        "width": 1040.2541837971148,
+        "height": 216.11554963705538,
+        "content": "## 📦 Send Telegram Alerts for New WooCommerce Orders\n\n📝 **Description**  \nThis workflow automatically sends a **Telegram notification** whenever a **WooCommerce order** status is updated to \"Processing\". It's perfect for **online store owners** who want instant updates when orders are ready to be fulfilled.\n"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "acde9b85-4ae7-462f-91c0-13a4209fb013",
+      "name": "Receive WooCommerce Order",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        20,
+        760
+      ],
+      "webhookId": "9aeff297-db6b-4c69-93bf-21b194ef115c",
+      "parameters": {
+        "path": "9aeff297-db6b-4c69-93bf-21b194ef115c",
+        "options": {},
+        "httpMethod": "POST"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "5605e14d-a125-41c1-b7e8-cc1feeb6a1e1",
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        720,
+        740
+      ],
+      "parameters": {
+        "text": "{{ $json.orderMessage }}",
+        "chatId": "<Your-Chat-ID>",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": true
+        }
+      },
+      "typeVersion": 1.2
+    }
+  ],
+  "active": true,
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f1a12e0e-e2a2-4eea-b7a6-cc4c7439bef9",
+  "connections": {
+    "Receive WooCommerce Order": {
+      "main": [
+        [
+          {
+            "node": "Check if Order Status is Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Order Status is Processing": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

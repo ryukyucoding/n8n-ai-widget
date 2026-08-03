@@ -1,0 +1,1 @@
+Insert the node "Check Render Status" of type "n8n-nodes-base.httpRequest" between "Wait for Render" and "Video created".

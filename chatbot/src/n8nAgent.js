@@ -4,6 +4,7 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 const crypto = require('crypto');
 const { Agent } = require('undici');
+const { sanitizeCreateWorkflowPayload } = require('./workflowCreatePayload');
 
 const PYTHON = process.env.PYTHON_BIN || 'python3';
 const BRIDGE = path.join(__dirname, '..', 'python', 'widget_agent_bridge.py');
@@ -231,22 +232,7 @@ async function generateCreateWorkflow(openai, userMessage, model = DEFAULT_EDIT_
   return JSON.parse(jsonText);
 }
 
-function stripWorkflowPayload(doc) {
-  const keys = [
-    'name',
-    'nodes',
-    'connections',
-    'settings',
-    'staticData',
-    'pinData',
-    'meta',
-  ];
-  const o = {};
-  for (const k of keys) {
-    if (doc[k] !== undefined) o[k] = doc[k];
-  }
-  return o;
-}
+const stripWorkflowPayload = sanitizeCreateWorkflowPayload;
 
 function buildWorkflowUpdatePayload(snapshot, modified) {
   const base = stripWorkflowPayload(modified || {});

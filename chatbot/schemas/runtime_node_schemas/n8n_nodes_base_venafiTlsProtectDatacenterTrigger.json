@@ -1,0 +1,41 @@
+{
+  "displayName": "Venafi TLS Protect Datacenter Trigger",
+  "name": "n8n-nodes-base.venafiTlsProtectDatacenterTrigger",
+  "icon": "file:../venafi.svg",
+  "group": [
+    "trigger"
+  ],
+  "version": 1,
+  "subtitle": "={{$parameter[\"triggerOn\"]}}",
+  "description": "Starts the workflow when Venafi events occur",
+  "defaults": {
+    "name": "Venafi TLS Protect Datacenter​"
+  },
+  "credentials": [
+    {
+      "name": "venafiTlsProtectDatacenterApi",
+      "required": true
+    }
+  ],
+  "polling": true,
+  "inputs": [],
+  "outputs": [
+    "main"
+  ],
+  "properties": [
+    {
+      "displayName": "Trigger On",
+      "name": "triggerOn",
+      "type": "options",
+      "options": [
+        {
+          "name": "Certificate Expired",
+          "value": "certificateExpired"
+        }
+      ],
+      "required": true,
+      "default": "certificateExpired"
+    }
+  ],
+  "typeVersion": 1
+}

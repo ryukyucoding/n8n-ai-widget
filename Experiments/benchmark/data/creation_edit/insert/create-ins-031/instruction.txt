@@ -1,0 +1,1 @@
+Insert the node "Set >=20 Keywords" of type "n8n-nodes-base.set" between "When clicking ‘Test workflow’" and "Get Search Data".

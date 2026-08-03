@@ -14,11 +14,61 @@ import sys
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from json_repair import repair_json
 
 JSONDict = Dict[str, Any]
+
+
+SAFE_BENCHMARK_FINDING_CATEGORIES = frozenset({
+    "node_type",
+    "type_version",
+    "parameter_schema",
+    "parameter_value",
+    "connection_port",
+    "connection_shape",
+    "code_dataflow",
+    "unsupported_metadata",
+    "payload_sanitization",
+})
+
+
+class StructuredValidationError(ValueError):
+    """A normal validator error with an optional safe benchmark projection."""
+
+    def __init__(self, message: str, findings: List[JSONDict]) -> None:
+        super().__init__(message)
+        self.safe_findings = findings
+
+
+def safe_benchmark_finding(
+    category: str,
+    severity: str = "repair",
+    repairable: bool = True,
+    normalized: bool = False,
+    blocking: Optional[bool] = None,
+) -> JSONDict:
+    """Return the child protocol's fixed, de-identified finding shape."""
+    if category not in SAFE_BENCHMARK_FINDING_CATEGORIES:
+        raise ValueError("unsupported safe benchmark finding category")
+    if severity not in {"warning", "repair", "fail"}:
+        raise ValueError("unsupported safe benchmark finding severity")
+    return {
+        "category": category,
+        "severity": severity,
+        "repairable": bool(repairable),
+        "normalized": bool(normalized),
+        "blocking": bool(blocking) if blocking is not None else severity != "warning" and not normalized,
+    }
+# n8n node descriptions can declare a variable number of inputs with a
+# declarative expression such as `Array.from({ length: parameters.numberInputs
+# || 2 }, ...)`. This recognizes that shared runtime-description pattern; it
+# is deliberately based on the description, not on a particular node type.
+_DYNAMIC_INPUT_COUNT = re.compile(
+    r"Array\.from\(\s*\{\s*length\s*:\s*parameters(?:\.([A-Za-z_]\w*)|\[['\"]([^'\"]+)['\"]\])\s*\|\|\s*(\d+)",
+    re.DOTALL,
+)
 
 ALLOWED_NODE_FIELDS = {
     "id",
@@ -41,6 +91,380 @@ ALLOWED_NODE_FIELDS = {
     "webhookId",
 }
 
+
+class RuntimeSchemaStore:
+    """Reads descriptions exported by the *running* n8n container."""
+
+    def __init__(self) -> None:
+        default = Path(__file__).resolve().parent.parent / "schemas" / "runtime_node_schemas.json"
+        self.path = Path(os.environ.get("N8N_RUNTIME_SCHEMA_PATH", default))
+        self.schemas: Dict[str, Any] = {}
+        if self.path.is_file():
+            try:
+                self.schemas = json.loads(self.path.read_text(encoding="utf-8")).get("nodeTypes", {})
+            except (OSError, json.JSONDecodeError) as error:
+                raise RuntimeError(f"unable to read runtime node schema export: {error}") from error
+
+    def description_for(self, node_type: str, version: float) -> Optional[JSONDict]:
+        node = self.schemas.get(node_type)
+        if not isinstance(node, dict):
+            return None
+        versions = node.get("versions", {})
+        if not isinstance(versions, dict):
+            return None
+        for raw_version, description in versions.items():
+            try:
+                if float(raw_version) == float(version) and isinstance(description, dict):
+                    return description
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    def available_versions(self, node_type: str) -> List[str]:
+        node = self.schemas.get(node_type)
+        versions = node.get("versions", {}) if isinstance(node, dict) else {}
+        if not isinstance(versions, dict):
+            return []
+        return sorted(versions.keys(), key=lambda value: float(value))
+
+    def classify_named_types(self, request: str) -> Tuple[Set[str], Set[str]]:
+        """Classify explicitly named runtime nodes as required or forbidden.
+
+        Matching is clause-based: a negative phrase applies to every node name
+        in its punctuation-delimited clause, so "do not use Webhook or
+        Schedule" forbids both nodes without any node-specific exception.
+        Names without clear intent are not requirements.
+        """
+        required: Set[str] = set()
+        forbidden: Set[str] = set()
+        clauses = re.split(r"[,，。;；\n]+", request)
+        positive_intent = re.compile(
+            r"(?:使用|包含|加入|採用|需要|必須|use|include|with|add|require|must)",
+            re.IGNORECASE,
+        )
+        negative_intent = re.compile(
+            r"(?:不要|不得|禁止|不可|不包含|排除|不使用|do\s+not|don['’]t|without|exclude|forbid)",
+            re.IGNORECASE,
+        )
+        for node_type, node in self.schemas.items():
+            versions = node.get("versions", {}) if isinstance(node, dict) else {}
+            for description in versions.values() if isinstance(versions, dict) else []:
+                display_name = description.get("displayName") if isinstance(description, dict) else None
+                if not isinstance(display_name, str) or len(display_name.strip()) < 3:
+                    continue
+                name_pattern = re.compile(
+                    rf"(?<![A-Za-z0-9]){re.escape(display_name)}(?![A-Za-z0-9])",
+                    re.IGNORECASE,
+                )
+                matching_clauses = [clause for clause in clauses if name_pattern.search(clause)]
+                if any(negative_intent.search(clause) for clause in matching_clauses):
+                    forbidden.add(node_type)
+                elif any(positive_intent.search(clause) for clause in matching_clauses):
+                    required.add(node_type)
+                if matching_clauses:
+                    break
+        return required, forbidden
+
+    def explicitly_named_types(self, request: str) -> Set[str]:
+        """Backward-compatible required-node view of ``classify_named_types``."""
+        required, _ = self.classify_named_types(request)
+        return required
+
+    def input_ports_for(self, node: JSONDict) -> Optional[List[str]]:
+        """Return target input connection types when runtime metadata exposes them.
+
+        ``None`` means that a node has an input expression we cannot safely
+        resolve. In that case we retain the structural checks but do not invent
+        a port count. Static descriptions and n8n's common Array.from dynamic
+        input declaration are both resolved from the installed runtime schema.
+        """
+        description = self.description_for(node["type"], node["typeVersion"])
+        if not description:
+            return None
+
+        raw_inputs = description.get("inputs")
+        if isinstance(raw_inputs, list):
+            ports: List[str] = []
+            for item in raw_inputs:
+                if isinstance(item, str):
+                    ports.append(item)
+                elif isinstance(item, dict) and isinstance(item.get("type"), str):
+                    ports.append(item["type"])
+                else:
+                    return None
+            return ports
+
+        if not isinstance(raw_inputs, str):
+            return None
+        match = _DYNAMIC_INPUT_COUNT.search(raw_inputs)
+        if not match:
+            return None
+        parameter_name = match.group(1) or match.group(2)
+        default_count = int(match.group(3))
+        raw_count = node.get("parameters", {}).get(parameter_name, default_count)
+        if isinstance(raw_count, bool) or not isinstance(raw_count, int) or raw_count < 0:
+            return None
+        # The recognized n8n pattern creates one main input object per item.
+        return ["main"] * raw_count
+
+    def output_ports_for(self, node: JSONDict) -> Optional[List[str]]:
+        """Return source output connection types for static runtime definitions."""
+        description = self.description_for(node["type"], node["typeVersion"])
+        if not description:
+            return None
+        raw_outputs = description.get("outputs")
+        if not isinstance(raw_outputs, list):
+            return None
+        ports: List[str] = []
+        for item in raw_outputs:
+            if isinstance(item, str):
+                ports.append(item)
+            elif isinstance(item, dict) and isinstance(item.get("type"), str):
+                ports.append(item["type"])
+            else:
+                return None
+        return ports
+
+
+def _is_expression(value: Any) -> bool:
+    return isinstance(value, str) and value.lstrip().startswith("=")
+
+
+def _is_applicable(property_def: JSONDict, parameters: JSONDict, version: float) -> bool:
+    display = property_def.get("displayOptions", {})
+    if not isinstance(display, dict):
+        return True
+    for mode, expected in (("show", True), ("hide", False)):
+        rules = display.get(mode, {})
+        if not isinstance(rules, dict):
+            continue
+        matches = True
+        for key, allowed in rules.items():
+            actual = version if key == "@version" else parameters.get(key)
+            allowed_values = allowed if isinstance(allowed, list) else [allowed]
+            if actual not in allowed_values:
+                matches = False
+                break
+        if matches:
+            return expected
+    return True
+
+
+def _validate_value(value: Any, definition: JSONDict, path: str) -> Optional[str]:
+    if _is_expression(value):
+        return None
+    kind = definition.get("type")
+    if kind == "boolean" and not isinstance(value, bool):
+        return f"{path} must be boolean"
+    if kind == "number" and (isinstance(value, bool) or not isinstance(value, (int, float))):
+        return f"{path} must be numeric"
+    if kind in {"string", "options", "json"} and not isinstance(value, str):
+        return f"{path} must be a string"
+    if kind == "multiOptions" and not isinstance(value, list):
+        return f"{path} must be an array"
+    if kind == "options" and isinstance(value, str):
+        choices = {item.get("value") for item in definition.get("options", []) if isinstance(item, dict)}
+        if choices and value not in choices:
+            return f"{path} has unsupported value {value!r}; allowed values: {', '.join(map(str, sorted(choices)))}"
+    if kind == "fixedCollection" and not isinstance(value, dict):
+        return f"{path} must be an object"
+    return None
+
+
+def validate_node_parameters(workflow_dict: JSONDict, user_request: str = "") -> None:
+    """Validate every generated parameter against runtime-exported n8n descriptions."""
+    store = RuntimeSchemaStore()
+    if not store.schemas:
+        if os.environ.get("N8N_RUNTIME_SCHEMA_REQUIRED", "true").lower() in {"1", "true", "yes"}:
+            raise ValueError("runtime node schema export is missing; cannot safely validate parameters")
+        print("[workflow-repair] runtime schema export unavailable; parameter validation skipped", file=sys.stderr)
+        return
+
+    errors: List[str] = []
+    safe_findings: List[JSONDict] = []
+    required_types, forbidden_types = store.classify_named_types(user_request) if user_request else (set(), set())
+    generated_types = {node["type"] for node in workflow_dict["nodes"]}
+    for node_type in sorted(required_types - generated_types):
+        errors.append(
+            f"original user request requires runtime node {node_type}; "
+            "the workflow must include that exact type"
+        )
+        safe_findings.append(safe_benchmark_finding("node_type", "repair", True, False, True))
+    for node_type in sorted(forbidden_types & generated_types):
+        errors.append(
+            f"original user request forbids runtime node {node_type}; "
+            "the workflow must not include that type"
+        )
+        safe_findings.append(safe_benchmark_finding("node_type", "repair", True, False, True))
+    for node in workflow_dict["nodes"]:
+        description = store.description_for(node["type"], node["typeVersion"])
+        if not description:
+            versions = ", ".join(store.available_versions(node["type"])) or "none"
+            errors.append(
+                f"node {node['name']!r} has no runtime schema for typeVersion "
+                f"{node['typeVersion']}; available versions: {versions}"
+            )
+            safe_findings.append(safe_benchmark_finding("type_version", "repair", True, False, True))
+            continue
+        parameters = node["parameters"]
+        # n8n hides many fields behind displayOptions (for example Code.jsCode
+        # depends on the default language). Evaluate those conditions against
+        # the same defaults n8n applies when an option is omitted.
+        effective_parameters: JSONDict = {
+            definition["name"]: definition["default"]
+            for definition in description.get("properties", [])
+            if isinstance(definition, dict)
+            and isinstance(definition.get("name"), str)
+            and "default" in definition
+        }
+        effective_parameters.update(parameters)
+        definitions: Dict[str, List[JSONDict]] = {}
+        for definition in description.get("properties", []):
+            if isinstance(definition, dict) and _is_applicable(definition, effective_parameters, node["typeVersion"]):
+                definitions.setdefault(definition.get("name"), []).append(definition)
+        for name, value in parameters.items():
+            candidates = definitions.get(name, [])
+            if not candidates:
+                valid_names = ", ".join(sorted(key for key in definitions if isinstance(key, str)))
+                errors.append(
+                    f"node {node['name']!r}: parameters.{name} is not valid for this node version; "
+                    f"valid parameters: {valid_names}"
+                )
+                safe_findings.append(safe_benchmark_finding("parameter_schema", "repair", True, False, True))
+                continue
+            candidate_errors = [_validate_value(value, definition, f"parameters.{name}") for definition in candidates]
+            if all(error is not None for error in candidate_errors):
+                errors.append(f"node {node['name']!r}: {candidate_errors[0]}")
+                safe_findings.append(safe_benchmark_finding("parameter_value", "repair", True, False, True))
+    if errors:
+        raise StructuredValidationError("workflow parameter validation failed: " + "; ".join(errors), safe_findings)
+
+
+def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
+    """Normalize unambiguous source/target ports, then validate connections.
+
+    n8n accepts some malformed workflow JSON even when the canvas cannot draw
+    it on a visible input socket. Catching it here keeps invalid workflows out
+    of the create API and turns the failure into precise retry feedback. Port
+    repair is only allowed when the runtime schema proves one compatible port.
+    """
+    store = RuntimeSchemaStore()
+    if not store.schemas:
+        return []
+
+    nodes_by_name = {node["name"]: node for node in workflow_dict["nodes"]}
+    errors: List[str] = []
+    normalizations: List[JSONDict] = []
+    for source_name, output_types in workflow_dict.get("connections", {}).items():
+        source = nodes_by_name[source_name]
+        source_ports = store.output_ports_for(source)
+        for connection_type, groups in output_types.items():
+            source_compatible_indices = [] if source_ports is None else [
+                index for index, port_type in enumerate(source_ports)
+                if port_type == connection_type
+            ]
+            for output_index, group in enumerate(groups):
+                if source_ports is None:
+                    errors.append(
+                        f"connection from {source_name!r} cannot confirm source output ports from "
+                        "the runtime schema; refusing to guess an output index"
+                    )
+                elif output_index not in source_compatible_indices:
+                    # The source output index is represented by the connection
+                    # group position. Move it only when the runtime schema
+                    # proves a unique compatible output for this type.
+                    if len(source_compatible_indices) == 1:
+                        normalized_index = source_compatible_indices[0]
+                        if normalized_index >= len(groups):
+                            groups.extend([] for _ in range(normalized_index - len(groups) + 1))
+                        if output_index != normalized_index:
+                            groups[normalized_index].extend(group)
+                            groups[output_index] = []
+                            normalizations.append({
+                                "kind": "connection_source_port_normalized",
+                                "sourceNode": source_name,
+                                "connectionType": connection_type,
+                                "fromOutputIndex": output_index,
+                                "toOutputIndex": normalized_index,
+                                "reason": "runtime schema exposes one compatible source output",
+                            })
+                    elif output_index >= len(source_ports):
+                        errors.append(
+                            f"node {source_name!r} has no output port {output_index} for connection type {connection_type!r}"
+                        )
+                    else:
+                        errors.append(
+                            f"node {source_name!r} output port {output_index} has type "
+                            f"{source_ports[output_index]!r}, not {connection_type!r}"
+                        )
+
+                # Continue checking target ports even when a source-port
+                # finding exists. This collects all independently decidable
+                # connection findings into one regeneration request.
+                for connection in group:
+                    target = nodes_by_name[connection["node"]]
+                    target_ports = store.input_ports_for(target)
+                    if target_ports is None:
+                        errors.append(
+                            f"connection from {source_name!r} to {target['name']!r} cannot confirm "
+                            "target input ports from the runtime schema; refusing to guess an input index"
+                        )
+                        continue
+                    target_index = connection["index"]
+                    compatible_indices = [
+                        index for index, port_type in enumerate(target_ports)
+                        if port_type == connection_type
+                    ]
+                    target_index_is_valid = (
+                        target_index < len(target_ports)
+                        and target_ports[target_index] == connection_type
+                    )
+                    # A target index is safe to repair only when the installed
+                    # runtime description proves one compatible input. Nodes
+                    # with multiple compatible inputs remain invalid rather
+                    # than being guessed at.
+                    if not target_index_is_valid and len(compatible_indices) == 1:
+                        normalized_index = compatible_indices[0]
+                        connection["index"] = normalized_index
+                        normalizations.append({
+                            "kind": "connection_target_port_normalized",
+                            "sourceNode": source_name,
+                            "targetNode": target["name"],
+                            "connectionType": connection_type,
+                            "fromIndex": target_index,
+                            "toIndex": normalized_index,
+                            "reason": "runtime schema exposes one compatible target input",
+                        })
+                        continue
+                    if target_index >= len(target_ports):
+                        valid_indices = ", ".join(str(index) for index in range(len(target_ports))) or "none"
+                        errors.append(
+                            f"connection from {source_name!r} to {target['name']!r} uses input index "
+                            f"{target_index}, but this node version exposes input indices: {valid_indices}"
+                        )
+                        continue
+                    if target_ports[target_index] != connection_type:
+                        errors.append(
+                            f"connection from {source_name!r} to {target['name']!r} uses type "
+                            f"{connection_type!r}, but input index {target_index} expects "
+                            f"{target_ports[target_index]!r}"
+                        )
+            # Preserve valid empty branches, but remove only empty groups beyond
+            # the runtime's output range after a source-port normalization.
+            if source_ports is not None:
+                while len(groups) > len(source_ports) and not groups[-1]:
+                    groups.pop()
+    protocol_findings = [
+        safe_benchmark_finding("connection_port", "warning", False, True, False)
+        for _ in normalizations
+    ]
+    protocol_findings.extend(
+        safe_benchmark_finding("connection_port", "repair", True, False, True)
+        for _ in errors
+    )
+    if errors:
+        raise StructuredValidationError("workflow connection-port validation failed: " + "; ".join(errors), protocol_findings)
+    return normalizations
 
 def heal_json_format(raw_output: str) -> dict:
     """
@@ -152,9 +576,15 @@ class FuzzyNodeAligner:
         # Compare only the node's final segment. A loose similarity check on the
         # full namespace can turn an invented node into an unrelated real node.
         raw_segment = raw_type.split(".")[-1]
+        raw_namespace = raw_type.rsplit(".", 1)[0] if "." in raw_type else ""
         normalized_raw = raw_segment.lower().replace("-", "").replace("_", "")
         candidates = []
         for valid_type in sorted(self.valid_types):
+            valid_namespace = valid_type.rsplit(".", 1)[0] if "." in valid_type else ""
+            # A missing base-node entry must never be changed into a LangChain
+            # node just because both types end in "code" (or another common name).
+            if raw_namespace and valid_namespace != raw_namespace:
+                continue
             valid_segment = valid_type.split(".")[-1]
             normalized_valid = valid_segment.lower().replace("-", "").replace("_", "")
             if normalized_raw == normalized_valid:
@@ -259,9 +689,17 @@ def normalize_workflow_structure(workflow_dict: dict) -> dict:
 
         extra_fields = sorted(set(node) - ALLOWED_NODE_FIELDS)
         if extra_fields:
-            node_errors.append(
-                f"node {label} has unsupported top-level field(s): "
-                f"{', '.join(extra_fields)}; node configuration belongs in parameters"
+            # Generated JSON sometimes carries editor/validator annotations
+            # beside a node. They are not part of n8n's workflow contract and
+            # the update path already strips them with the same allowlist.
+            # Retain only known runtime fields instead of wasting a model retry
+            # on harmless presentation metadata.
+            for field in extra_fields:
+                node.pop(field, None)
+            print(
+                f"[workflow-repair] stripped unsupported node metadata from {label}: "
+                f"{', '.join(extra_fields)}",
+                file=sys.stderr,
             )
 
     if node_errors:
@@ -336,7 +774,36 @@ def normalize_workflow_structure(workflow_dict: dict) -> dict:
     return workflow_dict
 
 
-def process_and_verify_workflow(raw_output: str, n8n_url: Optional[str] = None, api_key: Optional[str] = None) -> dict:
+def normalize_node_positions(workflow_dict: JSONDict) -> None:
+    """Keep generated nodes readable when branch positions are too close."""
+    occupied: List[tuple[float, float]] = []
+    for node in workflow_dict["nodes"]:
+        x, y = node["position"]
+        candidate = (x, y)
+        # n8n cards are wider/taller than their connection point. Keep a
+        # compact 140 px vertical gap within the same visual column.
+        while True:
+            conflicts = [
+                existing_y
+                for existing_x, existing_y in occupied
+                if abs(candidate[0] - existing_x) < 180
+                and abs(candidate[1] - existing_y) < 140
+            ]
+            if not conflicts:
+                break
+            candidate = (x, max(conflicts) + 140)
+        if candidate != (x, y):
+            node["position"] = [candidate[0], candidate[1]]
+        occupied.append(candidate)
+
+
+def process_and_verify_workflow(
+    raw_output: str,
+    n8n_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    user_request: str = "",
+    return_metadata: bool = False,
+) -> Any:
     """
     Main entrypoint: parses, heals JSON, and aligns node types.
     """
@@ -346,9 +813,13 @@ def process_and_verify_workflow(raw_output: str, n8n_url: Optional[str] = None, 
     # 2. Normalize the common n8n workflow contract before node-type alignment.
     workflow_data = normalize_workflow_structure(workflow_data)
 
-    # 3. Fetch registry
+    # 3. Combine the n8n API registry with the descriptions exported from the
+    # running n8n container. The latter is authoritative for installed types
+    # when the public node-type endpoint omits a built-in node.
+    runtime_schema_store = RuntimeSchemaStore()
     registry = N8nRegistryFetcher(n8n_url, api_key)
     valid_types = registry.fetch_latest_node_types()
+    valid_types.update(runtime_schema_store.schemas.keys())
     if not valid_types:
         raise RuntimeError("unable to load a trusted n8n node-type registry")
 
@@ -356,7 +827,39 @@ def process_and_verify_workflow(raw_output: str, n8n_url: Optional[str] = None, 
     aligner = FuzzyNodeAligner(valid_types)
     healed_workflow = aligner.heal_workflow_nodes(workflow_data)
 
+    # 5. Reject invalid node options before the workflow is sent to n8n.
+    validate_node_parameters(healed_workflow, user_request)
+
+    # 6. Reject connections that point outside the input ports exposed by the
+    # installed n8n node version. This also covers common dynamic port counts.
+    connection_port_repairs = validate_connection_ports(healed_workflow)
+
+    # 7. Separate coincident branch nodes without changing workflow behavior.
+    normalize_node_positions(healed_workflow)
+
+    if return_metadata:
+        return healed_workflow, connection_port_repairs
     return healed_workflow
+
+
+def _benchmark_protocol_envelope(
+    ok: bool,
+    findings: List[JSONDict],
+    unstructured_failure: bool,
+) -> JSONDict:
+    """The benchmark-only child contract: no workflow or error text."""
+    return {
+        "ok": bool(ok),
+        "findings": findings,
+        "unstructuredFailure": bool(unstructured_failure),
+    }
+
+
+def _connection_port_protocol_findings(repairs: List[JSONDict]) -> List[JSONDict]:
+    return [
+        safe_benchmark_finding("connection_port", "warning", False, True, False)
+        for _ in repairs
+    ]
 
 
 def main() -> None:
@@ -367,23 +870,71 @@ def main() -> None:
 
     try:
         envelope = json.loads(raw)
-    except Exception as e:
-        print(json.dumps({"ok": False, "error": f"invalid envelope JSON: {e}"}))
+    except Exception as error:
+        print(json.dumps({"ok": False, "error": f"invalid envelope JSON: {error}"}))
         sys.exit(1)
 
+    benchmark_static_protocol = envelope.get("benchmarkStaticProtocol") is True
     raw_output = envelope.get("raw_output") or ""
     n8n_url = envelope.get("n8n_url")
     api_key = envelope.get("api_key")
+    user_request = envelope.get("user_request") or ""
 
     if not raw_output:
-        print(json.dumps({"ok": False, "error": "raw_output is required"}))
+        if benchmark_static_protocol:
+            print(json.dumps(_benchmark_protocol_envelope(False, [], True)))
+        else:
+            print(json.dumps({"ok": False, "error": "raw_output is required"}))
         sys.exit(1)
 
     try:
-        healed = process_and_verify_workflow(raw_output, n8n_url, api_key)
-        print(json.dumps({"ok": True, "workflow": healed}, ensure_ascii=False))
-    except Exception as e:
-        print(json.dumps({"ok": False, "error": str(e)}))
+        healed, connection_port_repairs = process_and_verify_workflow(
+            raw_output,
+            n8n_url,
+            api_key,
+            user_request,
+            return_metadata=True,
+        )
+        if benchmark_static_protocol:
+            print(json.dumps(_benchmark_protocol_envelope(
+                True,
+                _connection_port_protocol_findings(connection_port_repairs),
+                False,
+            ), ensure_ascii=False))
+            return
+
+        warnings = []
+        for repair in connection_port_repairs:
+            if repair.get("kind") == "connection_source_port_normalized":
+                warnings.append(
+                    "Normalized connection source output port from "
+                    f"{repair['fromOutputIndex']} to {repair['toOutputIndex']} for {repair['sourceNode']} "
+                    "because the runtime schema exposes one compatible output."
+                )
+            else:
+                warnings.append(
+                    "Normalized connection target input port from "
+                    f"{repair['fromIndex']} to {repair['toIndex']} for {repair['targetNode']} "
+                    "because the runtime schema exposes one compatible input."
+                )
+        print(json.dumps({
+            "ok": True,
+            "workflow": healed,
+            "warnings": warnings,
+            "repairs": {"connectionPorts": connection_port_repairs},
+        }, ensure_ascii=False))
+    except StructuredValidationError as error:
+        if benchmark_static_protocol:
+            findings = list(error.safe_findings)
+            print(json.dumps(_benchmark_protocol_envelope(False, findings, not findings), ensure_ascii=False))
+        else:
+            print(json.dumps({"ok": False, "error": str(error)}))
+        sys.exit(1)
+    except Exception as error:
+        if benchmark_static_protocol:
+            print(json.dumps(_benchmark_protocol_envelope(False, [], True)))
+        else:
+            print(json.dumps({"ok": False, "error": str(error)}))
         sys.exit(1)
 
 

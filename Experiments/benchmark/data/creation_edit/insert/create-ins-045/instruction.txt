@@ -1,0 +1,1 @@
+Insert the node "Check If Image" of type "n8n-nodes-base.switch" between "Config" and "Download Image from LINE".

@@ -1,0 +1,43 @@
+{
+  "displayName": "Execute Command",
+  "name": "n8n-nodes-base.executeCommand",
+  "icon": "node:execute-command",
+  "iconColor": "crimson",
+  "group": [
+    "transform"
+  ],
+  "version": 1,
+  "description": "Executes a command on the host",
+  "defaults": {
+    "name": "Execute Command"
+  },
+  "usableAsTool": true,
+  "inputs": [
+    "main"
+  ],
+  "outputs": [
+    "main"
+  ],
+  "properties": [
+    {
+      "displayName": "Execute Once",
+      "name": "executeOnce",
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to execute only once instead of once for each entry"
+    },
+    {
+      "displayName": "Command",
+      "name": "command",
+      "typeOptions": {
+        "rows": 5
+      },
+      "type": "string",
+      "default": "",
+      "placeholder": "echo \"test\"",
+      "description": "The command to execute",
+      "required": true
+    }
+  ],
+  "typeVersion": 1
+}

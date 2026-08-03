@@ -1,0 +1,1 @@
+Insert the node "Aggregate" of type "n8n-nodes-base.aggregate" between "Merge" and "Append or update row in sheet".

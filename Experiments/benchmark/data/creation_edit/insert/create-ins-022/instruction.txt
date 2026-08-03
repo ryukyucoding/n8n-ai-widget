@@ -1,0 +1,1 @@
+Insert the node "Upload a file" of type "@n8n/n8n-nodes-langchain.googleGemini" between "Conver To CSV" and "Analyze document".

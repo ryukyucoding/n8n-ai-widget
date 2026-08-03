@@ -1,0 +1,1 @@
+Delete the node "If link not in table".

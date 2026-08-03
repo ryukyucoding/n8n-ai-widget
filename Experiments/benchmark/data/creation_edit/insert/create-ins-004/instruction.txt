@@ -1,0 +1,1 @@
+Insert the node "HubSpot Get Companies" of type "n8n-nodes-base.hubspot" between "Schedule Trigger" and "Filter Best".

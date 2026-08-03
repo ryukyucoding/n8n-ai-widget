@@ -1,0 +1,64 @@
+{
+  "displayName": "Contextual Compression Retriever",
+  "name": "@n8n/n8n-nodes-langchain.retrieverContextualCompression",
+  "icon": "node:contextual-compression-retriever",
+  "iconColor": "black",
+  "group": [
+    "transform"
+  ],
+  "version": 1,
+  "description": "Enhances document similarity search by contextual compression.",
+  "defaults": {
+    "name": "Contextual Compression Retriever"
+  },
+  "codex": {
+    "categories": [
+      "AI"
+    ],
+    "subcategories": {
+      "AI": [
+        "Retrievers"
+      ]
+    },
+    "resources": {
+      "primaryDocumentation": [
+        {
+          "url": "https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.retrievercontextualcompression/"
+        }
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "displayName": "Model",
+      "maxConnections": 1,
+      "type": "ai_languageModel",
+      "required": true
+    },
+    {
+      "displayName": "Retriever",
+      "maxConnections": 1,
+      "type": "ai_retriever",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "displayName": "Retriever",
+      "maxConnections": 1,
+      "type": "ai_retriever"
+    }
+  ],
+  "builderHint": {
+    "inputs": {
+      "ai_languageModel": {
+        "required": true
+      },
+      "ai_retriever": {
+        "required": true
+      }
+    }
+  },
+  "properties": [],
+  "typeVersion": 1
+}
