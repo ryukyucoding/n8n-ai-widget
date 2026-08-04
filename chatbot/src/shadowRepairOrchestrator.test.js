@@ -162,3 +162,16 @@ test('secret-like data is redacted from reports and the candidate remains unchan
   assert.deepEqual(workflow, before);
   assert.doesNotThrow(() => JSON.stringify(report));
 });
+
+
+test('wrapper-item blocker is repairable by the shared repair controller without exposing Code source', async () => {
+  const report = await evaluate({
+    candidateWorkflow: dataflowWorkflow('const items = $input.all(); return items.filter(item => !item.active);'),
+  });
+  const finding = report.verification.findings.find((item) => item.ruleId === 'dataflow.code_item_wrapper.use_json_payload');
+  assert.equal(report.verification.status, 'repair');
+  assert.equal(report.repairDecision.action, 'repair');
+  assert.equal(finding.repairable, true);
+  assert.ok(report.summary.repairableFindingCount >= 1);
+  assert.doesNotMatch(JSON.stringify(finding), /active|filter/);
+});

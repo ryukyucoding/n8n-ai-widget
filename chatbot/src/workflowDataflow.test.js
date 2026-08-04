@@ -196,3 +196,41 @@ test('C07 regression: serial named upstream data remains valid', () => {
   assert.deepEqual(validateCodeDataflow(summary), []);
   assert.equal(summary.codeNodeReferences[0].mustExecuteBefore, true);
 });
+
+
+test('blocks direct payload reads only for proven $input.all() wrapper iteration variables', () => {
+  const directRead = buildWorkflowDataflowSummary(workflow([
+    node('Code', 'n8n-nodes-base.code', 'const items = $input.all(); return items.filter(todo => !todo.active);'),
+  ], {}));
+  assert.equal(directRead.codeNodeWrapperItemAccesses.length, 1);
+  assert.match(validateCodeDataflow(directRead)[0], /item\.json/);
+
+  const inlineRead = buildWorkflowDataflowSummary(workflow([
+    node('Code', 'n8n-nodes-base.code', 'return $input.all().filter(item => !item.active);'),
+  ], {}));
+  assert.equal(inlineRead.codeNodeWrapperItemAccesses.length, 1);
+  assert.match(validateCodeDataflow(inlineRead)[0], /item\.json/);
+
+  for (const jsCode of [
+    'return $input.all().filter(item => item.json.completed);',
+    'return $input.all().filter(item => { const todo = item.json; return todo.completed; });',
+    'const todos = $input.all().map(item => item.json); return todos.filter(todo => !todo.completed);',
+    'const items = $input.all(); return items.map(item => item.json?.active || item.binary || item.pairedItem);',
+    'const rows = [{ active: false }]; return rows.filter(row => !row.active);',
+  ]) {
+    const summary = buildWorkflowDataflowSummary(workflow([
+      node('Code', 'n8n-nodes-base.code', jsCode),
+    ], {}));
+    assert.deepEqual(summary.codeNodeWrapperItemAccesses, [], jsCode);
+    assert.deepEqual(validateCodeDataflow(summary), [], jsCode);
+  }
+});
+
+
+test('does not treat a regular-expression literal as a direct wrapper payload read', () => {
+  const summary = buildWorkflowDataflowSummary(workflow([
+    node('Code', 'n8n-nodes-base.code', 'return $input.all().filter(item => /item.active/.test(item.json.title));'),
+  ], {}));
+  assert.deepEqual(summary.codeNodeWrapperItemAccesses, []);
+  assert.deepEqual(validateCodeDataflow(summary), []);
+});

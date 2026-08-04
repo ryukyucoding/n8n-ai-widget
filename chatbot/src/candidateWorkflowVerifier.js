@@ -110,6 +110,13 @@ function dataflowFindings(summary) {
       }));
     }
   }
+  for (const access of summary.codeNodeWrapperItemAccesses || []) {
+    findings.push(structuredFinding({
+      ruleId: 'dataflow.code_item_wrapper.use_json_payload', severity: 'repair', evidenceSource: 'runtime_contract', category: 'dataflow',
+      location: { kind: 'code_item_wrapper_access', codeNodeName: access.codeNode || null },
+      message: 'Code reads a $input.all() item as a payload object. Read payload fields through item.json or explicitly normalize item.json first.', repairable: true,
+    }));
+  }
   return findings;
 }
 

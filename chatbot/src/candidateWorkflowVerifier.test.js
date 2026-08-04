@@ -182,3 +182,27 @@ test('preserves structural error text while accepting source-provided node schem
   assert.equal(result.findings[0].ruleId, 'node_schema.parameter.invalid_type');
   assert.equal(result.findings[0].category, 'node_schema');
 });
+
+
+test('returns a repairable structured blocker for direct $input.all() payload reads before semantic review', async () => {
+  const candidate = validWorkflow();
+  candidate.nodes[1].parameters.jsCode = 'const items = $input.all(); return items.filter(item => !item.active);';
+  let reviewerCalled = false;
+  const result = await verifyCandidateWorkflow({
+    operation: 'create', userRequest: 'Transform input items', candidateWorkflow: candidate,
+  }, {
+    structuralValidator,
+    semanticReview: async () => { reviewerCalled = true; return { verdict: 'pass', issues: [], repairInstruction: '' }; },
+  });
+
+  assert.equal(result.status, 'repair');
+  assert.equal(reviewerCalled, false);
+  const finding = result.findings.find((item) => item.ruleId === 'dataflow.code_item_wrapper.use_json_payload');
+  assertFindingShape(finding);
+  assert.equal(finding.severity, 'repair');
+  assert.equal(finding.evidenceSource, 'runtime_contract');
+  assert.equal(finding.category, 'dataflow');
+  assert.equal(finding.repairable, true);
+  assert.deepEqual(finding.location, { kind: 'code_item_wrapper_access', codeNodeName: 'Code' });
+  assert.doesNotMatch(JSON.stringify(finding), /active|\\$input|filter/);
+});
