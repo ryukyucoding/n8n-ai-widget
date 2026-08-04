@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildAcceptanceContractInstruction } = require('./createContractPrompt');
+const { buildAcceptanceContractInstruction, buildN8nCodeSafetyInstruction } = require('./createContractPrompt');
 
 const REPAIR_POLICY = Object.freeze({
   maxLlmCandidates: 3,
@@ -40,8 +40,8 @@ function buildCorrectnessFirstRepairPrompt({ contract, findings }) {
     'Correctness-first repair candidate required.',
     `Reuse acceptance contract revision ${revision}; do not change its business requirements or assume missing configuration.`,
     buildAcceptanceContractInstruction(contract),
+    buildN8nCodeSafetyInstruction(),
     'Repair execution behavior and topology, not node display names, IDs, positions, or other UI metadata.',
-    'For Code named references, the referenced producer must must-execute-before the Code node. Sibling fan-in into an any-input node is not a synchronization barrier.',
     'Use only the structured finding objectives below. Do not include credentials, tokens, workflow IDs, or secrets.',
     `Structured repair objectives: ${JSON.stringify(safeFindingSummary(findings))}`,
   ].filter(Boolean).join('\n');

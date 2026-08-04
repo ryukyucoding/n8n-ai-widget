@@ -69,3 +69,44 @@ test('terminal repair keeps the output shape and all typed fields after an earli
   assert.match(terminalRepair, new RegExp(contractPromptPayload(contract).contractFingerprint));
   assert.match(terminalRepair, /"deliveryShape":"single_object_item"/);
 });
+
+
+test('shared Code prevention rules cover initial Create, general repair, terminal repair, and Semantic Reviewer paths', () => {
+  const contract = normalizeAcceptanceContract({ userRequest: 'Return a typed summary.', plannerResult: planner() });
+  const initial = buildCreateCandidateMessages({ systemPrompt: 'system', userRequest: 'request', acceptanceContract: contract });
+  const safety = initial.find((message) => message.content.includes('n8n Code safety rules'));
+  assert.ok(safety);
+  assert.match(safety.content, /item\.json/);
+  assert.match(safety.content, /Sibling branches feeding the same any-input Code node are not synchronization/);
+
+  const generalRepair = buildCorrectnessFirstRepairPrompt({
+    contract,
+    findings: [{ ruleId: 'dataflow.code_reference.must_execute_before', category: 'dataflow', severity: 'repair', repairable: true, normalized: false }],
+  });
+  const generalMessages = buildCreateCandidateMessages({
+    systemPrompt: 'system', userRequest: 'request', acceptanceContract: contract, repairPrompt: generalRepair,
+  });
+  assert.deepEqual(promptPayload(generalMessages), contractPromptPayload(contract));
+  assert.match(generalRepair, new RegExp(contractPromptPayload(contract).contractFingerprint));
+  assert.match(generalRepair, /item\.json/);
+  assert.match(generalRepair, /all-required-input barrier/);
+  assert.match(generalRepair, /dataflow\.code_reference\.must_execute_before/);
+
+  const terminalRepair = buildCorrectnessFirstRepairPrompt({
+    contract,
+    findings: [{ ruleId: 'dataflow.code_item_wrapper.use_json_payload', category: 'dataflow', severity: 'repair', repairable: true, normalized: false }],
+  });
+  const terminalMessages = buildCreateCandidateMessages({
+    systemPrompt: 'system', userRequest: 'request', acceptanceContract: contract, repairPrompt: terminalRepair,
+  });
+  assert.deepEqual(promptPayload(terminalMessages), contractPromptPayload(contract));
+  assert.match(terminalRepair, /item\.json/);
+  assert.match(terminalRepair, /all-required-input barrier/);
+  assert.match(terminalRepair, /dataflow\.code_item_wrapper\.use_json_payload/);
+
+  const reviewer = JSON.parse(buildSemanticReviewerInput({
+    userRequest: 'request', acceptanceContract: contract, workflow: {}, dataflowSummary: {},
+  }));
+  assert.equal(reviewer.codeSafetyInstruction, safety.content);
+  assert.deepEqual(reviewer.contract, contractPromptPayload(contract));
+});

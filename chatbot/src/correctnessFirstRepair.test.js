@@ -10,6 +10,7 @@ const {
   evaluateCorrectnessFirstRepair,
   decideCreateCandidateRetry,
 } = require('./correctnessFirstRepair');
+const { buildCreateCandidateMessages } = require('./createContractPrompt');
 
 function finding(overrides = {}) {
   return {
@@ -129,4 +130,28 @@ test('controller exceptions become a safe fallback and do not mutate formal inpu
   });
   assert.deepEqual({ candidate, verification, state }, before);
   assert.deepEqual(result, { enabled: true, action: 'fallback', reason: 'evaluation_failed' });
+});
+
+
+test('Code prevention rules remain available with correctness-first disabled or enabled', async () => {
+  const initial = buildCreateCandidateMessages({ systemPrompt: 'system', userRequest: 'request' });
+  assert.ok(initial.some((message) => message.content.includes('n8n Code safety rules')));
+
+  const disabled = await decideCreateCandidateRetry({
+    correctnessFirstEnabled: false, attempt: 0, legacyMaxCandidates: 3,
+  });
+  assert.equal(disabled.action, 'retry');
+  assert.equal(disabled.repairPrompt, null);
+
+  const enabled = await decideCreateCandidateRetry({
+    correctnessFirstEnabled: true, attempt: 0, legacyMaxCandidates: 3,
+    evaluateCorrectnessFirstRepair: async () => ({
+      action: 'repair',
+      repairPrompt: buildCorrectnessFirstRepairPrompt({ contract: { contractRevision: 1 }, findings: [finding()] }),
+    }),
+  });
+  assert.equal(enabled.action, 'retry');
+  assert.match(enabled.repairPrompt, /n8n Code safety rules/);
+  assert.match(enabled.repairPrompt, /item\.json/);
+  assert.match(enabled.repairPrompt, /all-required-input barrier/);
 });
