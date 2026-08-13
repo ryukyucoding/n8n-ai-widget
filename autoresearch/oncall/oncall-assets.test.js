@@ -28,7 +28,7 @@ test('on-call units are event-driven and low priority', () => {
   assert.match(pathUnit, /PathChanged=.*tasks\.json/);
   assert.match(service, /Nice=15/);
   assert.match(service, /IOSchedulingClass=idle/);
-  assert.match(service, /CPUQuota=25%%/);
+  assert.match(service, /CPUQuota=25%/);
   assert.match(service, /MemoryMax=2G/);
   assert.match(timer, /OnUnitInactiveSec=15min/);
 });
