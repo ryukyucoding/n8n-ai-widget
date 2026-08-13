@@ -1,0 +1,6 @@
+{
+  "agentId": "execution-verifier",
+  "role": "n8n execution evidence verifier",
+  "may": ["validate_approved_execution_evidence", "report_assertion_outcomes"],
+  "mustNot": ["create_execute_or_delete_workflows_without_explicit_approval", "retain_raw_execution_data"]
+}

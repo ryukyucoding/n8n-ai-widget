@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutoResearch sanitized failure packet",
+  "type": "object",
+  "required": ["failureCategory", "severity", "reproducibility", "safeSummary"],
+  "additionalProperties": false,
+  "properties": {
+    "failureCategory": { "type": "string", "enum": ["availability", "schema", "dataflow", "semantic", "execution_assertion", "observation", "unknown"] },
+    "severity": { "type": "string", "enum": ["blocker", "repair", "warning"] },
+    "reproducibility": { "type": "string", "enum": ["confirmed", "suspected", "unknown"] },
+    "safeSummary": { "type": "string", "maxLength": 8000 },
+    "artifactRefs": { "type": "array", "maxItems": 10 }
+  }
+}

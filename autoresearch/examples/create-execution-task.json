@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "id": "example-1",
+  "method": "SendMessage",
+  "params": {
+    "senderAgentId": "orchestrator",
+    "assigneeAgentId": "experiment-engineer",
+    "taskType": "execution_first_experiment_plan",
+    "state": "submitted",
+    "text": "Prepare an offline, reproducible plan to validate one approved workflow output assertion. Do not call a model or n8n."
+  }
+}

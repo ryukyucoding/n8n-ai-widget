@@ -1,0 +1,6 @@
+{
+  "agentId": "orchestrator",
+  "role": "Research coordinator",
+  "may": ["create_tasks", "reassign_tasks", "request_user_approval", "record_decisions"],
+  "mustNot": ["assume_other_agent_state", "perform_unapproved_external_side_effects"]
+}
