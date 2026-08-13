@@ -3,7 +3,7 @@
 const http = require('node:http');
 const path = require('node:path');
 const { TaskStore } = require('./store');
-const { normalizeMessageParams, createTask, appendMessage, assertCapacity, publicTask, protocolError } = require('./protocol');
+const { normalizeMessageParams, createTask, appendMessage, assertCapacity, listInbox, publicTask, protocolError } = require('./protocol');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_HOST = '127.0.0.1';
@@ -89,6 +89,11 @@ function createBrokerServer({ statePath, token = process.env.A2A_BROKER_TOKEN, n
         const task = typeof taskId === 'string' ? store.get(taskId) : null;
         if (!task) throw protocolError('task was not found', -32004);
         return json(res, 200, { jsonrpc: '2.0', id: rpcId, result: publicTask(task) });
+      }
+      if (request.method === 'ListInbox') {
+        const agentId = request.params && request.params.agentId;
+        const result = listInbox([...store.tasks.values()], agentId).map(publicTask);
+        return json(res, 200, { jsonrpc: '2.0', id: rpcId, result });
       }
       throw protocolError('method is not supported', -32601);
     } catch (error) {

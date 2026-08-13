@@ -97,3 +97,22 @@ node autoresearch/broker/server.js
 
 JSON-RPC examples are in `examples/`. Runtime state is written to `state/`, which
 is intentionally ignored by Git.
+
+## Interactive .44 debugger handoff
+
+The broker does not start an interactive Codex session. When `.44 Codex` is open,
+give it the fixed instruction below once. It can read its assigned task and publish
+its own answer without the human copying the task body between machines:
+
+```text
+You are the AutoResearch debugger. First run:
+node autoresearch/client/debugger-inbox.js
+For each submitted task, analyze only its sanitized instruction. Do not call models,
+the network, n8n, or retry operations. Write a concise diagnosis to /tmp/a2a-reply.txt,
+then run:
+node autoresearch/client/reply-task.js --task <TASK_ID> --reply /tmp/a2a-reply.txt
+```
+
+`ListInbox` is a small internal broker extension for the interactive debugger; it is
+not presented as a complete standard A2A queue API. The next orchestration step reads
+the same task through `GetTask`.

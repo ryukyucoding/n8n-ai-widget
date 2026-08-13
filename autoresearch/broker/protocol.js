@@ -186,6 +186,11 @@ function assertCapacity(tasks, taskId, message) {
   }
 }
 
+function listInbox(tasks, agentId) {
+  assertAgentId(agentId, 'agentId');
+  return tasks.filter((task) => task.assigneeAgentId === agentId && task.state === 'submitted');
+}
+
 module.exports = {
   AGENT_IDS,
   TASK_STATES,
@@ -193,6 +198,7 @@ module.exports = {
   createTask,
   appendMessage,
   assertCapacity,
+  listInbox,
   publicTask,
   protocolError,
 };

@@ -7,6 +7,8 @@ const path = require('node:path');
 const test = require('node:test');
 const { createBrokerServer } = require('../broker/server');
 const { requestPathFromArgs, readRequest, sendRequest } = require('../client/task-client');
+const { request: debuggerInboxRequest } = require('../client/debugger-inbox');
+const { parseArgs, readReply } = require('../client/reply-task');
 
 async function startBroker(options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-a2a-'));
@@ -134,5 +136,23 @@ test('client reads a safe JSON-RPC request and sends it without argv credentials
     assert.throws(() => requestPathFromArgs(['--token', 'not-allowed']), /Usage/);
     const response = await sendRequest({ endpoint: broker.url, token: 'client-token', request: readRequest(requestPath) });
     assert.equal(response.result.assigneeAgentId, 'debugger');
+  } finally { await broker.close(); }
+});
+
+test('debugger can read only submitted inbox tasks and submit a file-backed reply', async () => {
+  const broker = await startBroker();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-reply-'));
+  const replyPath = path.join(directory, 'reply.txt');
+  fs.writeFileSync(replyPath, 'Add a regression test before any implementation change.');
+  try {
+    const created = await rpc(broker.url, sendMessage({
+      senderAgentId: 'orchestrator', assigneeAgentId: 'debugger', executionHost: 'server',
+      resourceClass: 'light', taskType: 'sanitized_failure_diagnosis', text: 'Inspect the safe failure packet.', state: 'submitted',
+    }));
+    const inbox = await rpc(broker.url, debuggerInboxRequest());
+    assert.equal(inbox.body.result.length, 1);
+    assert.equal(inbox.body.result[0].id, created.body.result.id);
+    assert.deepEqual(parseArgs(['--task', created.body.result.id, '--reply', replyPath]), { taskId: created.body.result.id, replyPath });
+    assert.equal(readReply(replyPath), 'Add a regression test before any implementation change.');
   } finally { await broker.close(); }
 });
