@@ -94,3 +94,28 @@ test('requires a token when configured', async () => {
     assert.equal(allowed.body.result.assigneeAgentId, 'debugger');
   } finally { await broker.close(); }
 });
+
+test('permits only one active model inference task per host', async () => {
+  const broker = await startBroker();
+  try {
+    const create = (text) => rpc(broker.url, sendMessage({
+      senderAgentId: 'orchestrator', assigneeAgentId: 'experiment-engineer',
+      executionHost: 'workstation-b', resourceClass: 'model-inference',
+      taskType: 'approved_generation', text, state: 'submitted',
+    }));
+    const first = await create('Prepare the first approved generation task.');
+    const second = await create('Prepare the second approved generation task.');
+    const started = await rpc(broker.url, sendMessage({
+      taskId: first.body.result.id, senderAgentId: 'experiment-engineer', assigneeAgentId: 'experiment-engineer',
+      executionHost: 'workstation-b', resourceClass: 'model-inference',
+      taskType: 'approved_generation', text: 'Starting the first task.', state: 'working',
+    }));
+    assert.equal(started.body.result.state, 'working');
+    const blocked = await rpc(broker.url, sendMessage({
+      taskId: second.body.result.id, senderAgentId: 'experiment-engineer', assigneeAgentId: 'experiment-engineer',
+      executionHost: 'workstation-b', resourceClass: 'model-inference',
+      taskType: 'approved_generation', text: 'Starting the second task.', state: 'working',
+    }));
+    assert.equal(blocked.body.error.code, -32009);
+  } finally { await broker.close(); }
+});

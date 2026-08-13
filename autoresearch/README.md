@@ -2,8 +2,9 @@
 
 `autoresearch/` is the communication layer for the next research phase: generating
 and validating n8n workflows from natural-language requests. It gives up to five
-agents a shared, durable task record without requiring them to share private chat
-history.
+agent roles a shared, durable task record without requiring them to share private
+chat history. The physical setup is two workstations (each can run Codex and
+Antigravity) plus one server; five roles do not mean five always-running processes.
 
 This implementation is deliberately small and dependency-free. It follows the
 important A2A ideas -- Agent Cards, Tasks, Messages, and JSON-RPC `SendMessage` --
@@ -46,6 +47,10 @@ credentials or machine addresses.
   create/execute/delete an n8n workflow, deploy, or use the network.
 - The broker does not invoke Codex, Antigravity, or .44 automatically. A heartbeat
   or human operator dispatches the assigned task on the appropriate machine.
+- Tasks include an `executionHost` (`workstation-a`, `workstation-b`, or `server`)
+  and a `resourceClass`. The broker permits only one active `model-inference`,
+  `cpu-bound`, or `n8n-operation` task per host. This prevents background work from
+  competing with interactive work; `light` tasks remain unconstrained.
 
 ## Run locally
 
@@ -68,7 +73,8 @@ node autoresearch/broker/server.js
 
 ## Minimal message flow
 
-1. `orchestrator` sends `SendMessage` with a safe instruction and `assigneeAgentId`.
+1. `orchestrator` sends `SendMessage` with a safe instruction, `assigneeAgentId`,
+   `executionHost`, and `resourceClass`.
    Without `taskId`, the broker creates a task in `submitted` state.
 2. The assignee sends a status message, moving it to `working`, `input-required`,
    `completed`, or `failed`.
@@ -80,4 +86,3 @@ node autoresearch/broker/server.js
 
 JSON-RPC examples are in `examples/`. Runtime state is written to `state/`, which
 is intentionally ignored by Git.
-

@@ -3,7 +3,7 @@
 const http = require('node:http');
 const path = require('node:path');
 const { TaskStore } = require('./store');
-const { normalizeMessageParams, createTask, appendMessage, publicTask, protocolError } = require('./protocol');
+const { normalizeMessageParams, createTask, appendMessage, assertCapacity, publicTask, protocolError } = require('./protocol');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_HOST = '127.0.0.1';
@@ -78,6 +78,7 @@ function createBrokerServer({ statePath, token = process.env.A2A_BROKER_TOKEN, n
       if (request.method === 'SendMessage') {
         const message = normalizeMessageParams(request.params);
         const task = message.taskId ? store.get(message.taskId) : null;
+        assertCapacity([...store.tasks.values()], task && task.id, message);
         const result = task
           ? store.update(appendMessage(task, message, now()))
           : store.create(createTask(message, now()));
@@ -113,4 +114,3 @@ if (require.main === module) {
 }
 
 module.exports = { createBrokerServer, facilitatorCard, agentCard };
-

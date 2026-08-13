@@ -21,6 +21,13 @@ const TASK_STATES = new Set([
 
 const TERMINAL_STATES = new Set(['completed', 'failed', 'canceled']);
 const MAX_TEXT_LENGTH = 8000;
+const EXECUTION_HOSTS = new Set(['workstation-a', 'workstation-b', 'server']);
+const RESOURCE_CLASSES = new Set(['light', 'cpu-bound', 'model-inference', 'n8n-operation']);
+const MAX_ACTIVE_PER_HOST = new Map([
+  ['cpu-bound', 1],
+  ['model-inference', 1],
+  ['n8n-operation', 1],
+]);
 
 function protocolError(message, code = -32602) {
   const error = new Error(message);
@@ -85,7 +92,7 @@ function normalizeMessageParams(params) {
   if (!params || typeof params !== 'object' || Array.isArray(params)) {
     throw protocolError('params must be an object');
   }
-  const allowed = new Set(['taskId', 'contextId', 'senderAgentId', 'assigneeAgentId', 'taskType', 'state', 'text', 'artifactRefs']);
+  const allowed = new Set(['taskId', 'contextId', 'senderAgentId', 'assigneeAgentId', 'taskType', 'state', 'text', 'artifactRefs', 'executionHost', 'resourceClass']);
   for (const key of Object.keys(params)) {
     if (!allowed.has(key)) throw protocolError(`params.${key} is not allowed`);
   }
@@ -96,6 +103,10 @@ function normalizeMessageParams(params) {
   if (params.taskId !== undefined && !/^task_[a-f0-9-]+$/i.test(params.taskId)) {
     throw protocolError('taskId has an invalid format');
   }
+  const executionHost = params.executionHost || 'workstation-a';
+  const resourceClass = params.resourceClass || 'light';
+  if (!EXECUTION_HOSTS.has(executionHost)) throw protocolError('executionHost is not allowlisted');
+  if (!RESOURCE_CLASSES.has(resourceClass)) throw protocolError('resourceClass is not supported');
   return {
     taskId: params.taskId,
     contextId: params.contextId ? assertSafeText(params.contextId, 'contextId') : undefined,
@@ -105,6 +116,8 @@ function normalizeMessageParams(params) {
     state,
     text: assertSafeText(params.text, 'text'),
     artifactRefs: normalizeArtifactRefs(params.artifactRefs),
+    executionHost,
+    resourceClass,
   };
 }
 
@@ -118,6 +131,10 @@ function appendMessage(task, message, now) {
   if (message.assigneeAgentId !== task.assigneeAgentId && message.senderAgentId !== 'orchestrator') {
     throw protocolError('only the orchestrator may reassign a task');
   }
+  if ((message.executionHost !== task.executionHost || message.resourceClass !== task.resourceClass)
+    && message.senderAgentId !== 'orchestrator') {
+    throw protocolError('only the orchestrator may change task resource placement');
+  }
   const entry = {
     messageId: stableId('msg'),
     senderAgentId: message.senderAgentId,
@@ -128,6 +145,8 @@ function appendMessage(task, message, now) {
     createdAt: now,
   };
   task.assigneeAgentId = message.assigneeAgentId;
+  task.executionHost = message.executionHost;
+  task.resourceClass = message.resourceClass;
   task.state = message.state;
   task.updatedAt = now;
   task.messages.push(entry);
@@ -141,6 +160,8 @@ function createTask(message, now) {
     taskType: message.taskType,
     ownerAgentId: message.senderAgentId,
     assigneeAgentId: message.assigneeAgentId,
+    executionHost: message.executionHost,
+    resourceClass: message.resourceClass,
     state: 'submitted',
     createdAt: now,
     updatedAt: now,
@@ -153,13 +174,25 @@ function publicTask(task) {
   return JSON.parse(JSON.stringify(task));
 }
 
+function assertCapacity(tasks, taskId, message) {
+  const maximum = MAX_ACTIVE_PER_HOST.get(message.resourceClass);
+  if (!maximum || message.state !== 'working') return;
+  const active = tasks.filter((task) => task.id !== taskId
+    && task.state === 'working'
+    && task.executionHost === message.executionHost
+    && task.resourceClass === message.resourceClass);
+  if (active.length >= maximum) {
+    throw protocolError(`capacity is occupied for ${message.resourceClass} on ${message.executionHost}`, -32009);
+  }
+}
+
 module.exports = {
   AGENT_IDS,
   TASK_STATES,
   normalizeMessageParams,
   createTask,
   appendMessage,
+  assertCapacity,
   publicTask,
   protocolError,
 };
-

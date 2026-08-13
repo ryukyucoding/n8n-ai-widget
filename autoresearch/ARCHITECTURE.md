@@ -8,7 +8,7 @@ The broker replaces that with a durable task record:
 
 ```text
                   ┌─────────────────────────────────────┐
-                  │  A2A Task Broker (one trusted host)  │
+                  │  A2A Task Broker (server)            │
                   │ task state + safe messages + refs    │
                   └─────────────────────────────────────┘
                     ▲             ▲              ▲
@@ -27,8 +27,28 @@ The broker replaces that with a durable task record:
 ```
 
 The broker is not a sixth intelligence and does not execute work. It only records
-the handoff. An operator or existing Codex heartbeat tells the relevant machine that
-a task has been assigned.
+the handoff. Two workstations can each run Codex and Antigravity; `.44 Codex` is a
+role on the server rather than a fourth physical machine. An operator or a low-rate
+heartbeat tells the relevant machine that a task has been assigned.
+
+## Load policy
+
+The earlier 15-minute heartbeat is useful for continuity but too costly if it wakes a
+full coding session while the workstation is being used. The broker therefore treats
+tasks as event-driven and load-classified, rather than polling work constantly.
+
+| Resource class | Typical work | Broker limit |
+| --- | --- | --- |
+| `light` | read task, inspect a file, write a short report | no broker limit |
+| `cpu-bound` | local parsing, static evaluation, test suite | one `working` task per host |
+| `model-inference` | LLM generation, semantic review | one `working` task per host |
+| `n8n-operation` | approved create, execution, readback | one `working` task per host |
+
+An idle workstation should do no continuous model work. It may perform a tiny
+heartbeat check with backoff, but it should not launch a task unless the broker has a
+new assignment and the user is not actively using that machine. The server only runs
+the broker and explicitly approved services; it does not become a default model
+worker.
 
 ## Role contract
 
@@ -65,7 +85,7 @@ decision or missing non-secret information is needed. `completed`, `failed`, and
 
 ## Cross-machine rollout
 
-1. Start the broker on one trusted, reachable host. Begin with loopback while testing.
+1. Start the broker on the server. Begin with loopback while testing.
 2. For multiple machines, give the broker a private-network hostname, bind it to that
    private interface, set `A2A_BROKER_TOKEN` outside Git, and use TLS/reverse-proxy
    protection. Do not expose the current prototype to the public internet.
@@ -88,4 +108,3 @@ decision or missing non-secret information is needed. `completed`, `failed`, and
   Antigravity). These products do not automatically expose compatible A2A endpoints.
 - Connect only approved execution-first research experiments; never treat historical
   workflow-similarity scores as the primary quality signal.
-
