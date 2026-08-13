@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { createBrokerServer } = require('../broker/server');
+const { requestPathFromArgs, readRequest, sendRequest } = require('../client/task-client');
 
 async function startBroker(options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-a2a-'));
@@ -117,5 +118,21 @@ test('permits only one active model inference task per host', async () => {
       taskType: 'approved_generation', text: 'Starting the second task.', state: 'working',
     }));
     assert.equal(blocked.body.error.code, -32009);
+  } finally { await broker.close(); }
+});
+
+test('client reads a safe JSON-RPC request and sends it without argv credentials', async () => {
+  const broker = await startBroker({ token: 'client-token' });
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-client-'));
+  const requestPath = path.join(directory, 'request.json');
+  fs.writeFileSync(requestPath, JSON.stringify(sendMessage({
+    senderAgentId: 'orchestrator', assigneeAgentId: 'debugger', executionHost: 'server',
+    resourceClass: 'light', taskType: 'diagnosis', text: 'Inspect a sanitized failure packet.', state: 'submitted',
+  })));
+  try {
+    assert.equal(requestPathFromArgs(['--request', requestPath]), requestPath);
+    assert.throws(() => requestPathFromArgs(['--token', 'not-allowed']), /Usage/);
+    const response = await sendRequest({ endpoint: broker.url, token: 'client-token', request: readRequest(requestPath) });
+    assert.equal(response.result.assigneeAgentId, 'debugger');
   } finally { await broker.close(); }
 });

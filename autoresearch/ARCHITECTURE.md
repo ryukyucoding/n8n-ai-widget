@@ -50,6 +50,21 @@ new assignment and the user is not actively using that machine. The server only 
 the broker and explicitly approved services; it does not become a default model
 worker.
 
+## Current degraded topology
+
+Until the lab workstation is available again, treat this as a two-host system:
+
+- `workstation-a`: the current computer. It runs the orchestrator and, sequentially,
+  any evidence or experiment-preparation role.
+- `server`: the broker and `.44 Codex` debugger role. It should not automatically
+  run model inference or n8n operations.
+- `workstation-b`: reserved for the lab computer after it returns. Do not assign a
+  real task to it now.
+
+The coordinator should use at most one heavy local task at a time. This is slower
+than five-way parallelism, but it yields evidence we can trust without making the
+current computer unusable.
+
 ## Role contract
 
 | Role | Receives | Produces | Cannot do alone |

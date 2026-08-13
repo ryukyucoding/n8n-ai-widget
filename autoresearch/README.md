@@ -59,6 +59,16 @@ node autoresearch/broker/server.js
 node --test autoresearch/tests/*.test.js
 ```
 
+Use the small client rather than manually composing an HTTP request:
+
+```powershell
+node autoresearch/client/task-client.js --request autoresearch/examples/create-execution-task.json
+```
+
+The client reads `A2A_BROKER_TOKEN` only from its environment, never from command
+arguments. It is safe to use from the current workstation for a local proof of
+handoff; server deployment remains a separate, approved step.
+
 The default endpoint is `http://127.0.0.1:8787`. It serves the facilitator card at
 `/.well-known/agent-card.json` and individual role cards at
 `/agents/<agent-id>/.well-known/agent-card.json`.
