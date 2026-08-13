@@ -46,9 +46,11 @@ tasks as event-driven and load-classified, rather than polling work constantly.
 
 An idle workstation should do no continuous model work. It may perform a tiny
 heartbeat check with backoff, but it should not launch a task unless the broker has a
-new assignment and the user is not actively using that machine. The server only runs
-the broker and explicitly approved services; it does not become a default model
-worker.
+new assignment and the user is not actively using that machine. The server runs the
+broker and explicitly approved services. The optional on-call debugger is not a
+default model worker: it is an event-driven, single-task exception for a safe
+diagnosis packet, and it yields whenever an interactive `.44 Codex` session is
+active.
 
 ## Current degraded topology
 

@@ -45,8 +45,9 @@ credentials or machine addresses.
   `A2A_BROKER_TOKEN`; place that value only in the process environment.
 - A task message is a coordination record, not authorization to call a model,
   create/execute/delete an n8n workflow, deploy, or use the network.
-- The broker does not invoke Codex, Antigravity, or .44 automatically. A heartbeat
-  or human operator dispatches the assigned task on the appropriate machine.
+- The broker does not itself invoke Codex, Antigravity, or .44. The optional `.44`
+  on-call dispatcher is the only automatic consumer currently supported: it accepts
+  one narrowly allowlisted debugger task and invokes `codex exec` only at task time.
 - Tasks include an `executionHost` (`workstation-a`, `workstation-b`, or `server`)
   and a `resourceClass`. The broker permits only one active `model-inference`,
   `cpu-bound`, or `n8n-operation` task per host. This prevents background work from
@@ -116,3 +117,44 @@ node autoresearch/client/reply-task.js --task <TASK_ID> --reply /tmp/a2a-reply.t
 `ListInbox` is a small internal broker extension for the interactive debugger; it is
 not presented as a complete standard A2A queue API. The next orchestration step reads
 the same task through `GetTask`.
+
+## Optional .44 on-call debugger
+
+`oncall/` provides a bounded, event-driven alternative to manually opening Codex on
+`.44`. It is intentionally not a general autonomous worker.
+
+- It accepts only `debugger` tasks with `taskType=sanitized_failure_diagnosis`,
+  `executionHost=server`, and `resourceClass=model-inference`.
+- The `PathChanged` unit wakes on a new broker state file; a 15-minute timer is only
+  a fallback for a task deferred because a human interactive Codex session was open.
+  Neither mechanism runs a model while there is no matching task.
+- It takes an exclusive lock, leaves the task submitted when interactive `codex` is
+  detected, uses low CPU/I/O priority, and bounds one `codex exec` run to five
+  minutes. It performs no retry.
+- The task packet is treated as untrusted data. The model is instructed not to run
+  commands, change files, use n8n/network tools, or access credentials. It returns a
+  sanitized diagnosis only. Any later fix or external action still requires an
+  orchestrator and user approval.
+
+The dispatcher uses the installed `.44` CLI's non-interactive `codex exec` mode with
+`--sandbox read-only`, `--ephemeral`, `--ignore-user-config`, and `--ignore-rules`.
+Those flags restrict its local work; the Codex model request itself is an external
+model call made only after an allowlisted task is assigned.
+
+Install only on `.44`, after the broker has been verified and the repository is at a
+reviewed revision:
+
+```bash
+mkdir -p ~/.config/systemd/user ~/.config/autoresearch-a2a
+printf 'A2A_REPO_DIR=%s\n' "$HOME/autoresearch-a2a" > ~/.config/autoresearch-a2a/oncall.env
+chmod 600 ~/.config/autoresearch-a2a/oncall.env
+cp ~/autoresearch-a2a/autoresearch/oncall/autoresearch-debugger-oncall.{service,path,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now autoresearch-debugger-oncall.path autoresearch-debugger-oncall.timer
+```
+
+For persistence after SSH logout, an administrator must enable user lingering for
+the `daniel` account. Do not enable the dispatcher until the unit files, path, and
+service logs have been reviewed. Runtime logs live only under the owner-only broker
+state directory; no task body, credential, workflow JSON, or execution payload is
+written to Git.

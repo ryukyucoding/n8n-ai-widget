@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch AutoResearch task state for debugger work
+
+[Path]
+PathChanged=%h/.local/state/autoresearch-a2a/tasks.json
+Unit=autoresearch-debugger-oncall.service
+
+[Install]
+WantedBy=default.target
