@@ -19,6 +19,7 @@ test('on-call dispatcher is narrow, bounded, and non-overlapping', () => {
   assert.match(script, /--ephemeral/);
   assert.match(script, /--ignore-user-config/);
   assert.match(script, /--ignore-rules/);
+  assert.match(script, /credential-term-redacted/);
 });
 
 test('on-call units are event-driven and low priority', () => {

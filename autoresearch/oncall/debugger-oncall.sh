@@ -145,6 +145,7 @@ raw_path, safe_path = sys.argv[1:]
 text = open(raw_path, encoding='utf-8', errors='replace').read().strip()[:6500]
 text = re.sub(r'-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----', '[redacted]', text, flags=re.S)
 text = re.sub(r'\b(api[_-]?key|authorization|bearer)\b\s*[:=]\s*\S+', r'\1: [redacted]', text, flags=re.I)
+text = re.sub(r'\b(api[_-]?key|authorization|bearer)\b', '[credential-term-redacted]', text, flags=re.I)
 text = re.sub(r'(?<!\w)(?:[A-Za-z]:\\|/(?:home|Users|etc|var|tmp)/)\S*', '[local-path-redacted]', text)
 if not text:
     text = 'On-call debugger returned no usable diagnosis.'
