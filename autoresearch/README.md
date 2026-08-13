@@ -78,6 +78,7 @@ For a trusted shared host only:
 ```powershell
 $env:A2A_BROKER_TOKEN = '<secret stored outside Git>'
 $env:A2A_BROKER_HOST = '0.0.0.0'
+$env:A2A_BROKER_STATE_PATH = '<writable state path outside the source checkout>'
 node autoresearch/broker/server.js
 ```
 

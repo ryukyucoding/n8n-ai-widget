@@ -61,7 +61,7 @@ function requireAuthorization(req, token) {
 }
 
 function createBrokerServer({ statePath, token = process.env.A2A_BROKER_TOKEN, now = () => new Date().toISOString() } = {}) {
-  const store = new TaskStore(statePath || path.join(ROOT, 'state', 'tasks.json'));
+  const store = new TaskStore(statePath || process.env.A2A_BROKER_STATE_PATH || path.join(ROOT, 'state', 'tasks.json'));
   store.load();
   return http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/.well-known/agent-card.json') return json(res, 200, facilitatorCard());
