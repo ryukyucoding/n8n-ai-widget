@@ -69,7 +69,9 @@ model or call n8n:
 
 ```powershell
 node autoresearch/client/agent-inbox.js
-Set-Content -NoNewline .\a2a-reply.txt 'Completed the declared offline check; no n8n operation was performed.'
+@'
+Completed the declared offline check; no n8n operation was performed.
+'@ | Out-File -FilePath .\a2a-reply.txt -Encoding utf8
 node autoresearch/client/complete-task.js --task <task-id> --reply .\a2a-reply.txt
 ```
 

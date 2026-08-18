@@ -4,3 +4,4 @@ node_modules/
 chatbot/node_modules/
 **/__pycache__/
 *.pyc
+autoresearch/experiments/easy100/results/
