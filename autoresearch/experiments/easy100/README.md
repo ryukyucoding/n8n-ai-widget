@@ -43,3 +43,8 @@ The optional `evaluateLegacySimilarity.py` joins the private predictions with
 the source JSONL ground truth and uses the existing node and connection scorers.
 Its result is a historical topology comparison only, not a correctness or
 execution metric.
+
+`reverifySavedPredictions.js` can re-run only the benchmark-safe runtime schema
+and dataflow checks on private predictions from an interrupted batch. It uses
+fixed safe finding classes such as `parameter_schema` and `type_version`, and
+makes no model, n8n API, or workflow execution call.

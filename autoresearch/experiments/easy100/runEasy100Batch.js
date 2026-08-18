@@ -7,6 +7,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { parseJsonCandidate, safeContentType, availabilityFailure } = require('../../../chatbot/tests/modelBenchmark/createJsonPolicy');
 const { verifyCandidateWorkflow } = require('../../../chatbot/src/candidateWorkflowVerifier');
 
@@ -15,6 +16,11 @@ const DEFAULT_MODEL = 'qwen2.5-coder-32b-ft-original:latest';
 // bounded run while avoiding a timeout that is known to reject valid work.
 const DEFAULT_TIMEOUT_MS = 180000;
 const STOP_AFTER_AVAILABILITY_FAILURES = 2;
+const SAFE_STATIC_CATEGORIES = new Set([
+  'node_type', 'type_version', 'parameter_schema', 'parameter_value',
+  'connection_port', 'connection_shape', 'code_dataflow',
+  'unsupported_metadata', 'payload_sanitization', 'unknown_structural',
+]);
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
@@ -86,10 +92,19 @@ function readinessFrom({ parsed, verification, capability }) {
 function findingCategoryCounts(verification) {
   const counts = {};
   for (const finding of verification?.findings || []) {
-    const key = typeof finding?.category === 'string' ? finding.category : 'unknown';
+    const key = safeFindingCategory(finding);
     counts[key] = (counts[key] || 0) + 1;
   }
   return counts;
+}
+
+function safeFindingCategory(finding) {
+  const ruleId = typeof finding?.ruleId === 'string' ? finding.ruleId : '';
+  const benchmarkMatch = /^benchmark\.([a-z_]+)$/.exec(ruleId);
+  if (benchmarkMatch && SAFE_STATIC_CATEGORIES.has(benchmarkMatch[1])) return benchmarkMatch[1];
+  if (ruleId.startsWith('dataflow.')) return 'code_dataflow';
+  if (ruleId.startsWith('connection.')) return 'connection_port';
+  return 'unknown_structural';
 }
 
 function safeHttpTelemetry(response) {
@@ -102,7 +117,11 @@ function safeHttpTelemetry(response) {
 function safeHttpFailureCategory(body) {
   const text = typeof body === 'string' ? body.toLowerCase() : '';
   if (/response_format|json_object|json mode/.test(text)) return 'json_mode_rejected';
-  if (/model|context|token|parameter/.test(text)) return 'model_request_rejected';
+  if (/context.{0,32}(limit|length)|max_tokens|token.{0,32}(limit|length)/.test(text)) return 'context_limit_rejected';
+  if (/out of memory|cuda|resource exhausted/.test(text)) return 'model_capacity_rejected';
+  if (/model.{0,48}(not found|unavailable)|unknown model/.test(text)) return 'model_unavailable';
+  if (/parameter|request.{0,32}(invalid|error)|invalid.{0,32}request/.test(text)) return 'request_parameter_rejected';
+  if (/model/.test(text)) return 'model_request_rejected';
   return 'http_failure_unclassified';
 }
 
@@ -139,8 +158,46 @@ async function generateOne({ fetchImpl = globalThis.fetch, env = process.env, mo
   }
 }
 
-function verifyStatic(workflow, description) {
-  return verifyCandidateWorkflow({ operation: 'create', userRequest: description, candidateWorkflow: workflow });
+function protocolFindingToVerifierFinding(finding) {
+  const category = SAFE_STATIC_CATEGORIES.has(finding?.category) ? finding.category : 'unknown_structural';
+  return {
+    ruleId: `benchmark.${category}`,
+    severity: finding?.severity === 'warning' ? 'warning' : 'repair',
+    evidenceSource: 'runtime_schema',
+    category: category === 'connection_port' || category === 'connection_shape'
+      ? 'connection'
+      : (category === 'code_dataflow' ? 'dataflow' : 'node_schema'),
+    location: { kind: category },
+    message: 'Benchmark structural finding.',
+    repairable: finding?.repairable === true,
+    normalized: finding?.normalized === true,
+  };
+}
+
+function createBenchmarkStructuralValidator({ spawn = spawnSync, python = process.env.PYTHON_BIN || 'python3', repairScript = path.join(__dirname, '..', '..', '..', 'chatbot', 'python', 'workflow_repair.py') } = {}) {
+  return (input) => {
+    const rawCandidate = typeof input.candidateWorkflow === 'string' ? input.candidateWorkflow : JSON.stringify(input.candidateWorkflow);
+    const child = spawn(python, [repairScript], {
+      input: JSON.stringify({ raw_output: rawCandidate, user_request: input.userRequest, benchmarkStaticProtocol: true }),
+      encoding: 'utf8', env: { ...process.env, PYTHONUTF8: '1' }, maxBuffer: 48 * 1024 * 1024,
+    });
+    if (child.error) throw new Error('benchmark static verifier spawn failed');
+    let envelope;
+    try { envelope = JSON.parse(String(child.stdout || '').trim()); } catch { throw new Error('benchmark static verifier returned an invalid envelope'); }
+    const validEnvelope = typeof envelope?.ok === 'boolean' && Array.isArray(envelope?.findings) && typeof envelope?.unstructuredFailure === 'boolean';
+    if (!validEnvelope) throw new Error('benchmark static verifier returned an incomplete envelope');
+    const findings = envelope.findings.map(protocolFindingToVerifierFinding);
+    if (!envelope.ok || child.status !== 0) {
+      const error = new Error('benchmark static verifier rejected the candidate');
+      if (findings.length) error.findings = findings;
+      throw error;
+    }
+    return { workflow: input.candidateWorkflow, warnings: [], repairs: {}, findings };
+  };
+}
+
+function verifyStatic(workflow, description, structuralValidator = createBenchmarkStructuralValidator()) {
+  return verifyCandidateWorkflow({ operation: 'create', userRequest: description, candidateWorkflow: workflow }, { structuralValidator });
 }
 
 function atomicWrite(filePath, value) {
@@ -271,4 +328,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { DEFAULT_MODEL, aggregate, createRequest, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, safeHttpFailureCategory, userDescription };
+module.exports = { DEFAULT_MODEL, SAFE_STATIC_CATEGORIES, aggregate, createBenchmarkStructuralValidator, createRequest, findingCategoryCounts, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, safeFindingCategory, safeHttpFailureCategory, userDescription, verifyStatic };

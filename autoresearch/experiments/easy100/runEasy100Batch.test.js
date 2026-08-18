@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { createRequest, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, safeHttpFailureCategory } = require('./runEasy100Batch');
+const { createBenchmarkStructuralValidator, createRequest, findingCategoryCounts, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, safeFindingCategory, safeHttpFailureCategory } = require('./runEasy100Batch');
 
 function temporaryFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'easy100-'));
@@ -24,6 +24,17 @@ test('can disable JSON mode only for a bounded compatibility preflight', () => {
   assert.equal(Object.hasOwn(request, 'response_format'), false);
   assert.equal(safeHttpFailureCategory('{"error":"response_format unsupported"}'), 'json_mode_rejected');
   assert.equal(safeHttpFailureCategory('{"error":"unknown"}'), 'http_failure_unclassified');
+});
+
+test('retains only a fixed safe category from the benchmark structural protocol', () => {
+  const validator = createBenchmarkStructuralValidator({
+    spawn: () => ({ status: 1, stdout: JSON.stringify({ ok: false, findings: [{ category: 'parameter_schema', severity: 'repair', repairable: true, normalized: false, blocking: true }], unstructuredFailure: false }) }),
+  });
+  assert.throws(() => validator({ candidateWorkflow: {}, userRequest: 'x' }), (error) => {
+    assert.equal(safeFindingCategory(error.findings[0]), 'parameter_schema');
+    assert.deepEqual(findingCategoryCounts({ findings: error.findings }), { parameter_schema: 1 });
+    return true;
+  });
 });
 
 test('classifies static, setup, and sandbox states without claiming execution', () => {
