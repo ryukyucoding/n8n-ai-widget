@@ -20,7 +20,7 @@ function atomicWrite(filePath, value) {
   fs.renameSync(temporary, filePath);
 }
 
-async function callPlanner({ messages, model, maxTokens = DEFAULT_PLANNER_MAX_TOKENS, fetchImpl = globalThis.fetch, env = process.env, timeoutMs = 120000 }) {
+async function callPlanner({ messages, model, maxTokens = DEFAULT_PLANNER_MAX_TOKENS, reasoningEffort = null, fetchImpl = globalThis.fetch, env = process.env, timeoutMs = 120000 }) {
   const baseUrl = String(env.OLLAMA_BASE_URL || '').trim();
   if (!baseUrl) throw { kind: 'route_unconfigured' };
   const controller = new AbortController();
@@ -28,9 +28,11 @@ async function callPlanner({ messages, model, maxTokens = DEFAULT_PLANNER_MAX_TO
   try {
     const headers = { 'content-type': 'application/json' };
     if (env.OLLAMA_BASIC_AUTH) headers.authorization = env.OLLAMA_BASIC_AUTH;
+    const requestBody = { model, temperature: 0, max_tokens: maxTokens, messages };
+    if (typeof reasoningEffort === 'string' && reasoningEffort.trim()) requestBody.reasoning_effort = reasoningEffort.trim();
     const response = await fetchImpl(new URL('chat/completions', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`), {
       method: 'POST', headers, signal: controller.signal,
-      body: JSON.stringify({ model, temperature: 0, max_tokens: maxTokens, messages }),
+      body: JSON.stringify(requestBody),
     });
     const telemetry = { httpStatus: Number.isInteger(response?.status) ? response.status : null, contentType: safeContentType(response?.headers?.get?.('content-type')) };
     if (!response.ok) {
@@ -61,7 +63,7 @@ function safePlanSummary({ plan, acceptanceContract, runtimeContext }) {
   };
 }
 
-async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model = DEFAULT_PLANNER_MODEL, maxTokens = DEFAULT_PLANNER_MAX_TOKENS, timeoutMs = 120000, schemaPath, fetchImpl, env, dryRun = false } = {}) {
+async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model = DEFAULT_PLANNER_MODEL, maxTokens = DEFAULT_PLANNER_MAX_TOKENS, reasoningEffort = null, timeoutMs = 120000, schemaPath, fetchImpl, env, dryRun = false } = {}) {
   if (!inputPath || !outputPath) throw new TypeError('inputPath and outputPath are required');
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
   if (!testCase) throw new Error('requested preflight case is unavailable');
@@ -74,17 +76,17 @@ async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model
     if (dryRun) {
       report = {
         schemaVersion: '1.0', kind: 'runtime_aware_planner_preflight', executionPolicy: 'no_model_no_n8n_execution',
-        caseId: testCase.caseId, model, maxTokens, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
+        caseId: testCase.caseId, model, maxTokens, reasoningEffort, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
         outcome: 'planning_context_ready', runtimeContextStats,
       };
       atomicWrite(outputPath, report);
       return report;
     }
-    const generated = await callPlanner({ messages: buildRuntimeAwarePlannerMessages({ userRequest: testCase.description, runtimeContext }), model, maxTokens, fetchImpl, env, timeoutMs });
+    const generated = await callPlanner({ messages: buildRuntimeAwarePlannerMessages({ userRequest: testCase.description, runtimeContext }), model, maxTokens, reasoningEffort, fetchImpl, env, timeoutMs });
     const { plan, acceptanceContract } = buildPlanFirstContract({ userRequest: testCase.description, rawPlan: generated.rawPlan, runtimeContext });
     report = {
       schemaVersion: '1.0', kind: 'runtime_aware_planner_preflight', executionPolicy: 'no_create_model_no_n8n_execution',
-      caseId: testCase.caseId, model, maxTokens, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
+      caseId: testCase.caseId, model, maxTokens, reasoningEffort, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
       outcome: acceptanceContract.configurationStatus === 'complete' ? 'plan_ready' : 'plan_requires_user_input_or_setup',
       httpStatus: generated.telemetry.httpStatus, contentType: generated.telemetry.contentType,
       runtimeContextStats,
@@ -93,7 +95,7 @@ async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model
   } catch (error) {
     report = {
       schemaVersion: '1.0', kind: 'runtime_aware_planner_preflight', executionPolicy: 'no_create_model_no_n8n_execution',
-      caseId: testCase.caseId, model, maxTokens, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
+      caseId: testCase.caseId, model, maxTokens, reasoningEffort, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
       outcome: 'planner_unavailable_or_contract_rejected',
       failureCategory: error?.kind || 'plan_contract_rejected',
       safeFailureCategory: error?.safeFailureCategory || error?.telemetry?.safeFailureCategory || null,
@@ -114,6 +116,7 @@ function main() {
     caseIndex: Number.isInteger(caseIndex) && caseIndex >= 0 ? caseIndex : 0,
     model: process.env.PLAN_PREFLIGHT_MODEL || DEFAULT_PLANNER_MODEL,
     maxTokens: Number.parseInt(process.env.PLAN_PREFLIGHT_MAX_TOKENS || String(DEFAULT_PLANNER_MAX_TOKENS), 10),
+    reasoningEffort: process.env.PLAN_PREFLIGHT_REASONING_EFFORT || null,
     timeoutMs: Number.parseInt(process.env.PLAN_PREFLIGHT_TIMEOUT_MS || '120000', 10),
     dryRun: String(process.env.PLAN_PREFLIGHT_DRY_RUN || '').toLowerCase() === 'true',
   }).then((report) => process.stdout.write(JSON.stringify(report) + '\n'))
