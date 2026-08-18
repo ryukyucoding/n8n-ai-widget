@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary } = require('./runEasy100Batch');
+const { createRequest, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, safeHttpFailureCategory } = require('./runEasy100Batch');
 
 function temporaryFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'easy100-'));
@@ -17,6 +17,13 @@ function temporaryFixture() {
 test('loads the source protocol and original user description but ignores gold output', () => {
   const { input } = temporaryFixture();
   assert.deepEqual(loadEasyCases(input), [{ caseId: '7', description: 'original description', systemPrompt: 'ignored' }]);
+});
+
+test('can disable JSON mode only for a bounded compatibility preflight', () => {
+  const request = createRequest({ model: 'test-model', description: 'd', systemPrompt: 's', jsonMode: false });
+  assert.equal(Object.hasOwn(request, 'response_format'), false);
+  assert.equal(safeHttpFailureCategory('{"error":"response_format unsupported"}'), 'json_mode_rejected');
+  assert.equal(safeHttpFailureCategory('{"error":"unknown"}'), 'http_failure_unclassified');
 });
 
 test('classifies static, setup, and sandbox states without claiming execution', () => {

@@ -19,6 +19,12 @@ can lower or raise the bound for a separately approved run.
 `EASY100_LIMIT=1` provides a one-case preflight using the exact same protocol
 and verifier before a larger run.
 
+If a JSON-mode preflight receives an HTTP error, repeat only that one case with
+`EASY100_JSON_MODE=false`. This changes only the API's optional JSON-mode flag;
+the model, fixed source system prompt, original user description, and no-n8n
+execution policy remain unchanged. The report stores only a safe HTTP failure
+category and whether the error body was readable, never the error body itself.
+
 `executionReadiness` is intentionally not called execution success:
 
 - `eligible_for_controlled_execution`: static checks passed and no setup or

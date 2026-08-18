@@ -7,8 +7,6 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-
 const { parseJsonCandidate, safeContentType, availabilityFailure } = require('../../../chatbot/tests/modelBenchmark/createJsonPolicy');
 const { verifyCandidateWorkflow } = require('../../../chatbot/src/candidateWorkflowVerifier');
 
@@ -53,18 +51,19 @@ function loadEasyCases(inputPath, limit = 100) {
   }));
 }
 
-function createRequest({ model, description, systemPrompt }) {
+function createRequest({ model, description, systemPrompt, jsonMode = true }) {
   if (!systemPrompt) throw new Error('source system prompt is required for legacy-comparable Easy-100 generation');
-  return {
+  const request = {
     model,
     temperature: 0,
     max_tokens: 4096,
-    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: description },
     ],
   };
+  if (jsonMode) request.response_format = { type: 'json_object' };
+  return request;
 }
 
 function safeCapabilitySummary(workflow) {
@@ -100,7 +99,14 @@ function safeHttpTelemetry(response) {
   };
 }
 
-async function generateOne({ fetchImpl = globalThis.fetch, env = process.env, model, description, systemPrompt, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+function safeHttpFailureCategory(body) {
+  const text = typeof body === 'string' ? body.toLowerCase() : '';
+  if (/response_format|json_object|json mode/.test(text)) return 'json_mode_rejected';
+  if (/model|context|token|parameter/.test(text)) return 'model_request_rejected';
+  return 'http_failure_unclassified';
+}
+
+async function generateOne({ fetchImpl = globalThis.fetch, env = process.env, model, description, systemPrompt, jsonMode = true, timeoutMs = DEFAULT_TIMEOUT_MS }) {
   const baseUrl = String(env.OLLAMA_BASE_URL || '').trim();
   if (!baseUrl) throw { kind: 'route_unconfigured' };
   const controller = new AbortController();
@@ -109,9 +115,17 @@ async function generateOne({ fetchImpl = globalThis.fetch, env = process.env, mo
     const headers = { 'content-type': 'application/json' };
     if (env.OLLAMA_BASIC_AUTH) headers.authorization = env.OLLAMA_BASIC_AUTH;
     const response = await fetchImpl(new URL('chat/completions', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`), {
-      method: 'POST', headers, signal: controller.signal, body: JSON.stringify(createRequest({ model, description, systemPrompt })),
+      method: 'POST', headers, signal: controller.signal, body: JSON.stringify(createRequest({ model, description, systemPrompt, jsonMode })),
     });
-    if (!response.ok) throw { kind: 'http_failure', telemetry: safeHttpTelemetry(response) };
+    if (!response.ok) {
+      let body = null;
+      let bodyReadable = false;
+      try { body = await response.text(); bodyReadable = true; } catch {}
+      throw {
+        kind: 'http_failure',
+        telemetry: { ...safeHttpTelemetry(response), bodyReadable, safeFailureCategory: safeHttpFailureCategory(body) },
+      };
+    }
     const payload = await response.json();
     return {
       rawOutput: payload?.choices?.[0]?.message?.content ?? '',
@@ -163,7 +177,7 @@ function aggregate(records, planned) {
   };
 }
 
-async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = process.env.CREATE_BATCH_MODEL || DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl, generate = generateOne, verify = verifyStatic } = {}) {
+async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = process.env.CREATE_BATCH_MODEL || DEFAULT_MODEL, jsonMode = true, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl, generate = generateOne, verify = verifyStatic } = {}) {
   if (!inputPath || !outputDir) throw new TypeError('inputPath and outputDir are required');
   const cases = loadEasyCases(inputPath, limit);
   const reportPath = path.join(outputDir, 'execution-readiness-report.json');
@@ -181,7 +195,7 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
     const startedMs = Date.now();
     let record;
     try {
-      const generated = await generate({ fetchImpl, model, description: testCase.description, systemPrompt: testCase.systemPrompt, timeoutMs });
+      const generated = await generate({ fetchImpl, model, description: testCase.description, systemPrompt: testCase.systemPrompt, jsonMode, timeoutMs });
       const parsed = parseJsonCandidate(generated.rawOutput);
       let verification = null;
       let capability = { usesCredentials: false, writesExternally: false, hasCode: false };
@@ -218,6 +232,8 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
         failureCategory: kind,
         httpStatus: Number.isInteger(error?.telemetry?.httpStatus) ? error.telemetry.httpStatus : null,
         contentType: error?.telemetry?.contentType || 'other_or_unavailable',
+        bodyReadable: error?.telemetry?.bodyReadable === true,
+        safeFailureCategory: error?.telemetry?.safeFailureCategory || null,
         strictJsonStatus: 'not_run',
         repairedJsonStatus: 'not_run',
         outputCategory: kind,
@@ -234,7 +250,7 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
     records.push(record);
     atomicWrite(reportPath, {
       schemaVersion: '1.0', kind: 'easy100_execution_readiness_report', status: records.length === cases.length ? 'complete' : 'partial', stopReason,
-      model, inputFingerprint: sha256(fs.readFileSync(inputPath, 'utf8')), generationProtocol: 'source_system_prompt_plus_original_user_description',
+      model, jsonMode, inputFingerprint: sha256(fs.readFileSync(inputPath, 'utf8')), generationProtocol: 'source_system_prompt_plus_original_user_description',
       promptFingerprint: sha256([...new Set(cases.map((testCase) => testCase.systemPrompt))].sort().join('\n')),
       semanticReview: 'not_run', executionPolicy: 'no_n8n_create_or_execution', records, aggregate: aggregate(records, cases.length),
     });
@@ -247,11 +263,12 @@ function main() {
   const outputDir = process.env.EASY100_OUTPUT_DIR;
   const timeoutMs = Number.parseInt(process.env.EASY100_TIMEOUT_MS || '', 10);
   const limit = Number.parseInt(process.env.EASY100_LIMIT || '', 10);
-  runEasy100Batch({ inputPath, outputDir, limit: Number.isInteger(limit) && limit > 0 ? limit : 100, timeoutMs: Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS }).then((report) => {
+  const jsonMode = String(process.env.EASY100_JSON_MODE || 'true').toLowerCase() !== 'false';
+  runEasy100Batch({ inputPath, outputDir, limit: Number.isInteger(limit) && limit > 0 ? limit : 100, jsonMode, timeoutMs: Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS }).then((report) => {
     process.stdout.write(JSON.stringify({ status: report.status, aggregate: report.aggregate }) + '\n');
   }).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }
 
 if (require.main === module) main();
 
-module.exports = { DEFAULT_MODEL, aggregate, createRequest, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, userDescription };
+module.exports = { DEFAULT_MODEL, aggregate, createRequest, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, safeHttpFailureCategory, userDescription };
