@@ -172,6 +172,7 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
   let consecutiveAvailabilityFailures = 0;
   let stopReason = null;
   for (const testCase of cases) {
+    if (stopReason === 'timeout') break;
     if (consecutiveAvailabilityFailures >= STOP_AFTER_AVAILABILITY_FAILURES) {
       stopReason = 'consecutive_availability_failures';
       break;

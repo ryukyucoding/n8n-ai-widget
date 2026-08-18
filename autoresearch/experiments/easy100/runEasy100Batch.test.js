@@ -42,3 +42,14 @@ test('detects declared credentials without inspecting their values', () => {
   assert.equal(summary.usesCredentials, true);
   assert.equal(summary.writesExternally, true);
 });
+
+test('stops after one timeout instead of sending a follow-up request', async () => {
+  const { root, input } = temporaryFixture();
+  const report = await runEasy100Batch({
+    inputPath: input,
+    outputDir: path.join(root, 'out'),
+    generate: async () => { throw { kind: 'timeout' }; },
+  });
+  assert.equal(report.stopReason, 'timeout');
+  assert.equal(report.aggregate.attemptedCases, 1);
+});
