@@ -48,3 +48,8 @@ execution metric.
 and dataflow checks on private predictions from an interrupted batch. It uses
 fixed safe finding classes such as `parameter_schema` and `type_version`, and
 makes no model, n8n API, or workflow execution call.
+
+`auditSourceGroundTruth.js` applies the same safe static checks to the source
+dataset's assistant answers. This is a version-drift audit: it distinguishes a
+legacy dataset incompatible with the current n8n runtime from a model that
+fails to reproduce an otherwise valid target.
