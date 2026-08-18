@@ -82,8 +82,40 @@ function loadRuntimeNodeTypes(schemaPath = DEFAULT_SCHEMA_PATH) {
   return payload.nodeTypes;
 }
 
-function buildRuntimePlanningContext({ userRequest, schemaPath = DEFAULT_SCHEMA_PATH, limit = 12 } = {}) {
-  const candidateNodes = retrieveRuntimeNodes({ userRequest, nodeTypes: loadRuntimeNodeTypes(schemaPath), limit });
+function planningParameterScore(parameter, requestTokens) {
+  return (parameter.required ? 4 : 0) + requestTokens.filter((token) => tokens(parameter.name).includes(token)).length * 3;
+}
+
+function compactPlanningNode(node, requestTokens) {
+  const parameters = [...node.parameters]
+    .sort((left, right) => planningParameterScore(right, requestTokens) - planningParameterScore(left, requestTokens) || left.name.localeCompare(right.name))
+    .slice(0, 12);
+  return {
+    type: node.type,
+    typeVersion: node.typeVersion,
+    displayName: node.displayName,
+    description: node.description.slice(0, 240),
+    aliases: node.aliases.slice(0, 5),
+    parameters,
+    inputs: node.inputs,
+    outputs: node.outputs,
+    builderHint: node.builderHint ? node.builderHint.slice(0, 180) : null,
+  };
+}
+
+function planningContextStats(context) {
+  const candidateNodes = Array.isArray(context?.candidateNodes) ? context.candidateNodes : [];
+  return {
+    candidateNodeCount: candidateNodes.length,
+    parameterCount: candidateNodes.reduce((count, node) => count + (Array.isArray(node.parameters) ? node.parameters.length : 0), 0),
+    serializedCharCount: JSON.stringify(context || {}).length,
+  };
+}
+
+function buildRuntimePlanningContext({ userRequest, schemaPath = DEFAULT_SCHEMA_PATH, limit = 8 } = {}) {
+  const requestTokens = tokens(userRequest);
+  const candidateNodes = retrieveRuntimeNodes({ userRequest, nodeTypes: loadRuntimeNodeTypes(schemaPath), limit })
+    .map((node) => compactPlanningNode(node, requestTokens));
   return {
     schemaSource: 'installed_runtime_export',
     candidateNodes,
@@ -95,9 +127,11 @@ module.exports = {
   DEFAULT_SCHEMA_PATH,
   buildRuntimePlanningContext,
   catalogFromSchemas,
+  compactPlanningNode,
   latestVersion,
   loadRuntimeNodeTypes,
   retrieveRuntimeNodes,
+  planningContextStats,
   safeNodeDescriptor,
   tokens,
 };

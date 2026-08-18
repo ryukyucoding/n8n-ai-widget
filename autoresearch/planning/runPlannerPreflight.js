@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { safeContentType } = require('../../chatbot/tests/modelBenchmark/createJsonPolicy');
 const { loadEasyCases, safeHttpFailureCategory } = require('../experiments/easy100/runEasy100Batch');
-const { buildRuntimePlanningContext } = require('./runtimeSchemaCatalog');
+const { buildRuntimePlanningContext, planningContextStats } = require('./runtimeSchemaCatalog');
 const { buildPlanFirstContract, buildRuntimeAwarePlannerMessages } = require('./runtimeAwarePlanner');
 
 const DEFAULT_PLANNER_MODEL = 'gpt-oss:120b';
@@ -60,15 +60,25 @@ function safePlanSummary({ plan, acceptanceContract, runtimeContext }) {
   };
 }
 
-async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model = DEFAULT_PLANNER_MODEL, timeoutMs = 120000, schemaPath, fetchImpl, env } = {}) {
+async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model = DEFAULT_PLANNER_MODEL, timeoutMs = 120000, schemaPath, fetchImpl, env, dryRun = false } = {}) {
   if (!inputPath || !outputPath) throw new TypeError('inputPath and outputPath are required');
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
   if (!testCase) throw new Error('requested preflight case is unavailable');
   const runtimeContext = buildRuntimePlanningContext({ userRequest: testCase.description, schemaPath });
+  const runtimeContextStats = planningContextStats(runtimeContext);
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
   let report;
   try {
+    if (dryRun) {
+      report = {
+        schemaVersion: '1.0', kind: 'runtime_aware_planner_preflight', executionPolicy: 'no_model_no_n8n_execution',
+        caseId: testCase.caseId, model, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
+        outcome: 'planning_context_ready', runtimeContextStats,
+      };
+      atomicWrite(outputPath, report);
+      return report;
+    }
     const generated = await callPlanner({ messages: buildRuntimeAwarePlannerMessages({ userRequest: testCase.description, runtimeContext }), model, fetchImpl, env, timeoutMs });
     const { plan, acceptanceContract } = buildPlanFirstContract({ userRequest: testCase.description, rawPlan: generated.rawPlan, runtimeContext });
     report = {
@@ -76,7 +86,7 @@ async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model
       caseId: testCase.caseId, model, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
       outcome: acceptanceContract.configurationStatus === 'complete' ? 'plan_ready' : 'plan_requires_user_input_or_setup',
       httpStatus: generated.telemetry.httpStatus, contentType: generated.telemetry.contentType,
-      runtimeCandidateNodeCount: runtimeContext.candidateNodes.length,
+      runtimeContextStats,
       plan: safePlanSummary({ plan, acceptanceContract, runtimeContext }),
     };
   } catch (error) {
@@ -88,7 +98,7 @@ async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model
       safeFailureCategory: error?.telemetry?.safeFailureCategory || null,
       httpStatus: Number.isInteger(error?.telemetry?.httpStatus) ? error.telemetry.httpStatus : null,
       contentType: error?.telemetry?.contentType || 'other_or_unavailable',
-      runtimeCandidateNodeCount: runtimeContext.candidateNodes.length,
+      runtimeContextStats,
     };
   }
   atomicWrite(outputPath, report);
@@ -103,6 +113,7 @@ function main() {
     caseIndex: Number.isInteger(caseIndex) && caseIndex >= 0 ? caseIndex : 0,
     model: process.env.PLAN_PREFLIGHT_MODEL || DEFAULT_PLANNER_MODEL,
     timeoutMs: Number.parseInt(process.env.PLAN_PREFLIGHT_TIMEOUT_MS || '120000', 10),
+    dryRun: String(process.env.PLAN_PREFLIGHT_DRY_RUN || '').toLowerCase() === 'true',
   }).then((report) => process.stdout.write(JSON.stringify(report) + '\n'))
     .catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }

@@ -32,3 +32,11 @@ test('classifies a planner HTTP error without storing its response body', async 
   assert.equal(report.safeFailureCategory, 'request_parameter_rejected');
   assert.equal(Object.hasOwn(report, 'rawPlan'), false);
 });
+
+test('can inspect a runtime planning context without a model call', async () => {
+  const { root, inputPath, schemaPath } = fixture();
+  const report = await runPlannerPreflight({ inputPath, outputPath: path.join(root, 'report.json'), schemaPath, dryRun: true, fetchImpl: async () => { throw new Error('must not call model'); } });
+  assert.equal(report.outcome, 'planning_context_ready');
+  assert.ok(report.runtimeContextStats.candidateNodeCount > 0);
+  assert.equal(Object.hasOwn(report, 'rawPlan'), false);
+});

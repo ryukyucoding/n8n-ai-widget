@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { retrieveRuntimeNodes, safeNodeDescriptor } = require('./runtimeSchemaCatalog');
+const { buildRuntimePlanningContext, planningContextStats, retrieveRuntimeNodes, safeNodeDescriptor } = require('./runtimeSchemaCatalog');
 
 const nodeTypes = {
   'n8n-nodes-base.httpRequest': {
@@ -26,4 +26,12 @@ test('retrieves current node versions using request terms without exposing prope
 test('keeps the schema context bounded and rejects blank requests', () => {
   assert.throws(() => retrieveRuntimeNodes({ userRequest: '', nodeTypes }), /non-empty/);
   assert.equal(safeNodeDescriptor('broken', { versions: {} }), null);
+});
+
+test('compacts planner context to a bounded parameter inventory', () => {
+  const context = buildRuntimePlanningContext({ userRequest: 'Call a REST API URL', schemaPath: require('node:path').join(__dirname, '..', '..', 'chatbot', 'schemas', 'runtime_node_schemas.json') });
+  const stats = planningContextStats(context);
+  assert.ok(stats.candidateNodeCount <= 8);
+  assert.ok(context.candidateNodes.every((node) => node.parameters.length <= 12));
+  assert.ok(stats.serializedCharCount > 0);
 });
