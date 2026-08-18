@@ -19,9 +19,14 @@ function fixture() {
 test('records only a safe summary of a runtime-catalog-compliant plan', async () => {
   const { root, inputPath, schemaPath } = fixture();
   const plan = { goal: 'Read an API', trigger: 'manual', selected_nodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4 }], output_contract: { required: true, delivery_shape: 'single_object_item', item_count: 1, fields: [{ path: 'result', required: true, expected_type: 'object' }] }, data_sources: [], data_flow_requirements: [], assumptions: [], required_user_inputs: [], required_configuration: [], generator_instruction: 'Use HTTP Request.' };
-  const report = await runPlannerPreflight({ inputPath, outputPath: path.join(root, 'report.json'), schemaPath, env: { OLLAMA_BASE_URL: 'http://example.test' }, fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(plan) } }] }), { status: 200, headers: { 'content-type': 'application/json' } }) });
+  let requestBody;
+  const report = await runPlannerPreflight({ inputPath, outputPath: path.join(root, 'report.json'), schemaPath, env: { OLLAMA_BASE_URL: 'http://example.test' }, fetchImpl: async (url, options) => {
+    requestBody = JSON.parse(options.body);
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(plan) } }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  } });
   assert.equal(report.outcome, 'plan_ready');
   assert.equal(report.plan.allSelectedNodesInRuntimeCatalog, true);
+  assert.equal(requestBody.max_tokens, 700);
   assert.equal(Object.hasOwn(report, 'rawPlan'), false);
 });
 
