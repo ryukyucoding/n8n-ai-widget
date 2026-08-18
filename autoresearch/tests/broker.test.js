@@ -10,6 +10,8 @@ const { requestPathFromArgs, readRequest, sendRequest } = require('../client/tas
 const { request: debuggerInboxRequest } = require('../client/debugger-inbox');
 const { parseArgs, readReply } = require('../client/reply-task');
 const { agentIdFromEnvironment, request: taskStatusRequest } = require('../client/task-status');
+const { request: agentInboxRequest } = require('../client/agent-inbox');
+const { completionRequest } = require('../client/complete-task');
 
 async function startBroker(options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-a2a-'));
@@ -156,6 +158,28 @@ test('task-status client validates its environment-only role selector', () => {
   assert.equal(agentIdFromEnvironment({ A2A_AGENT_ID: 'experiment-engineer' }), 'experiment-engineer');
   assert.equal(agentIdFromEnvironment({}), undefined);
   assert.throws(() => agentIdFromEnvironment({ A2A_AGENT_ID: 'not-a-role' }), /allowlisted/);
+});
+
+test('a scoped experiment engineer can read and complete only its assigned task', async () => {
+  const broker = await startBroker({ agentTokens: new Map([
+    ['orchestrator-token', 'orchestrator'],
+    ['lab-token', 'experiment-engineer'],
+  ]) });
+  try {
+    const created = await rpc(broker.url, sendMessage({
+      senderAgentId: 'orchestrator', assigneeAgentId: 'experiment-engineer',
+      executionHost: 'workstation-b', resourceClass: 'light', taskType: 'c07_fixture_manifest_check',
+      state: 'submitted', text: 'Inspect the declared C07 fixture fields without running n8n.',
+    }), { authorization: 'Bearer orchestrator-token' });
+    const inbox = await rpc(broker.url, agentInboxRequest('experiment-engineer'), { authorization: 'Bearer lab-token' });
+    assert.equal(inbox.body.result.length, 1);
+    assert.equal(inbox.body.result[0].id, created.body.result.id);
+
+    const completed = await rpc(broker.url, completionRequest(created.body.result, 'experiment-engineer', 'Required fixture fields are present; no n8n operation was performed.'), { authorization: 'Bearer lab-token' });
+    assert.equal(completed.body.result.state, 'completed');
+    assert.equal(completed.body.result.messages.at(-1).senderAgentId, 'experiment-engineer');
+    assert.throws(() => completionRequest(created.body.result, 'debugger', 'Not assigned.'), /assigned/);
+  } finally { await broker.close(); }
 });
 
 test('permits only one active model inference task per host', async () => {

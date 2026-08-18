@@ -95,6 +95,16 @@ $env:A2A_AGENT_ID = 'experiment-engineer'
 node autoresearch/client/task-status.js
 ```
 
+An assigned worker may then read only its own submitted inbox and complete an exact
+task ID with a file-backed, sanitized reply:
+
+```powershell
+node autoresearch/client/agent-inbox.js
+node autoresearch/client/complete-task.js --task <task-id> --reply <safe-reply.txt>
+```
+
+These clients do not start a model, n8n, a workflow, or any background process.
+
 ## Minimal message flow
 
 1. `orchestrator` sends `SendMessage` with a safe instruction, `assigneeAgentId`,

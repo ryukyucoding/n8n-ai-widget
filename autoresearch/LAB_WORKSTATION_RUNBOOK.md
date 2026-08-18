@@ -63,6 +63,16 @@ The command prints only task IDs, role ownership, state, host, resource class, a
 timestamps. It intentionally omits task instructions, replies, artifact paths, and
 credential data.
 
+When an approved `light` task is visible, the lab operator may inspect its sanitized
+instruction and publish a local file-backed reply. These commands do not launch a
+model or call n8n:
+
+```powershell
+node autoresearch/client/agent-inbox.js
+Set-Content -NoNewline .\a2a-reply.txt 'Completed the declared offline check; no n8n operation was performed.'
+node autoresearch/client/complete-task.js --task <task-id> --reply .\a2a-reply.txt
+```
+
 ## What the User Will Monitor
 
 There are three independent signals:
