@@ -13,7 +13,9 @@ const { parseJsonCandidate, safeContentType, availabilityFailure } = require('..
 const { verifyCandidateWorkflow } = require('../../../chatbot/src/candidateWorkflowVerifier');
 
 const DEFAULT_MODEL = 'qwen2.5-coder-32b-ft-original:latest';
-const DEFAULT_TIMEOUT_MS = 120000;
+// Historical Easy-100 S1 runs reached 171 seconds. 180 seconds preserves a
+// bounded run while avoiding a timeout that is known to reject valid work.
+const DEFAULT_TIMEOUT_MS = 180000;
 const STOP_AFTER_AVAILABILITY_FAILURES = 2;
 const SYSTEM_INSTRUCTION = [
   'Generate one importable n8n workflow JSON object for the user request.',
@@ -168,8 +170,12 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
   const privatePredictionsPath = path.join(outputDir, 'private', 'predictions.jsonl');
   const records = [];
   let consecutiveAvailabilityFailures = 0;
+  let stopReason = null;
   for (const testCase of cases) {
-    if (consecutiveAvailabilityFailures >= STOP_AFTER_AVAILABILITY_FAILURES) break;
+    if (consecutiveAvailabilityFailures >= STOP_AFTER_AVAILABILITY_FAILURES) {
+      stopReason = 'consecutive_availability_failures';
+      break;
+    }
     const startedAt = isoNow();
     const startedMs = Date.now();
     let record;
@@ -220,10 +226,13 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
         executionReadiness: { category: 'generation_unavailable', actualExecution: 'not_attempted' },
       };
       consecutiveAvailabilityFailures += 1;
+      // An abort may leave a remote model server busy briefly. Do not turn one
+      // timeout into a second request that is likely to fail misleadingly.
+      if (kind === 'timeout') stopReason = 'timeout';
     }
     records.push(record);
     atomicWrite(reportPath, {
-      schemaVersion: '1.0', kind: 'easy100_execution_readiness_report', status: records.length === cases.length ? 'complete' : 'partial',
+      schemaVersion: '1.0', kind: 'easy100_execution_readiness_report', status: records.length === cases.length ? 'complete' : 'partial', stopReason,
       model, inputFingerprint: sha256(fs.readFileSync(inputPath, 'utf8')), promptFingerprint: sha256(SYSTEM_INSTRUCTION),
       semanticReview: 'not_run', executionPolicy: 'no_n8n_create_or_execution', records, aggregate: aggregate(records, cases.length),
     });
@@ -234,7 +243,8 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
 function main() {
   const inputPath = process.env.EASY100_INPUT_PATH;
   const outputDir = process.env.EASY100_OUTPUT_DIR;
-  runEasy100Batch({ inputPath, outputDir }).then((report) => {
+  const timeoutMs = Number.parseInt(process.env.EASY100_TIMEOUT_MS || '', 10);
+  runEasy100Batch({ inputPath, outputDir, timeoutMs: Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS }).then((report) => {
     process.stdout.write(JSON.stringify({ status: report.status, aggregate: report.aggregate }) + '\n');
   }).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }

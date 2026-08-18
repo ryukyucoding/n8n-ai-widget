@@ -51,6 +51,7 @@ docker run --rm --network container:n8n-chatbot-1 --read-only \
   --env-file "$envfile" \
   -e EASY100_INPUT_PATH=/data/testing_data_low_100.jsonl \
   -e EASY100_OUTPUT_DIR=/results \
+  -e EASY100_TIMEOUT_MS=180000 \
   -e PYTHON_BIN=python3 \
   -e PYTHONDONTWRITEBYTECODE=1 \
   --tmpfs /tmp:rw,noexec,nosuid,size=256m \

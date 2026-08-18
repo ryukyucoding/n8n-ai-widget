@@ -9,6 +9,12 @@ execute a workflow. Each generated candidate is checkpointed, parsed using the
 same strict/repaired JSON policy as Create, and checked with the existing
 runtime-schema and Code-dataflow verifier.
 
+The default per-case model timeout is 180 seconds, based on the historical
+Easy-100 S1 p99 of about 170 seconds. A timeout stops the batch immediately:
+the remote model may still be draining the aborted request, so an immediate
+second call would produce misleading availability failures. `EASY100_TIMEOUT_MS`
+can lower or raise the bound for a separately approved run.
+
 `executionReadiness` is intentionally not called execution success:
 
 - `eligible_for_controlled_execution`: static checks passed and no setup or
