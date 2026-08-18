@@ -89,17 +89,15 @@ function planningParameterScore(parameter, requestTokens) {
 function compactPlanningNode(node, requestTokens) {
   const parameters = [...node.parameters]
     .sort((left, right) => planningParameterScore(right, requestTokens) - planningParameterScore(left, requestTokens) || left.name.localeCompare(right.name))
-    .slice(0, 12);
+    .slice(0, 6)
+    .map(({ name, type, required }) => ({ name, type, required }));
   return {
     type: node.type,
     typeVersion: node.typeVersion,
     displayName: node.displayName,
-    description: node.description.slice(0, 240),
-    aliases: node.aliases.slice(0, 5),
     parameters,
     inputs: node.inputs,
     outputs: node.outputs,
-    builderHint: node.builderHint ? node.builderHint.slice(0, 180) : null,
   };
 }
 
@@ -112,7 +110,7 @@ function planningContextStats(context) {
   };
 }
 
-function buildRuntimePlanningContext({ userRequest, schemaPath = DEFAULT_SCHEMA_PATH, limit = 8 } = {}) {
+function buildRuntimePlanningContext({ userRequest, schemaPath = DEFAULT_SCHEMA_PATH, limit = 5 } = {}) {
   const requestTokens = tokens(userRequest);
   const candidateNodes = retrieveRuntimeNodes({ userRequest, nodeTypes: loadRuntimeNodeTypes(schemaPath), limit })
     .map((node) => compactPlanningNode(node, requestTokens));
