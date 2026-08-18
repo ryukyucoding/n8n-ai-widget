@@ -1,8 +1,10 @@
 # Easy-100 Generation and Execution-Readiness Batch
 
-This experiment sends only the original user descriptions from the 100 Easy
-(`low`) test prompts to the configured Create model. The assistant ground-truth
-workflow in the source JSONL is never sent to the model.
+This experiment sends the source dataset's fixed system protocol plus each
+original user description from the 100 Easy (`low`) test prompts to the
+configured Create model. The assistant ground-truth workflow in the source
+JSONL is never sent to the model. This preserves a legacy-comparable input
+protocol; the newer Create prompt is a separate experiment.
 
 The runner performs no n8n API call, does not create a workflow, and does not
 execute a workflow. Each generated candidate is checkpointed, parsed using the
@@ -14,6 +16,8 @@ Easy-100 S1 p99 of about 170 seconds. A timeout stops the batch immediately:
 the remote model may still be draining the aborted request, so an immediate
 second call would produce misleading availability failures. `EASY100_TIMEOUT_MS`
 can lower or raise the bound for a separately approved run.
+`EASY100_LIMIT=1` provides a one-case preflight using the exact same protocol
+and verifier before a larger run.
 
 `executionReadiness` is intentionally not called execution success:
 

@@ -14,9 +14,9 @@ function temporaryFixture() {
   return { root, input };
 }
 
-test('loads only the original user description', () => {
+test('loads the source protocol and original user description but ignores gold output', () => {
   const { input } = temporaryFixture();
-  assert.deepEqual(loadEasyCases(input), [{ caseId: '7', description: 'original description' }]);
+  assert.deepEqual(loadEasyCases(input), [{ caseId: '7', description: 'original description', systemPrompt: 'ignored' }]);
 });
 
 test('classifies static, setup, and sandbox states without claiming execution', () => {

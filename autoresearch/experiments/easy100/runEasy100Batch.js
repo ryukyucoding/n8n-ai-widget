@@ -17,13 +17,6 @@ const DEFAULT_MODEL = 'qwen2.5-coder-32b-ft-original:latest';
 // bounded run while avoiding a timeout that is known to reject valid work.
 const DEFAULT_TIMEOUT_MS = 180000;
 const STOP_AFTER_AVAILABILITY_FAILURES = 2;
-const SYSTEM_INSTRUCTION = [
-  'Generate one importable n8n workflow JSON object for the user request.',
-  'Return JSON only. Use the documented n8n node type and parameter shapes.',
-  'Never embed credential values or API keys. When an external account is required, leave it for user setup.',
-  'In Code nodes, $input.all() items are wrappers: read business data via item.json.<field> or explicitly normalize item.json first.',
-  'Use a serial topology when a Code node needs values from more than one upstream node unless the runtime proves a fan-in barrier.',
-].join('\n');
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
@@ -39,10 +32,15 @@ function readJsonLines(filePath) {
   });
 }
 
+function messageContent(record, role) {
+  const message = Array.isArray(record?.messages) ? record.messages.find((entry) => entry?.role === role) : null;
+  return typeof message?.content === 'string' && message.content.trim() ? message.content.trim() : null;
+}
+
 function userDescription(record) {
-  const message = Array.isArray(record?.messages) ? record.messages.find((entry) => entry?.role === 'user') : null;
-  if (!message || typeof message.content !== 'string' || !message.content.trim()) throw new Error(`case ${record?.id ?? 'unknown'} has no user description`);
-  return message.content.trim();
+  const content = messageContent(record, 'user');
+  if (!content) throw new Error(`case ${record?.id ?? 'unknown'} has no user description`);
+  return content;
 }
 
 function loadEasyCases(inputPath, limit = 100) {
@@ -51,17 +49,19 @@ function loadEasyCases(inputPath, limit = 100) {
   return source.slice(0, limit).map((record, index) => ({
     caseId: String(record?.id ?? index),
     description: userDescription(record),
+    systemPrompt: messageContent(record, 'system'),
   }));
 }
 
-function createRequest({ model, description }) {
+function createRequest({ model, description, systemPrompt }) {
+  if (!systemPrompt) throw new Error('source system prompt is required for legacy-comparable Easy-100 generation');
   return {
     model,
     temperature: 0,
     max_tokens: 4096,
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: SYSTEM_INSTRUCTION },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: description },
     ],
   };
@@ -100,7 +100,7 @@ function safeHttpTelemetry(response) {
   };
 }
 
-async function generateOne({ fetchImpl = globalThis.fetch, env = process.env, model, description, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+async function generateOne({ fetchImpl = globalThis.fetch, env = process.env, model, description, systemPrompt, timeoutMs = DEFAULT_TIMEOUT_MS }) {
   const baseUrl = String(env.OLLAMA_BASE_URL || '').trim();
   if (!baseUrl) throw { kind: 'route_unconfigured' };
   const controller = new AbortController();
@@ -109,7 +109,7 @@ async function generateOne({ fetchImpl = globalThis.fetch, env = process.env, mo
     const headers = { 'content-type': 'application/json' };
     if (env.OLLAMA_BASIC_AUTH) headers.authorization = env.OLLAMA_BASIC_AUTH;
     const response = await fetchImpl(new URL('chat/completions', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`), {
-      method: 'POST', headers, signal: controller.signal, body: JSON.stringify(createRequest({ model, description })),
+      method: 'POST', headers, signal: controller.signal, body: JSON.stringify(createRequest({ model, description, systemPrompt })),
     });
     if (!response.ok) throw { kind: 'http_failure', telemetry: safeHttpTelemetry(response) };
     const payload = await response.json();
@@ -181,7 +181,7 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
     const startedMs = Date.now();
     let record;
     try {
-      const generated = await generate({ fetchImpl, model, description: testCase.description, timeoutMs });
+      const generated = await generate({ fetchImpl, model, description: testCase.description, systemPrompt: testCase.systemPrompt, timeoutMs });
       const parsed = parseJsonCandidate(generated.rawOutput);
       let verification = null;
       let capability = { usesCredentials: false, writesExternally: false, hasCode: false };
@@ -234,7 +234,8 @@ async function runEasy100Batch({ inputPath, outputDir, limit = 100, model = proc
     records.push(record);
     atomicWrite(reportPath, {
       schemaVersion: '1.0', kind: 'easy100_execution_readiness_report', status: records.length === cases.length ? 'complete' : 'partial', stopReason,
-      model, inputFingerprint: sha256(fs.readFileSync(inputPath, 'utf8')), promptFingerprint: sha256(SYSTEM_INSTRUCTION),
+      model, inputFingerprint: sha256(fs.readFileSync(inputPath, 'utf8')), generationProtocol: 'source_system_prompt_plus_original_user_description',
+      promptFingerprint: sha256([...new Set(cases.map((testCase) => testCase.systemPrompt))].sort().join('\n')),
       semanticReview: 'not_run', executionPolicy: 'no_n8n_create_or_execution', records, aggregate: aggregate(records, cases.length),
     });
   }
@@ -245,11 +246,12 @@ function main() {
   const inputPath = process.env.EASY100_INPUT_PATH;
   const outputDir = process.env.EASY100_OUTPUT_DIR;
   const timeoutMs = Number.parseInt(process.env.EASY100_TIMEOUT_MS || '', 10);
-  runEasy100Batch({ inputPath, outputDir, timeoutMs: Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS }).then((report) => {
+  const limit = Number.parseInt(process.env.EASY100_LIMIT || '', 10);
+  runEasy100Batch({ inputPath, outputDir, limit: Number.isInteger(limit) && limit > 0 ? limit : 100, timeoutMs: Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS }).then((report) => {
     process.stdout.write(JSON.stringify({ status: report.status, aggregate: report.aggregate }) + '\n');
   }).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }
 
 if (require.main === module) main();
 
-module.exports = { DEFAULT_MODEL, SYSTEM_INSTRUCTION, aggregate, createRequest, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, userDescription };
+module.exports = { DEFAULT_MODEL, aggregate, createRequest, loadEasyCases, readinessFrom, runEasy100Batch, safeCapabilitySummary, userDescription };
