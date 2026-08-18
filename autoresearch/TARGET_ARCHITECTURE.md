@@ -17,7 +17,7 @@ capabilities, collecting setup information, and checking asynchronous execution.
 ```mermaid
 flowchart TB
     U["User request"] --> S["Create session and typed setup contract"]
-    S --> P["Planner and clarifier"]
+    S --> P["Schema-Grounded Workflow Engineer Agent"]
     P --> R["Skill and capability registry"]
     R --> C["Fine-tuned Create Model"]
     C --> H
@@ -53,6 +53,7 @@ flowchart TB
 | Layer | Responsibility | Must not do |
 | --- | --- | --- |
 | Create session | Retain clarified facts and the contract across turns | Treat displayed chat history as state |
+| Workflow Engineer Agent | Use capability cards to create and locally validate a typed planning envelope | Delegate runtime compatibility to a one-shot model prompt |
 | Skill registry | State supported nodes, versions, parameter schemas, auth type, costs, and test method | Invent an unavailable community node |
 | Create Model | Produce a candidate workflow from a selected skill plan | Receive credential values |
 | Reliability Harness | Check schema, connections, Code dataflow, and semantic contract | Claim runtime output correctness without execution evidence |
