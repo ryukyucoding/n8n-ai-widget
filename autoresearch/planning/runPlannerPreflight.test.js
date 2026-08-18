@@ -38,6 +38,14 @@ test('classifies a planner HTTP error without storing its response body', async 
   assert.equal(Object.hasOwn(report, 'rawPlan'), false);
 });
 
+test('reports a safe plan contract category without retaining planner content', async () => {
+  const { root, inputPath, schemaPath } = fixture();
+  const report = await runPlannerPreflight({ inputPath, outputPath: path.join(root, 'report.json'), schemaPath, env: { OLLAMA_BASE_URL: 'http://example.test' }, fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ nodes: [] }) } }] }), { status: 200, headers: { 'content-type': 'application/json' } }) });
+  assert.equal(report.failureCategory, 'plan_contract_rejected');
+  assert.equal(report.safeFailureCategory, 'workflow_json_instead_of_plan');
+  assert.equal(Object.hasOwn(report, 'rawPlan'), false);
+});
+
 test('can inspect a runtime planning context without a model call', async () => {
   const { root, inputPath, schemaPath } = fixture();
   const report = await runPlannerPreflight({ inputPath, outputPath: path.join(root, 'report.json'), schemaPath, dryRun: true, fetchImpl: async () => { throw new Error('must not call model'); } });

@@ -28,6 +28,8 @@ test('builds a contract only when selected nodes match the runtime catalog', () 
 
 test('rejects invented runtime nodes and keeps required user input explicit', () => {
   assert.throws(() => normalizePlan(plan({ selected_nodes: [{ type: 'made.up', typeVersion: 1 }] }), context), /outside/);
+  assert.throws(() => normalizePlan(JSON.stringify({ nodes: [] }), context), (error) => error.safeFailureCategory === 'workflow_json_instead_of_plan');
+  assert.throws(() => normalizePlan('not JSON', context), (error) => error.safeFailureCategory === 'invalid_plan_json');
   const messages = buildRuntimeAwarePlannerMessages({ userRequest: 'Read an API', runtimeContext: context });
   assert.equal(messages.length, 3);
   assert.match(messages[0].content, /credential values/);

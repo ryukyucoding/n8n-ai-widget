@@ -96,7 +96,7 @@ async function runPlannerPreflight({ inputPath, outputPath, caseIndex = 0, model
       caseId: testCase.caseId, model, maxTokens, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
       outcome: 'planner_unavailable_or_contract_rejected',
       failureCategory: error?.kind || 'plan_contract_rejected',
-      safeFailureCategory: error?.telemetry?.safeFailureCategory || null,
+      safeFailureCategory: error?.safeFailureCategory || error?.telemetry?.safeFailureCategory || null,
       httpStatus: Number.isInteger(error?.telemetry?.httpStatus) ? error.telemetry.httpStatus : null,
       contentType: error?.telemetry?.contentType || 'other_or_unavailable',
       runtimeContextStats,

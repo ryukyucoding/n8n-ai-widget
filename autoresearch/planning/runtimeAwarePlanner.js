@@ -11,6 +11,12 @@ const PLANNER_SYSTEM_PROMPT = [
   'When a credential or destination is required but absent, record it in required_configuration or required_user_inputs instead of inventing it.',
 ].join(' ');
 
+function contractError(safeFailureCategory, message) {
+  const error = new Error(message);
+  error.safeFailureCategory = safeFailureCategory;
+  return error;
+}
+
 function asObjects(value) {
   return Array.isArray(value) ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : [];
 }
@@ -49,10 +55,10 @@ function parsePlanJson(rawOutput) {
 function normalizeSelectedNodes(value, runtimeContext) {
   const allowed = new Map((runtimeContext?.candidateNodes || []).map((node) => [`${node.type}@${node.typeVersion}`, node]));
   const selected = asObjects(value).map((node) => ({ type: node.type, typeVersion: node.typeVersion }));
-  if (!selected.length) throw new Error('planner selected_nodes is required');
+  if (!selected.length) throw contractError('selected_nodes_missing', 'planner selected_nodes is required');
   for (const node of selected) {
     if (typeof node.type !== 'string' || !Number.isFinite(Number(node.typeVersion)) || !allowed.has(`${node.type}@${Number(node.typeVersion)}`)) {
-      throw new Error('planner selected a node outside the runtime candidate catalog');
+      throw contractError('selected_node_outside_runtime_catalog', 'planner selected a node outside the runtime candidate catalog');
     }
   }
   return selected;
@@ -68,9 +74,10 @@ function requiredFields(value) {
 
 function normalizePlan(rawOutput, runtimeContext) {
   const plan = parsePlanJson(rawOutput);
-  if (!plan) throw new Error('planner returned invalid JSON');
-  if (typeof plan.goal !== 'string' || !plan.goal.trim()) throw new Error('planner goal is required');
-  if (typeof plan.generator_instruction !== 'string' || !plan.generator_instruction.trim()) throw new Error('planner generator_instruction is required');
+  if (!plan) throw contractError('invalid_plan_json', 'planner returned invalid JSON');
+  if (Array.isArray(plan.nodes) || plan.connections) throw contractError('workflow_json_instead_of_plan', 'planner returned workflow JSON instead of a plan');
+  if (typeof plan.goal !== 'string' || !plan.goal.trim()) throw contractError('goal_missing', 'planner goal is required');
+  if (typeof plan.generator_instruction !== 'string' || !plan.generator_instruction.trim()) throw contractError('generator_instruction_missing', 'planner generator_instruction is required');
   const selectedNodes = normalizeSelectedNodes(plan.selected_nodes, runtimeContext);
   const outputContract = plan.output_contract && typeof plan.output_contract === 'object' && !Array.isArray(plan.output_contract)
     ? {
@@ -115,6 +122,7 @@ module.exports = {
   PLANNER_SYSTEM_PROMPT,
   buildPlanFirstContract,
   buildRuntimeAwarePlannerMessages,
+  contractError,
   normalizePlan,
   normalizeSelectedNodes,
   parsePlanJson,
