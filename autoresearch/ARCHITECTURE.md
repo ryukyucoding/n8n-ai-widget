@@ -103,9 +103,10 @@ decision or missing non-secret information is needed. `completed`, `failed`, and
 ## Cross-machine rollout
 
 1. Start the broker on the server. Begin with loopback while testing.
-2. For multiple machines, give the broker a private-network hostname, bind it to that
-   private interface, set `A2A_BROKER_TOKEN` outside Git, and use TLS/reverse-proxy
-   protection. Do not expose the current prototype to the public internet.
+2. Keep the broker loopback-only and reach it through an authenticated SSH tunnel.
+   Give each remote role a distinct `A2A_BROKER_AGENT_TOKENS_JSON` entry outside Git;
+   revoke one entry to disable just that role. Use TLS/reverse-proxy protection before
+   any future private-network binding. Do not expose the current prototype publicly.
 3. Give each machine one role identity. The identity is not a model API key; it is a
    label used for task authorization and auditability.
 4. Each agent reads its assigned task, performs only its declared role, then posts a

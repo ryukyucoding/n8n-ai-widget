@@ -9,6 +9,7 @@ const { createBrokerServer } = require('../broker/server');
 const { requestPathFromArgs, readRequest, sendRequest } = require('../client/task-client');
 const { request: debuggerInboxRequest } = require('../client/debugger-inbox');
 const { parseArgs, readReply } = require('../client/reply-task');
+const { agentIdFromEnvironment, request: taskStatusRequest } = require('../client/task-status');
 
 async function startBroker(options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-a2a-'));
@@ -96,6 +97,65 @@ test('requires a token when configured', async () => {
     }), { authorization: 'Bearer local-test-token' });
     assert.equal(allowed.body.result.assigneeAgentId, 'debugger');
   } finally { await broker.close(); }
+});
+
+test('scoped tokens prevent impersonation and can be revoked independently', async () => {
+  const broker = await startBroker({ agentTokens: new Map([
+    ['orchestrator-token', 'orchestrator'],
+    ['lab-token', 'experiment-engineer'],
+  ]) });
+  try {
+    const created = await rpc(broker.url, sendMessage({
+      senderAgentId: 'orchestrator', assigneeAgentId: 'experiment-engineer',
+      taskType: 'offline_plan', state: 'submitted', text: 'Prepare an offline plan.',
+    }), { authorization: 'Bearer orchestrator-token' });
+    assert.equal(created.body.result.ownerAgentId, 'orchestrator');
+
+    const impersonation = await rpc(broker.url, sendMessage({
+      senderAgentId: 'orchestrator', assigneeAgentId: 'experiment-engineer',
+      taskType: 'offline_plan', state: 'submitted', text: 'Pretend to be the orchestrator.',
+    }), { authorization: 'Bearer lab-token' });
+    assert.equal(impersonation.body.error.code, -32001);
+
+    const deniedAfterRevocation = await rpc(broker.url, sendMessage({
+      senderAgentId: 'experiment-engineer', assigneeAgentId: 'experiment-engineer',
+      taskType: 'offline_plan', state: 'submitted', text: 'This token no longer exists.',
+    }), { authorization: 'Bearer removed-lab-token' });
+    assert.equal(deniedAfterRevocation.status, 401);
+  } finally { await broker.close(); }
+});
+
+test('task status returns a safe summary and scopes visibility to the caller', async () => {
+  const broker = await startBroker({ agentTokens: new Map([
+    ['orchestrator-token', 'orchestrator'],
+    ['lab-token', 'experiment-engineer'],
+    ['research-token', 'evidence-researcher'],
+  ]) });
+  try {
+    const created = await rpc(broker.url, sendMessage({
+      senderAgentId: 'orchestrator', assigneeAgentId: 'experiment-engineer',
+      taskType: 'offline_plan', state: 'submitted', text: 'Do not expose this instruction.',
+      artifactRefs: [{ repository: 'n8n-ai-widget', revision: 'a'.repeat(40), path: 'autoresearch/result.json', sha256: 'b'.repeat(64), summary: 'Safe output.' }],
+    }), { authorization: 'Bearer orchestrator-token' });
+    const status = await rpc(broker.url, taskStatusRequest('experiment-engineer'), { authorization: 'Bearer lab-token' });
+    assert.equal(status.body.result.length, 1);
+    assert.deepEqual(Object.keys(status.body.result[0]).sort(), [
+      'assigneeAgentId', 'createdAt', 'executionHost', 'hasArtifactRefs', 'id', 'messageCount',
+      'ownerAgentId', 'resourceClass', 'state', 'taskType', 'updatedAt',
+    ]);
+    assert.equal(JSON.stringify(status.body.result).includes('Do not expose this instruction.'), false);
+    assert.equal(JSON.stringify(status.body.result).includes('autoresearch/result.json'), false);
+
+    const hidden = await rpc(broker.url, taskStatusRequest('evidence-researcher'), { authorization: 'Bearer research-token' });
+    assert.equal(hidden.body.result.length, 0);
+    assert.equal(created.body.result.id, status.body.result[0].id);
+  } finally { await broker.close(); }
+});
+
+test('task-status client validates its environment-only role selector', () => {
+  assert.equal(agentIdFromEnvironment({ A2A_AGENT_ID: 'experiment-engineer' }), 'experiment-engineer');
+  assert.equal(agentIdFromEnvironment({}), undefined);
+  assert.throws(() => agentIdFromEnvironment({ A2A_AGENT_ID: 'not-a-role' }), /allowlisted/);
 });
 
 test('permits only one active model inference task per host', async () => {

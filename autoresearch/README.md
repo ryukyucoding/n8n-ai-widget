@@ -9,8 +9,9 @@ Antigravity) plus one server; five roles do not mean five always-running process
 This implementation is deliberately small and dependency-free. It follows the
 important A2A ideas -- Agent Cards, Tasks, Messages, and JSON-RPC `SendMessage` --
 but is **not a complete or certified implementation of the A2A protocol**. Before
-opening it outside a trusted network, replace the local bearer token with real
-authentication and transport protection.
+opening it outside a trusted network, add transport protection and a managed
+identity provider. Scoped agent tokens prevent accidental role impersonation here,
+but they are not a replacement for production-grade identity management.
 
 ## Why A2A here
 
@@ -41,8 +42,10 @@ credentials or machine addresses.
 - Never place API keys, cookies, credential values, raw workflow JSON, execution
   data, or absolute local paths in a task message.
 - Use a Git revision plus repository-relative path and digest for an artifact.
-- The broker starts on `127.0.0.1` by default. Binding to another interface requires
-  `A2A_BROKER_TOKEN`; place that value only in the process environment.
+- The broker starts on `127.0.0.1` by default. Each remote worker should receive a
+  different, revocable entry in `A2A_BROKER_AGENT_TOKENS_JSON`, stored only in the
+  broker process environment. A scoped token may submit messages only as its assigned
+  role. `A2A_BROKER_TOKEN` remains a temporary legacy compatibility token for `.44`.
 - A task message is a coordination record, not authorization to call a model,
   create/execute/delete an n8n workflow, deploy, or use the network.
 - The broker does not itself invoke Codex, Antigravity, or .44. The optional `.44`
@@ -67,7 +70,8 @@ node autoresearch/client/task-client.js --request autoresearch/examples/create-e
 ```
 
 The client reads `A2A_BROKER_TOKEN` only from its environment, never from command
-arguments. It is safe to use from the current workstation for a local proof of
+arguments. For a scoped worker, set its own token in that variable plus
+`A2A_AGENT_ID`. It is safe to use from the current workstation for a local proof of
 handoff; server deployment remains a separate, approved step.
 
 The default endpoint is `http://127.0.0.1:8787`. It serves the facilitator card at
@@ -77,10 +81,18 @@ The default endpoint is `http://127.0.0.1:8787`. It serves the facilitator card 
 For a trusted shared host only:
 
 ```powershell
-$env:A2A_BROKER_TOKEN = '<secret stored outside Git>'
+$env:A2A_BROKER_AGENT_TOKENS_JSON = '{"orchestrator":"<server-only-token>","experiment-engineer":"<lab-only-token>"}'
 $env:A2A_BROKER_HOST = '0.0.0.0'
 $env:A2A_BROKER_STATE_PATH = '<writable state path outside the source checkout>'
 node autoresearch/broker/server.js
+```
+
+To monitor only safe metadata, without printing task instructions, replies, paths,
+or artifact contents:
+
+```powershell
+$env:A2A_AGENT_ID = 'experiment-engineer'
+node autoresearch/client/task-status.js
 ```
 
 ## Minimal message flow
