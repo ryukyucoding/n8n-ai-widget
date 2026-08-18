@@ -9,3 +9,8 @@ The old Easy-100 assistant workflows remain useful only as historical topology
 references. Their user descriptions are the inputs for the new experiment;
 the planner must target the installed runtime export rather than copy stale
 node versions or parameter shapes.
+
+`runPlannerPreflight.js` is a one-case, bounded check of the next stage. It
+calls the Planner model with a retrieved runtime catalog, validates the
+selected node versions and contract, and writes only a safe plan summary. It
+does not call the Create model, n8n, or workflow execution.
