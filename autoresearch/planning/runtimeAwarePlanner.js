@@ -7,6 +7,7 @@ const PLANNER_SYSTEM_PROMPT = [
   'Turn the user request into a plan for the installed n8n runtime.',
   'Return one JSON object only with: goal, trigger, data_sources, selected_nodes, output_contract, data_flow_requirements, assumptions, required_user_inputs, required_configuration, generator_instruction.',
   'selected_nodes must use only the supplied runtime candidate node types and exact typeVersion values.',
+  'When explicitly named runtime nodes are required, selected_nodes must include them; when forbidden, selected_nodes must exclude them.',
   'Do not put credential values, API keys, URLs, or workflow JSON in the plan.',
   'When a credential or destination is required but absent, record it in required_configuration or required_user_inputs instead of inventing it.',
 ].join(' ');
@@ -60,6 +61,14 @@ function normalizeSelectedNodes(value, runtimeContext) {
     if (typeof node.type !== 'string' || !Number.isFinite(Number(node.typeVersion)) || !allowed.has(`${node.type}@${Number(node.typeVersion)}`)) {
       throw contractError('selected_node_outside_runtime_catalog', 'planner selected a node outside the runtime candidate catalog');
     }
+  }
+  const selectedKeys = new Set(selected.map((node) => `${node.type}@${Number(node.typeVersion)}`));
+  const requirements = runtimeContext?.explicitlyNamedNodeRequirements || { required: [], forbidden: [] };
+  if ((requirements.required || []).some((node) => !selectedKeys.has(`${node.type}@${Number(node.typeVersion)}`))) {
+    throw contractError('explicitly_required_node_missing', 'planner omitted an explicitly required runtime node');
+  }
+  if ((requirements.forbidden || []).some((node) => selectedKeys.has(`${node.type}@${Number(node.typeVersion)}`))) {
+    throw contractError('explicitly_forbidden_node_selected', 'planner selected an explicitly forbidden runtime node');
   }
   return selected;
 }

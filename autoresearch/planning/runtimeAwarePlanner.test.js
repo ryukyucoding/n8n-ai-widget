@@ -35,3 +35,14 @@ test('rejects invented runtime nodes and keeps required user input explicit', ()
   assert.match(messages[0].content, /credential values/);
   assert.equal(parsePlanJson('Plan: {"goal":"x"}').goal, 'x');
 });
+
+test('rejects plans that omit an explicitly required runtime node', () => {
+  const context = {
+    candidateNodes: [
+      { type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4 },
+      { type: 'n8n-nodes-base.slack', typeVersion: 2 },
+    ],
+    explicitlyNamedNodeRequirements: { required: [{ type: 'n8n-nodes-base.slack', typeVersion: 2 }], forbidden: [] },
+  };
+  assert.throws(() => normalizePlan({ goal: 'x', generator_instruction: 'x', selected_nodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4 }] }, context), /explicitly required/);
+});

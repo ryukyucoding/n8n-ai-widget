@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { buildRuntimePlanningContext, planningContextStats, retrieveRuntimeNodes, safeNodeDescriptor } = require('./runtimeSchemaCatalog');
+const { buildRuntimePlanningContext, explicitlyNamedRuntimeRequirements, planningContextStats, retrieveRuntimeNodes, safeNodeDescriptor } = require('./runtimeSchemaCatalog');
 
 const nodeTypes = {
   'n8n-nodes-base.httpRequest': {
@@ -26,6 +26,21 @@ test('retrieves current node versions using request terms without exposing prope
 test('keeps the schema context bounded and rejects blank requests', () => {
   assert.throws(() => retrieveRuntimeNodes({ userRequest: '', nodeTypes }), /non-empty/);
   assert.equal(safeNodeDescriptor('broken', { versions: {} }), null);
+});
+
+test('extracts explicit required and forbidden node requirements from the same runtime catalog', () => {
+  const requirements = explicitlyNamedRuntimeRequirements({ userRequest: 'Use HTTP Request, but do not use Slack.', nodeTypes });
+  assert.deepEqual(requirements.required, [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4 }]);
+  assert.deepEqual(requirements.forbidden, [{ type: 'n8n-nodes-base.slack', typeVersion: 2 }]);
+});
+
+test('retains explicitly required node cards even when ranking is tightly bounded', () => {
+  const root = require('node:fs').mkdtempSync(require('node:path').join(require('node:os').tmpdir(), 'runtime-context-'));
+  const schemaPath = require('node:path').join(root, 'schema.json');
+  require('node:fs').writeFileSync(schemaPath, JSON.stringify({ nodeTypes }));
+  const context = buildRuntimePlanningContext({ userRequest: 'Use HTTP Request and Slack.', schemaPath, limit: 1 });
+  assert.equal(context.candidateNodes.some((node) => node.type === 'n8n-nodes-base.httpRequest'), true);
+  assert.equal(context.candidateNodes.some((node) => node.type === 'n8n-nodes-base.slack'), true);
 });
 
 test('compacts planner context to a bounded parameter inventory', () => {

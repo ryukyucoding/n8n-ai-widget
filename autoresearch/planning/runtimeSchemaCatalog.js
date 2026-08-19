@@ -51,6 +51,22 @@ function catalogFromSchemas(nodeTypes) {
   return Object.entries(nodeTypes).map(([type, entry]) => safeNodeDescriptor(type, entry)).filter(Boolean);
 }
 
+function explicitlyNamedRuntimeRequirements({ userRequest, nodeTypes }) {
+  const request = String(userRequest || '');
+  const clauses = request.split(/[,，。;；\n]+/);
+  const positive = /(?:使用|包含|加入|採用|需要|必須|use|include|with|add|require|must)/i;
+  const negative = /(?:不要|不得|禁止|不可|不包含|排除|不使用|do\s+not|don['’]t|without|exclude|forbid)/i;
+  const required = [];
+  const forbidden = [];
+  for (const node of catalogFromSchemas(nodeTypes)) {
+    const pattern = new RegExp(`(?<![A-Za-z0-9])${node.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`, 'i');
+    const matching = clauses.filter((clause) => pattern.test(clause));
+    if (matching.some((clause) => negative.test(clause))) forbidden.push({ type: node.type, typeVersion: node.typeVersion });
+    else if (matching.some((clause) => positive.test(clause))) required.push({ type: node.type, typeVersion: node.typeVersion });
+  }
+  return { required, forbidden };
+}
+
 function rankNode(descriptor, requestTokens) {
   const nameTokens = tokens(`${descriptor.type} ${descriptor.displayName} ${descriptor.aliases.join(' ')}`);
   const descriptionTokens = tokens(`${descriptor.description} ${descriptor.builderHint || ''}`);
@@ -111,12 +127,20 @@ function planningContextStats(context) {
 }
 
 function buildRuntimePlanningContext({ userRequest, schemaPath = DEFAULT_SCHEMA_PATH, limit = 5 } = {}) {
+  const nodeTypes = loadRuntimeNodeTypes(schemaPath);
   const requestTokens = tokens(userRequest);
-  const candidateNodes = retrieveRuntimeNodes({ userRequest, nodeTypes: loadRuntimeNodeTypes(schemaPath), limit })
+  const explicitlyNamedNodeRequirements = explicitlyNamedRuntimeRequirements({ userRequest, nodeTypes });
+  const requiredKeys = new Set(explicitlyNamedNodeRequirements.required.map((node) => `${node.type}@${node.typeVersion}`));
+  const fullCatalog = catalogFromSchemas(nodeTypes);
+  const explicitlyRequiredNodes = fullCatalog.filter((node) => requiredKeys.has(`${node.type}@${node.typeVersion}`));
+  const rankedNodes = retrieveRuntimeNodes({ userRequest, nodeTypes, limit });
+  const candidateNodes = [...explicitlyRequiredNodes, ...rankedNodes]
+    .filter((node, index, nodes) => nodes.findIndex((candidate) => candidate.type === node.type && candidate.typeVersion === node.typeVersion) === index)
     .map((node) => compactPlanningNode(node, requestTokens));
   return {
     schemaSource: 'installed_runtime_export',
     candidateNodes,
+    explicitlyNamedNodeRequirements,
     instruction: 'Use only these node types and exact typeVersions unless the request needs clarification. Do not invent parameters outside the listed names. If a required service needs credentials, identify it as user setup rather than including a credential value.',
   };
 }
@@ -126,6 +150,7 @@ module.exports = {
   buildRuntimePlanningContext,
   catalogFromSchemas,
   compactPlanningNode,
+  explicitlyNamedRuntimeRequirements,
   latestVersion,
   loadRuntimeNodeTypes,
   retrieveRuntimeNodes,
