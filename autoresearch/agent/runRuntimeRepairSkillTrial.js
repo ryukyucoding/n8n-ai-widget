@@ -75,9 +75,9 @@ function repairIssues(workflow, nodeTypes) {
   return issues;
 }
 
-async function staticValidation(workflow, verify) {
+async function staticValidation(workflow, userRequest, verify) {
   try {
-    const verification = await verify(workflow, 'Controlled runtime repair fixture.');
+    const verification = await verify(workflow, userRequest);
     return { status: verification.status, findingCategories: findingCategoryCounts(verification) };
   } catch (error) {
     const verification = { findings: Array.isArray(error?.findings) ? error.findings : [] };
@@ -89,7 +89,7 @@ function parseArguments(call) {
   try { return JSON.parse(call?.function?.arguments || '{}'); } catch { return null; }
 }
 
-function createSkill({ workflow, nodeTypes, verify }) {
+function createSkill({ workflow, userRequest, nodeTypes, verify }) {
   const inspected = new Set();
   const toolCalls = [];
   const actionLog = [];
@@ -99,7 +99,7 @@ function createSkill({ workflow, nodeTypes, verify }) {
     toolCalls.push(typeof name === 'string' ? name : 'invalid_tool');
     if (!args || !TOOL_DEFINITIONS.some((tool) => tool.function.name === name)) return { ok: false, error: 'invalid_tool_call' };
     if (name === 'get_validation') {
-      const validation = await staticValidation(workflow, verify);
+      const validation = await staticValidation(workflow, userRequest, verify);
       return { ok: true, validation, issues: repairIssues(workflow, nodeTypes) };
     }
     if (name === 'get_runtime_card') {
@@ -160,12 +160,12 @@ async function callModel({ messages, model, reasoningEffort, timeoutMs, fetchImp
   } finally { clearTimeout(timer); }
 }
 
-async function runRuntimeRepairSkillTrial({ outputPath, model = DEFAULT_MODEL, reasoningEffort = 'none', timeoutMs = DEFAULT_TIMEOUT_MS, maxToolRounds = MAX_TOOL_ROUNDS, fetchImpl = globalThis.fetch, env = process.env, verify = verifyStatic, nodeTypes } = {}) {
+async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 'Controlled runtime repair fixture.', model = DEFAULT_MODEL, reasoningEffort = 'none', timeoutMs = DEFAULT_TIMEOUT_MS, maxToolRounds = MAX_TOOL_ROUNDS, fetchImpl = globalThis.fetch, env = process.env, verify = verifyStatic, nodeTypes } = {}) {
   if (!outputPath) throw new TypeError('outputPath is required');
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
-  const workflow = buildFixture();
-  const skill = createSkill({ workflow, nodeTypes: nodeTypes || loadRuntimeNodeTypes(), verify });
+  const loadedWorkflow = workflow ? clone(workflow) : buildFixture();
+  const skill = createSkill({ workflow: loadedWorkflow, userRequest, nodeTypes: nodeTypes || loadRuntimeNodeTypes(), verify });
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: 'Repair the loaded workflow fixture using the available tools.' }];
   let failure = null;
   try {
@@ -182,7 +182,7 @@ async function runRuntimeRepairSkillTrial({ outputPath, model = DEFAULT_MODEL, r
   } catch (error) {
     failure = { failureCategory: availabilityFailure(error), safeFailureCategory: error?.telemetry?.safeFailureCategory || null, httpStatus: error?.telemetry?.httpStatus || null };
   }
-  const finalValidation = await staticValidation(workflow, verify);
+  const finalValidation = await staticValidation(loadedWorkflow, userRequest, verify);
   const report = {
     schemaVersion: '1.0', kind: 'runtime_repair_skill_trial', executionPolicy: 'no_n8n_create_or_execution',
     model, reasoningEffort, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
