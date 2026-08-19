@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { runPlanFirstCreatePreflight } = require('./runPlanFirstCreatePreflight');
+const { planInstruction, runPlanFirstCreatePreflight, safePlanCompliance } = require('./runPlanFirstCreatePreflight');
 
 function writeFixture(root) {
   const inputPath = path.join(root, 'easy.jsonl');
@@ -38,7 +38,16 @@ test('plan-first preflight reports only safe completion metrics', async () => {
   assert.equal(report.outcome, 'completed');
   assert.equal(report.planner.allSelectedNodesInRuntimeCatalog, true);
   assert.equal(report.create.staticStatus, 'pass');
+  assert.deepEqual(report.create.planCompliance, { generatedNodeCount: 0, nodesOutsideSelectedPlanCount: 0 });
   assert.equal(JSON.stringify(report).includes('Read one URL'), false);
+});
+
+test('generator instruction carries only selected runtime cards and compliance is deidentified', () => {
+  const selectedPlan = plan();
+  const instruction = planInstruction(selectedPlan, { candidateNodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, parameters: [] }, { type: 'n8n-nodes-base.set', typeVersion: 3.4, parameters: [] }] });
+  assert.equal(instruction.includes('n8n-nodes-base.httpRequest'), true);
+  assert.equal(instruction.includes('n8n-nodes-base.set'), false);
+  assert.deepEqual(safePlanCompliance({ nodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2 }, { type: 'invented', typeVersion: 1 }] }, selectedPlan), { generatedNodeCount: 2, nodesOutsideSelectedPlanCount: 1 });
 });
 
 test('plan-first preflight does not call Create after planner rejection', async () => {

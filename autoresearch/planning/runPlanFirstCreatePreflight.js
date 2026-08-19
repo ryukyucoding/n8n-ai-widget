@@ -24,23 +24,31 @@ function atomicWrite(filePath, value) {
   fs.renameSync(temporary, filePath);
 }
 
-function planInstruction(plan) {
+function selectedRuntimeCards(plan, runtimeContext) {
+  const selected = new Set(plan.selected_nodes.map((node) => `${node.type}@${node.typeVersion}`));
+  return runtimeContext.candidateNodes.filter((node) => selected.has(`${node.type}@${node.typeVersion}`));
+}
+
+function planInstruction(plan, runtimeContext) {
+  const cards = selectedRuntimeCards(plan, runtimeContext);
   return [
     'Runtime-aware planning instruction:',
     plan.generator_instruction,
-    `Use only these installed node types and versions: ${plan.selected_nodes.map((node) => `${node.type}@${node.typeVersion}`).join(', ')}.`,
+    'The following installed node cards are the complete allowed node set for this workflow:',
+    JSON.stringify(cards),
+    'Use every node type with its exact listed typeVersion. Do not substitute, invent, or add any other node type.',
     'Return one n8n workflow JSON object only. Do not include credentials, secrets, or prose.',
   ].join('\n');
 }
 
-async function callCreateModel({ fetchImpl = globalThis.fetch, env = process.env, model, description, systemPrompt, plan, timeoutMs = 180000 }) {
+async function callCreateModel({ fetchImpl = globalThis.fetch, env = process.env, model, description, systemPrompt, plan, runtimeContext, timeoutMs = 180000 }) {
   const baseUrl = String(env.OLLAMA_BASE_URL || '').trim();
   if (!baseUrl) throw { kind: 'route_unconfigured' };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const request = createRequest({ model, description, systemPrompt, jsonMode: false });
-    request.messages.push({ role: 'user', content: planInstruction(plan) });
+    request.messages.push({ role: 'user', content: planInstruction(plan, runtimeContext) });
     const headers = { 'content-type': 'application/json' };
     if (env.OLLAMA_BASIC_AUTH) headers.authorization = env.OLLAMA_BASIC_AUTH;
     const response = await fetchImpl(new URL('chat/completions', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`), {
@@ -71,6 +79,15 @@ function safePlanSummary(plan, acceptanceContract, runtimeContext) {
   };
 }
 
+function safePlanCompliance(workflow, plan) {
+  const allowed = new Set(plan.selected_nodes.map((node) => `${node.type}@${node.typeVersion}`));
+  const nodes = Array.isArray(workflow?.nodes) ? workflow.nodes : [];
+  return {
+    generatedNodeCount: nodes.length,
+    nodesOutsideSelectedPlanCount: nodes.filter((node) => !allowed.has(`${node?.type}@${node?.typeVersion}`)).length,
+  };
+}
+
 async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 0, plannerModel = DEFAULT_PLANNER_MODEL, createModel = DEFAULT_CREATE_MODEL, plannerMaxTokens = DEFAULT_PLANNER_MAX_TOKENS, plannerReasoningEffort = 'none', plannerTimeoutMs = 60000, createTimeoutMs = 180000, schemaPath, fetchImpl, env, verify = verifyStatic } = {}) {
   if (!inputPath || !outputPath) throw new TypeError('inputPath and outputPath are required');
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
@@ -89,7 +106,7 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
       model: plannerModel, maxTokens: plannerMaxTokens, reasoningEffort: plannerReasoningEffort, fetchImpl, env, timeoutMs: plannerTimeoutMs,
     });
     const { plan, acceptanceContract } = buildPlanFirstContract({ userRequest: testCase.description, rawPlan: plannerResponse.rawPlan, runtimeContext });
-    const created = await callCreateModel({ fetchImpl, env, model: createModel, description: testCase.description, systemPrompt: testCase.systemPrompt, plan, timeoutMs: createTimeoutMs });
+    const created = await callCreateModel({ fetchImpl, env, model: createModel, description: testCase.description, systemPrompt: testCase.systemPrompt, plan, runtimeContext, timeoutMs: createTimeoutMs });
     const parsed = parseJsonCandidate(created.rawOutput);
     let verification = null;
     let capability = { usesCredentials: false, writesExternally: false, hasCode: false };
@@ -104,6 +121,7 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
         httpStatus: created.telemetry.httpStatus, strictJsonStatus: parsed.strictJsonStatus,
         repairedJsonStatus: parsed.repairedJsonStatus, staticStatus: verification?.status || 'not_run',
         findingCategories: findingCategoryCounts(verification),
+        planCompliance: parsed.ok ? safePlanCompliance(parsed.value, plan) : null,
         executionReadiness: readinessFrom({ parsed, verification, capability }).category,
       },
     };
@@ -135,4 +153,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { DEFAULT_CREATE_MODEL, callCreateModel, planInstruction, runPlanFirstCreatePreflight, safePlanSummary };
+module.exports = { DEFAULT_CREATE_MODEL, callCreateModel, planInstruction, runPlanFirstCreatePreflight, safePlanCompliance, safePlanSummary, selectedRuntimeCards };
