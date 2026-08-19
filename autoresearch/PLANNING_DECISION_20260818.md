@@ -2,10 +2,10 @@
 
 ## Decision
 
-Suspend direct one-shot LLM planning for the current server deployment. Use a
-Schema-Grounded Workflow Engineer Agent as the next planning boundary instead.
-The fine-tuned Create model remains the workflow generator; the agent does not
-replace it.
+Do not use `gpt-oss:120b` as the current Planner. Treat `qwen3.8:27b` as a
+gated research Planner candidate: it may produce a typed plan only after local
+runtime-catalog validation. The fine-tuned Create model remains the workflow
+generator; the Planner does not replace it.
 
 ## Evidence
 
@@ -19,10 +19,11 @@ did not create or execute a workflow.
 | `gpt-oss:120b` | same bounded response, 180-second limit | timeout at 180 seconds |
 | `gpt-oss:120b` | 5 candidates, 25 parameters, 2,444 characters | timeout at 180 seconds |
 | `qwen2.5-coder-32b-ft-original:latest` | same minimal context | one contract rejection after 35 seconds; a separate bounded call returned HTTP 500 |
+| `qwen3.8:27b` | same minimal context, `reasoning_effort=none` | catalog-compliant plan in 18.4 seconds |
 
-The smaller catalog did not resolve the planner failure. Therefore schema
-context volume is not the only bottleneck, and increasing timeouts or repeating
-the same direct planner calls is not justified.
+The smaller catalog did not resolve the `gpt-oss` failure, so increasing its
+timeout or repeating it is not justified. The Qwen3.8 result is one successful
+single-case observation, not a batch result or a production approval.
 
 ## Agent Boundary
 
@@ -49,7 +50,8 @@ the A2A broker and proposes diagnoses, rather than owning workflow creation.
 
 ## Next Gate
 
-Before a new Easy-100 batch, implement and test the typed planning-envelope
-validator plus an interactive agent work order. One approved single-case run
-must first show that the agent can produce a catalog-compliant envelope. Only
-then should it call the fine-tuned Create model.
+Before a new Easy-100 batch, run one bounded Plan-to-Create preflight using
+Qwen3.8 as Planner and the fine-tuned Create model as generator. It must keep
+the plan and candidate in memory, perform only local JSON/runtime validation,
+and make no n8n API call. Only after that gate should we decide whether an
+interactive Workflow Engineer Agent is needed.

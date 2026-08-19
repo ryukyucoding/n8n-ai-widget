@@ -10,7 +10,7 @@ const { loadEasyCases, safeHttpFailureCategory } = require('../experiments/easy1
 const { buildRuntimePlanningContext, planningContextStats } = require('./runtimeSchemaCatalog');
 const { buildPlanFirstContract, buildRuntimeAwarePlannerMessages } = require('./runtimeAwarePlanner');
 
-const DEFAULT_PLANNER_MODEL = 'gpt-oss:120b';
+const DEFAULT_PLANNER_MODEL = 'qwen3.8:27b';
 const DEFAULT_PLANNER_MAX_TOKENS = 700;
 
 function atomicWrite(filePath, value) {
