@@ -22,7 +22,7 @@ docker run --rm --network none --read-only \
   -e EASY100_INPUT_PATH=/data/input.jsonl \
   -e EASY100_PREDICTIONS_PATH=/data/predictions.jsonl \
   -e EASY100_REPAIR_CONTEXT_OUTPUT_PATH=/results/authoritative-repair-context.json \
-  -e EASY100_REPAIR_CASE_ID=2 \
+  -e EASY100_REPAIR_CASE_ID="${EASY100_REPAIR_CASE_ID:-2}" \
   -e PYTHON_BIN=python3 \
   -e PYTHONDONTWRITEBYTECODE=1 \
   --tmpfs /tmp:rw,noexec,nosuid,size=256m \

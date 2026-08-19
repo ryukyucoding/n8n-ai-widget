@@ -60,6 +60,25 @@ class NodeIntentClassificationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "forbids runtime node"):
                 validate_node_parameters(forbidden_workflow, "Do not use Webhook")
 
+    def test_repair_context_identifies_required_or_forbidden_runtime_type(self) -> None:
+        required_workflow = {"nodes": [{"name": "Code", "type": "n8n-nodes-base.code", "typeVersion": 1, "parameters": {}}]}
+        with patch("workflow_repair.RuntimeSchemaStore", return_value=schema_store()):
+            with self.assertRaisesRegex(Exception, "requires runtime node") as required_error:
+                validate_node_parameters(required_workflow, "Create workflow with Webhook", include_repair_context=True)
+        self.assertEqual(
+            required_error.exception.safe_findings,
+            [{"category": "node_type", "severity": "repair", "repairable": True, "normalized": False, "blocking": True, "repairContext": {"requiredNodeType": "n8n-nodes-base.webhook"}}],
+        )
+
+        forbidden_workflow = {"nodes": [{"name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1, "parameters": {}}]}
+        with patch("workflow_repair.RuntimeSchemaStore", return_value=schema_store()):
+            with self.assertRaisesRegex(Exception, "forbids runtime node") as forbidden_error:
+                validate_node_parameters(forbidden_workflow, "Do not use Webhook", include_repair_context=True)
+        self.assertEqual(
+            forbidden_error.exception.safe_findings,
+            [{"category": "node_type", "severity": "repair", "repairable": True, "normalized": False, "blocking": True, "repairContext": {"forbiddenNodeType": "n8n-nodes-base.webhook"}}],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

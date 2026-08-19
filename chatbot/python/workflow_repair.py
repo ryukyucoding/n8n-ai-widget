@@ -66,6 +66,7 @@ def safe_benchmark_finding(
     if repair_context is not None:
         allowed = {
             "nodeIndex", "nodeType", "parameterName",
+            "requiredNodeType", "forbiddenNodeType",
             "sourceNodeIndex", "sourceNodeType", "targetNodeIndex", "targetNodeType",
             "connectionType", "sourceOutputIndex", "targetInputIndex",
         }
@@ -392,13 +393,19 @@ def validate_node_parameters(
             f"original user request requires runtime node {node_type}; "
             "the workflow must include that exact type"
         )
-        safe_findings.append(safe_benchmark_finding("node_type", "repair", True, False, True))
+        repair_context = {"requiredNodeType": node_type} if include_repair_context else None
+        safe_findings.append(
+            safe_benchmark_finding("node_type", "repair", True, False, True, repair_context)
+        )
     for node_type in sorted(forbidden_types & generated_types):
         errors.append(
             f"original user request forbids runtime node {node_type}; "
             "the workflow must not include that type"
         )
-        safe_findings.append(safe_benchmark_finding("node_type", "repair", True, False, True))
+        repair_context = {"forbiddenNodeType": node_type} if include_repair_context else None
+        safe_findings.append(
+            safe_benchmark_finding("node_type", "repair", True, False, True, repair_context)
+        )
     for node_index, node in enumerate(workflow_dict["nodes"]):
         description = store.description_for(node["type"], node["typeVersion"])
         if not description:
