@@ -30,12 +30,18 @@ function inspectSavedAuthoritativeRepairContext({ inputPath, predictionsPath, ou
 }
 
 if (require.main === module) {
-  inspectSavedAuthoritativeRepairContext({
-    inputPath: process.env.EASY100_INPUT_PATH,
-    predictionsPath: process.env.EASY100_PREDICTIONS_PATH,
-    outputPath: process.env.EASY100_REPAIR_CONTEXT_OUTPUT_PATH,
-    caseId: process.env.EASY100_REPAIR_CASE_ID || '2',
-  }).then((report) => process.stdout.write(JSON.stringify({ caseId: report.caseId, findingCount: report.findingCount }) + '\n')).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
+  try {
+    const report = inspectSavedAuthoritativeRepairContext({
+      inputPath: process.env.EASY100_INPUT_PATH,
+      predictionsPath: process.env.EASY100_PREDICTIONS_PATH,
+      outputPath: process.env.EASY100_REPAIR_CONTEXT_OUTPUT_PATH,
+      caseId: process.env.EASY100_REPAIR_CASE_ID || '2',
+    });
+    process.stdout.write(JSON.stringify({ caseId: report.caseId, findingCount: report.findingCount }) + '\n');
+  } catch (error) {
+    process.stderr.write(`${error.message || error}\n`);
+    process.exitCode = 1;
+  }
 }
 
 module.exports = { inspectSavedAuthoritativeRepairContext };
