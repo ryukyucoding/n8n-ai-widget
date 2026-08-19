@@ -27,7 +27,7 @@ def schema_store(single_inputs):
 
 
 WEBHOOK_OUTPUTS = """
-const httpMethod = $parameter.httpMethod;
+const httpMethod = parameters.httpMethod;
 if (!Array.isArray(httpMethod)) return [{ type: 'main' }];
 return httpMethod.map((method) => ({ type: 'main' }));
 """

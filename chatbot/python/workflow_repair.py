@@ -84,7 +84,7 @@ _DYNAMIC_INPUT_COUNT = re.compile(
     re.DOTALL,
 )
 _DYNAMIC_PARAMETER_ASSIGNMENT = re.compile(
-    r"const\s+(?P<variable>[A-Za-z_]\w*)\s*=\s*\$parameter(?:\.([A-Za-z_]\w*)|\[['\"]([^'\"]+)['\"]\])\s*;"
+    r"const\s+(?P<variable>[A-Za-z_]\w*)\s*=\s*(?:\$parameter|parameters)(?:\.([A-Za-z_]\w*)|\[['\"]([^'\"]+)['\"]\])\s*;"
 )
 _DYNAMIC_ARRAY_PORT = re.compile(
     r"!Array\.isArray\(\s*(?P<variable>[A-Za-z_]\w*)\s*\).*?"
