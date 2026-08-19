@@ -239,6 +239,34 @@ def _is_expression(value: Any) -> bool:
     return isinstance(value, str) and value.lstrip().startswith("=")
 
 
+def _matches_display_value(actual: Any, expected: Any) -> bool:
+    """Evaluate n8n displayOptions values, including version comparators."""
+    if not isinstance(expected, dict):
+        return actual == expected
+    condition = expected.get("_cnd")
+    if not isinstance(condition, dict):
+        return False
+    for operator, operand in condition.items():
+        try:
+            if operator == "eq" and actual != operand:
+                return False
+            if operator == "neq" and actual == operand:
+                return False
+            if operator == "gt" and not actual > operand:
+                return False
+            if operator == "gte" and not actual >= operand:
+                return False
+            if operator == "lt" and not actual < operand:
+                return False
+            if operator == "lte" and not actual <= operand:
+                return False
+            if operator not in {"eq", "neq", "gt", "gte", "lt", "lte"}:
+                return False
+        except TypeError:
+            return False
+    return True
+
+
 def _is_applicable(property_def: JSONDict, parameters: JSONDict, version: float) -> bool:
     display = property_def.get("displayOptions", {})
     if not isinstance(display, dict):
@@ -251,7 +279,7 @@ def _is_applicable(property_def: JSONDict, parameters: JSONDict, version: float)
         for key, allowed in rules.items():
             actual = version if key == "@version" else parameters.get(key)
             allowed_values = allowed if isinstance(allowed, list) else [allowed]
-            if actual not in allowed_values:
+            if not any(_matches_display_value(actual, value) for value in allowed_values):
                 matches = False
                 break
         if matches:
