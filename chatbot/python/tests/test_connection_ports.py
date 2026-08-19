@@ -10,7 +10,7 @@ sys.modules.setdefault("json_repair", json_repair_stub)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from workflow_repair import RuntimeSchemaStore, validate_connection_ports  # noqa: E402
+from workflow_repair import RuntimeSchemaStore, StructuredValidationError, validate_connection_ports  # noqa: E402
 
 
 def schema_store(single_inputs):
@@ -82,6 +82,22 @@ class ConnectionPortNormalizationTests(unittest.TestCase):
                 validate_connection_ports(candidate)
 
         self.assertEqual(candidate["connections"]["Source"]["main"][0][0]["index"], 2)
+
+    def test_reports_deidentified_context_for_a_blocking_connection(self):
+        candidate = workflow("test.multi", 2)
+        with patch("workflow_repair.RuntimeSchemaStore", return_value=schema_store(["main"])):
+            with self.assertRaises(StructuredValidationError) as error:
+                validate_connection_ports(candidate, include_repair_context=True)
+
+        self.assertEqual(error.exception.safe_findings[0]["repairContext"], {
+            "sourceNodeIndex": 0,
+            "sourceNodeType": "test.source",
+            "targetNodeIndex": 1,
+            "targetNodeType": "test.multi",
+            "connectionType": "main",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 2,
+        })
 
     def test_leaves_an_already_valid_connection_unchanged(self):
         candidate = workflow("test.multi", 1)

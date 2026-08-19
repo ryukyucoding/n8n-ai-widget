@@ -7,6 +7,7 @@ Post-inference pipeline to repair JSON syntax and align node types.
 from __future__ import annotations
 
 import difflib
+import copy
 import json
 import os
 import re
@@ -63,7 +64,11 @@ def safe_benchmark_finding(
         "blocking": bool(blocking) if blocking is not None else severity != "warning" and not normalized,
     }
     if repair_context is not None:
-        allowed = {"nodeIndex", "nodeType", "parameterName"}
+        allowed = {
+            "nodeIndex", "nodeType", "parameterName",
+            "sourceNodeIndex", "sourceNodeType", "targetNodeIndex", "targetNodeType",
+            "connectionType", "sourceOutputIndex", "targetInputIndex",
+        }
         finding["repairContext"] = {
             key: value
             for key, value in repair_context.items()
@@ -390,7 +395,10 @@ def validate_node_parameters(
         raise StructuredValidationError("workflow parameter validation failed: " + "; ".join(errors), safe_findings)
 
 
-def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
+def validate_connection_ports(
+    workflow_dict: JSONDict,
+    include_repair_context: bool = False,
+) -> List[JSONDict]:
     """Normalize unambiguous source/target ports, then validate connections.
 
     n8n accepts some malformed workflow JSON even when the canvas cannot draw
@@ -403,8 +411,33 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
         return []
 
     nodes_by_name = {node["name"]: node for node in workflow_dict["nodes"]}
+    node_indices = {node["name"]: index for index, node in enumerate(workflow_dict["nodes"])}
     errors: List[str] = []
+    error_contexts: List[JSONDict] = []
     normalizations: List[JSONDict] = []
+
+    def add_error(message: str, source_name: str, connection_type: str,
+                  output_index: int, target: Optional[JSONDict] = None,
+                  target_index: Optional[int] = None) -> None:
+        errors.append(message)
+        if not include_repair_context:
+            error_contexts.append({})
+            return
+        source = nodes_by_name[source_name]
+        context: JSONDict = {
+            "sourceNodeIndex": node_indices[source_name],
+            "sourceNodeType": source["type"],
+            "connectionType": connection_type,
+            "sourceOutputIndex": output_index,
+        }
+        if target is not None and target_index is not None:
+            context.update({
+                "targetNodeIndex": node_indices[target["name"]],
+                "targetNodeType": target["type"],
+                "targetInputIndex": target_index,
+            })
+        error_contexts.append(context)
+
     for source_name, output_types in workflow_dict.get("connections", {}).items():
         source = nodes_by_name[source_name]
         source_ports = store.output_ports_for(source)
@@ -415,9 +448,10 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
             ]
             for output_index, group in enumerate(groups):
                 if source_ports is None:
-                    errors.append(
+                    add_error(
                         f"connection from {source_name!r} cannot confirm source output ports from "
-                        "the runtime schema; refusing to guess an output index"
+                        "the runtime schema; refusing to guess an output index",
+                        source_name, connection_type, output_index,
                     )
                 elif output_index not in source_compatible_indices:
                     # The source output index is represented by the connection
@@ -439,13 +473,15 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
                                 "reason": "runtime schema exposes one compatible source output",
                             })
                     elif output_index >= len(source_ports):
-                        errors.append(
-                            f"node {source_name!r} has no output port {output_index} for connection type {connection_type!r}"
+                        add_error(
+                            f"node {source_name!r} has no output port {output_index} for connection type {connection_type!r}",
+                            source_name, connection_type, output_index,
                         )
                     else:
-                        errors.append(
+                        add_error(
                             f"node {source_name!r} output port {output_index} has type "
-                            f"{source_ports[output_index]!r}, not {connection_type!r}"
+                            f"{source_ports[output_index]!r}, not {connection_type!r}",
+                            source_name, connection_type, output_index,
                         )
 
                 # Continue checking target ports even when a source-port
@@ -455,9 +491,10 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
                     target = nodes_by_name[connection["node"]]
                     target_ports = store.input_ports_for(target)
                     if target_ports is None:
-                        errors.append(
+                        add_error(
                             f"connection from {source_name!r} to {target['name']!r} cannot confirm "
-                            "target input ports from the runtime schema; refusing to guess an input index"
+                            "target input ports from the runtime schema; refusing to guess an input index",
+                            source_name, connection_type, output_index, target, connection.get("index", 0),
                         )
                         continue
                     target_index = connection["index"]
@@ -488,16 +525,18 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
                         continue
                     if target_index >= len(target_ports):
                         valid_indices = ", ".join(str(index) for index in range(len(target_ports))) or "none"
-                        errors.append(
+                        add_error(
                             f"connection from {source_name!r} to {target['name']!r} uses input index "
-                            f"{target_index}, but this node version exposes input indices: {valid_indices}"
+                            f"{target_index}, but this node version exposes input indices: {valid_indices}",
+                            source_name, connection_type, output_index, target, target_index,
                         )
                         continue
                     if target_ports[target_index] != connection_type:
-                        errors.append(
+                        add_error(
                             f"connection from {source_name!r} to {target['name']!r} uses type "
                             f"{connection_type!r}, but input index {target_index} expects "
-                            f"{target_ports[target_index]!r}"
+                            f"{target_ports[target_index]!r}",
+                            source_name, connection_type, output_index, target, target_index,
                         )
             # Preserve valid empty branches, but remove only empty groups beyond
             # the runtime's output range after a source-port normalization.
@@ -509,8 +548,8 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
         for _ in normalizations
     ]
     protocol_findings.extend(
-        safe_benchmark_finding("connection_port", "repair", True, False, True)
-        for _ in errors
+        safe_benchmark_finding("connection_port", "repair", True, False, True, context or None)
+        for context in error_contexts
     )
     if errors:
         raise StructuredValidationError("workflow connection-port validation failed: " + "; ".join(errors), protocol_findings)

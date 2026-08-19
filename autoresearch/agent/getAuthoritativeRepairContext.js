@@ -7,9 +7,9 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const PYTHON_SOURCE = [
-  'import json, sys',
+  'import copy, json, sys',
   'sys.path.insert(0, sys.argv[1])',
-  'from workflow_repair import canonicalize_workflow, validate_node_parameters, StructuredValidationError',
+  'from workflow_repair import canonicalize_workflow, validate_connection_ports, validate_node_parameters, StructuredValidationError',
   'envelope = json.loads(sys.stdin.read())',
   'canonical = canonicalize_workflow(json.dumps(envelope["workflow"]), user_request=envelope.get("userRequest", ""))',
   'findings = []',
@@ -17,6 +17,10 @@ const PYTHON_SOURCE = [
   ' validate_node_parameters(canonical, envelope.get("userRequest", ""), include_repair_context=True)',
   'except StructuredValidationError as error:',
   ' findings = error.safe_findings',
+  'try:',
+  ' validate_connection_ports(copy.deepcopy(canonical), include_repair_context=True)',
+  'except StructuredValidationError as error:',
+  ' findings.extend(error.safe_findings)',
   'print(json.dumps({"findings": findings}, ensure_ascii=False))',
 ].join('\n');
 

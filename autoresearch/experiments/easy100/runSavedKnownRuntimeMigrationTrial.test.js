@@ -5,7 +5,17 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { runSavedKnownRuntimeMigrationTrial } = require('./runSavedKnownRuntimeMigrationTrial');
+const { runSavedKnownRuntimeMigrationTrial, summarizeRepairContext } = require('./runSavedKnownRuntimeMigrationTrial');
+
+test('retains only a de-identified connection location', () => {
+  assert.deepEqual(summarizeRepairContext({
+    sourceNodeIndex: 1, sourceNodeType: 'test.source', connectionType: 'main', sourceOutputIndex: 0,
+    targetNodeIndex: 2, targetNodeType: 'test.target', targetInputIndex: 1, sourceName: 'private',
+  }), {
+    sourceNodeIndex: 1, sourceNodeType: 'test.source', connectionType: 'main', sourceOutputIndex: 0,
+    targetNodeIndex: 2, targetNodeType: 'test.target', targetInputIndex: 1,
+  });
+});
 
 test('keeps saved data private while reporting only migration outcomes', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'known-runtime-migration-'));

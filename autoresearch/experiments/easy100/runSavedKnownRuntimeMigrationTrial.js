@@ -15,20 +15,36 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+function summarizeRepairContext(context) {
+  if (Number.isInteger(context?.nodeIndex) && typeof context.nodeType === 'string' && typeof context.parameterName === 'string') {
+    return { nodeIndex: context.nodeIndex, nodeType: context.nodeType, parameterName: context.parameterName };
+  }
+  if (Number.isInteger(context?.sourceNodeIndex) && typeof context.sourceNodeType === 'string'
+    && typeof context.connectionType === 'string' && Number.isInteger(context.sourceOutputIndex)) {
+    const safe = {
+      sourceNodeIndex: context.sourceNodeIndex,
+      sourceNodeType: context.sourceNodeType,
+      connectionType: context.connectionType,
+      sourceOutputIndex: context.sourceOutputIndex,
+    };
+    if (Number.isInteger(context.targetNodeIndex) && typeof context.targetNodeType === 'string' && Number.isInteger(context.targetInputIndex)) {
+      safe.targetNodeIndex = context.targetNodeIndex;
+      safe.targetNodeType = context.targetNodeType;
+      safe.targetInputIndex = context.targetInputIndex;
+    }
+    return safe;
+  }
+  return null;
+}
+
 function summarizeAuthoritativeFindings(findings) {
   return findings.map((finding) => {
     const summary = {};
     for (const key of ['category', 'severity', 'repairable', 'blocking', 'normalized']) {
       if (Object.hasOwn(finding, key)) summary[key] = finding[key];
     }
-    const context = finding?.repairContext;
-    if (context && Number.isInteger(context.nodeIndex) && typeof context.nodeType === 'string' && typeof context.parameterName === 'string') {
-      summary.repairContext = {
-        nodeIndex: context.nodeIndex,
-        nodeType: context.nodeType,
-        parameterName: context.parameterName,
-      };
-    }
+    const context = summarizeRepairContext(finding?.repairContext);
+    if (context) summary.repairContext = context;
     return summary;
   });
 }
@@ -65,4 +81,4 @@ if (require.main === module) {
   }).then((report) => process.stdout.write(JSON.stringify({ outcome: report.outcome, authoritativeFinalFindingCount: report.authoritativeFinalFindingCount, migration: report.migration }) + '\n')).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }
 
-module.exports = { runSavedKnownRuntimeMigrationTrial, summarizeAuthoritativeFindings };
+module.exports = { runSavedKnownRuntimeMigrationTrial, summarizeAuthoritativeFindings, summarizeRepairContext };
