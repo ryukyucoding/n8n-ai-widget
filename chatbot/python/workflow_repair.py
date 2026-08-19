@@ -797,16 +797,13 @@ def normalize_node_positions(workflow_dict: JSONDict) -> None:
         occupied.append(candidate)
 
 
-def process_and_verify_workflow(
+def canonicalize_workflow(
     raw_output: str,
     n8n_url: Optional[str] = None,
     api_key: Optional[str] = None,
     user_request: str = "",
-    return_metadata: bool = False,
-) -> Any:
-    """
-    Main entrypoint: parses, heals JSON, and aligns node types.
-    """
+) -> JSONDict:
+    """Parse and align a workflow before any runtime validation or execution."""
     # 1. Repair and load JSON
     workflow_data = heal_json_format(raw_output)
 
@@ -825,7 +822,18 @@ def process_and_verify_workflow(
 
     # 4. Align nodes
     aligner = FuzzyNodeAligner(valid_types)
-    healed_workflow = aligner.heal_workflow_nodes(workflow_data)
+    return aligner.heal_workflow_nodes(workflow_data)
+
+
+def process_and_verify_workflow(
+    raw_output: str,
+    n8n_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    user_request: str = "",
+    return_metadata: bool = False,
+) -> Any:
+    """Main entrypoint: canonicalizes, validates, and normalizes a workflow."""
+    healed_workflow = canonicalize_workflow(raw_output, n8n_url, api_key, user_request)
 
     # 5. Reject invalid node options before the workflow is sent to n8n.
     validate_node_parameters(healed_workflow, user_request)

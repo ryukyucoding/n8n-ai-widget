@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { loadEasyCases } = require('./runEasy100Batch');
 const { runRuntimeRepairSkillTrial } = require('../../agent/runRuntimeRepairSkillTrial');
+const { canonicalizeWorkflow } = require('../../agent/canonicalizeWorkflow');
 
 function readJsonLines(filePath) {
   return fs.readFileSync(filePath, 'utf8').split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
@@ -26,10 +27,11 @@ function loadCandidate({ inputPath, predictionsPath, caseId }) {
   return { description, workflow: entry.predicted };
 }
 
-async function runSavedMechanicalRepairTrial({ inputPath, predictionsPath, outputPath, caseId = '2', runTrial = runRuntimeRepairSkillTrial, options = {} } = {}) {
+async function runSavedMechanicalRepairTrial({ inputPath, predictionsPath, outputPath, caseId = '2', runTrial = runRuntimeRepairSkillTrial, canonicalize = canonicalizeWorkflow, options = {} } = {}) {
   if (!inputPath || !predictionsPath || !outputPath) throw new TypeError('inputPath, predictionsPath, and outputPath are required');
   const candidate = loadCandidate({ inputPath, predictionsPath, caseId });
-  const trial = await runTrial({ ...options, outputPath, workflow: candidate.workflow, userRequest: candidate.description });
+  const workflow = canonicalize({ workflow: candidate.workflow, userRequest: candidate.description });
+  const trial = await runTrial({ ...options, outputPath, workflow, userRequest: candidate.description });
   const report = {
     ...trial,
     kind: 'easy100_saved_mechanical_repair_trial',

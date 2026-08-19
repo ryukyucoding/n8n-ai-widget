@@ -17,10 +17,12 @@ test('passes a saved candidate only in memory to the bounded repair trial', asyn
   let received;
   const report = await runSavedMechanicalRepairTrial({
     inputPath, predictionsPath, outputPath,
+    canonicalize: ({ workflow }) => ({ ...workflow, canonical: true }),
     runTrial: async (input) => { received = input; return { outcome: 'static_pass', toolCalls: [], patchActions: [], finalValidation: { status: 'pass', findingCategories: {} } }; },
   });
   assert.equal(received.userRequest, 'Private request');
   assert.equal(received.workflow.name, 'Private workflow');
+  assert.equal(received.workflow.canonical, true);
   assert.equal(JSON.stringify(report).includes('Private'), false);
   assert.equal(report.caseId, '2');
   assert.equal(fs.readFileSync(outputPath, 'utf8').includes('Private'), false);
