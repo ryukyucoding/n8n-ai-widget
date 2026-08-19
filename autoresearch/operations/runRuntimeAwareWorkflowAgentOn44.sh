@@ -9,6 +9,7 @@ INPUT="${EASY100_INPUT:-/home/daniel/autoresearch-data/easy100/testing_data_low_
 RESULTS="${AUTORESEARCH_RESULTS:-/home/daniel/autoresearch-data/easy100/runtime-agent-$(date -u +%Y%m%dT%H%M%SZ)}"
 MAX_ATTEMPTS="${AGENT_PREFLIGHT_MAX_ATTEMPTS:-1}"
 REASONING_EFFORT="${AGENT_PREFLIGHT_REASONING_EFFORT:-none}"
+CASE_INDEX="${AGENT_PREFLIGHT_CASE_INDEX:-0}"
 ENVFILE="$(mktemp)"
 trap 'rm -f "$ENVFILE"' EXIT
 
@@ -33,6 +34,7 @@ docker run --rm --network container:n8n-chatbot-1 --read-only \
   -e AGENT_PREFLIGHT_INPUT_PATH=/data/testing_data_low_100.jsonl \
   -e AGENT_PREFLIGHT_OUTPUT_PATH=/results/runtime-agent-report.json \
   -e AGENT_PREFLIGHT_MODEL=qwen3.8:27b \
+  -e AGENT_PREFLIGHT_CASE_INDEX="$CASE_INDEX" \
   -e AGENT_PREFLIGHT_MAX_ATTEMPTS="$MAX_ATTEMPTS" \
   -e AGENT_PREFLIGHT_REASONING_EFFORT="$REASONING_EFFORT" \
   -e AGENT_PREFLIGHT_TIMEOUT_MS=180000 \
