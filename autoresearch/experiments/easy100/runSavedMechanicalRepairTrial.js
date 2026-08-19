@@ -46,6 +46,9 @@ if (require.main === module) {
     predictionsPath: process.env.EASY100_PREDICTIONS_PATH,
     outputPath: process.env.EASY100_REPAIR_OUTPUT_PATH,
     caseId: process.env.EASY100_REPAIR_CASE_ID || '2',
+    options: {
+      maxToolRounds: Number.parseInt(process.env.RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS || '4', 10),
+    },
   }).then((report) => process.stdout.write(`${JSON.stringify(report)}\n`)).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }
 

@@ -5,11 +5,30 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { runRuntimeRepairSkillTrial } = require('./runRuntimeRepairSkillTrial');
+const { runRuntimeRepairSkillTrial, runtimeCard } = require('./runRuntimeRepairSkillTrial');
 
 function response(message) {
   return new Response(JSON.stringify({ choices: [{ message }] }), { status: 200, headers: { 'content-type': 'application/json' } });
 }
+
+test('runtime cards exclude parameters hidden by the node resource and operation', () => {
+  const nodeTypes = {
+    'n8n-nodes-base.example': {
+      versions: {
+        '1': {
+          properties: [
+            { name: 'resource', default: 'customer' },
+            { name: 'operation', default: 'get' },
+            { name: 'customerId', displayOptions: { show: { resource: ['customer'], operation: ['get'] } } },
+            { name: 'productTitle', displayOptions: { hide: { resource: ['customer'] } } },
+          ],
+        },
+      },
+    },
+  };
+  const card = runtimeCard({ type: 'n8n-nodes-base.example', typeVersion: 1, parameters: { resource: 'customer', operation: 'get', productTitle: 'stale' } }, nodeTypes);
+  assert.deepEqual(card.allowedParameterNames, ['customerId', 'operation', 'resource']);
+});
 
 test('uses only allowlisted repair tools and reaches static pass with a tool loop', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-repair-skill-'));

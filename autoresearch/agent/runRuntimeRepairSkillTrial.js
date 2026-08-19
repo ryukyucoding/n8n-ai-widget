@@ -17,15 +17,15 @@ const MAX_TOOL_ROUNDS = 4;
 
 const TOOL_DEFINITIONS = [
   { type: 'function', function: { name: 'get_validation', description: 'Validate the loaded workflow and return safe repair issues.', parameters: { type: 'object', properties: {}, additionalProperties: false } } },
-  { type: 'function', function: { name: 'get_runtime_card', description: 'Read the installed n8n runtime card for one workflow node index.', parameters: { type: 'object', properties: { nodeIndex: { type: 'integer' } }, required: ['nodeIndex'], additionalProperties: false } } },
-  { type: 'function', function: { name: 'apply_runtime_patch', description: 'Apply only allowed type-version or invalid-parameter-removal edits after inspecting that node runtime card.', parameters: { type: 'object', properties: { operations: { type: 'array', items: { type: 'object', properties: { kind: { type: 'string', enum: ['set_type_version', 'remove_parameter'] }, nodeIndex: { type: 'integer' }, typeVersion: { type: 'number' }, parameterName: { type: 'string' } }, required: ['kind', 'nodeIndex'], additionalProperties: false }, maxItems: 4 } }, required: ['operations'], additionalProperties: false } } },
+  { type: 'function', function: { name: 'get_runtime_card', description: 'Read the installed n8n runtime card for one workflow node index, including only parameters applicable to its current resource, operation, and version.', parameters: { type: 'object', properties: { nodeIndex: { type: 'integer' } }, required: ['nodeIndex'], additionalProperties: false } } },
+  { type: 'function', function: { name: 'apply_runtime_patch', description: 'Apply only allowed type-version or invalid-parameter-removal edits after inspecting that node runtime card.', parameters: { type: 'object', properties: { operations: { type: 'array', items: { type: 'object', properties: { kind: { type: 'string', enum: ['set_type_version', 'remove_parameter'] }, nodeIndex: { type: 'integer' }, typeVersion: { type: 'number' }, parameterName: { type: 'string' } }, required: ['kind', 'nodeIndex'], additionalProperties: false }, maxItems: 8 } }, required: ['operations'], additionalProperties: false } } },
 ];
 
 const SYSTEM_PROMPT = [
   'You are a constrained n8n runtime repair agent.',
   'A workflow fixture is loaded only inside the repair skill.',
   'You must first call get_validation, then inspect a runtime card for every node you patch.',
-  'Use apply_runtime_patch only for allowed local edits, then call get_validation again.',
+  'Use apply_runtime_patch only for allowed local edits. If validation still lists issues, continue with the next allowed tool call until validation passes or the budget is exhausted.',
   'Do not write prose, credentials, URLs, shell commands, or a workflow JSON.',
   'Stop after validation passes or the tool budget is exhausted.',
 ].join(' ');
@@ -48,13 +48,38 @@ function buildFixture() {
   return workflow;
 }
 
+function isApplicable(property, effectiveParameters, version) {
+  const display = property?.displayOptions;
+  if (!display || typeof display !== 'object') return true;
+  for (const [mode, expected] of [['show', true], ['hide', false]]) {
+    const rules = display[mode];
+    if (!rules || typeof rules !== 'object') continue;
+    const matches = Object.entries(rules).every(([key, allowed]) => {
+      const actual = key === '@version' ? version : effectiveParameters[key];
+      return (Array.isArray(allowed) ? allowed : [allowed]).includes(actual);
+    });
+    if (matches) return expected;
+  }
+  return true;
+}
+
 function runtimeCard(node, nodeTypes) {
   const entry = nodeTypes?.[node?.type];
   const versionKeys = Object.keys(entry?.versions || {}).filter((version) => Number.isFinite(Number(version)));
   const versions = versionKeys.map(Number).sort((left, right) => right - left);
   const preferred = versionKeys.sort((left, right) => Number(right) - Number(left))[0];
-  const definition = preferred ? entry.versions[preferred] : null;
-  const parameterNames = [...new Set((definition?.properties || []).map((property) => property?.name).filter((name) => typeof name === 'string'))].sort();
+  const selected = versionKeys.includes(String(node?.typeVersion)) ? String(node.typeVersion) : preferred;
+  const definition = selected ? entry.versions[selected] : null;
+  const properties = Array.isArray(definition?.properties) ? definition.properties : [];
+  const effectiveParameters = Object.fromEntries(
+    properties
+      .filter((property) => property && typeof property.name === 'string' && Object.hasOwn(property, 'default'))
+      .map((property) => [property.name, property.default]),
+  );
+  Object.assign(effectiveParameters, node?.parameters || {});
+  const parameterNames = [...new Set(properties
+    .filter((property) => property && typeof property.name === 'string' && isApplicable(property, effectiveParameters, Number(selected)))
+    .map((property) => property.name))].sort();
   return { nodeType: typeof node?.type === 'string' ? node.type : null, allowedTypeVersions: versions, allowedParameterNames: parameterNames };
 }
 
@@ -120,7 +145,7 @@ function createSkill({ workflow, userRequest, nodeTypes, verify }) {
       return { ok: true, nodeIndex, runtimeCard: runtimeCard(workflow.nodes[nodeIndex], nodeTypes) };
     }
     const operations = Array.isArray(args.operations) ? args.operations : [];
-    if (!operations.length || operations.length > 4) return { ok: false, error: 'invalid_patch_operations' };
+    if (!operations.length || operations.length > 8) return { ok: false, error: 'invalid_patch_operations' };
     const issues = repairIssues(workflow, nodeTypes);
     let applied = 0;
     for (const operation of operations) {
@@ -219,4 +244,4 @@ if (require.main === module) {
   runRuntimeRepairSkillTrial({ outputPath: process.env.RUNTIME_REPAIR_SKILL_OUTPUT_PATH, maxToolRounds: Number.parseInt(process.env.RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS || String(MAX_TOOL_ROUNDS), 10) }).then((report) => process.stdout.write(`${JSON.stringify(report)}\n`)).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }
 
-module.exports = { TOOL_DEFINITIONS, buildFixture, createSkill, runRuntimeRepairSkillTrial, safeIssueSummary };
+module.exports = { TOOL_DEFINITIONS, buildFixture, createSkill, isApplicable, runRuntimeRepairSkillTrial, runtimeCard, safeIssueSummary };
