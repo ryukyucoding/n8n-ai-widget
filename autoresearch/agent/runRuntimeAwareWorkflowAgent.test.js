@@ -40,3 +40,18 @@ test('does not expose credentials when supplying a candidate for repair', () => 
   const messages = repairMessages({ description: 'x', runtimeContext: { candidateNodes: [] }, candidate: { nodes: [{ credentials: { token: 'secret' } }] }, findingCategories: { node_type: 1 } });
   assert.equal(messages.at(-1).content.includes('secret'), false);
 });
+
+test('forwards an explicitly selected reasoning effort and reports only a safe output category', async () => {
+  const { root, inputPath, schemaPath } = fixture();
+  let requestBody;
+  const response = new Response(JSON.stringify({ choices: [{ message: { content: 'not a workflow' } }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  const report = await runRuntimeAwareWorkflowAgent({
+    inputPath, outputPath: path.join(root, 'report.json'), schemaPath, maxAttempts: 1, reasoningEffort: 'none',
+    env: { OLLAMA_BASE_URL: 'http://example.test' },
+    fetchImpl: async (_url, options) => { requestBody = JSON.parse(options.body); return response; },
+  });
+  assert.equal(requestBody.reasoning_effort, 'none');
+  assert.equal(report.reasoningEffort, 'none');
+  assert.equal(typeof report.attempts[0].outputCategory, 'string');
+  assert.equal(JSON.stringify(report).includes('not a workflow'), false);
+});

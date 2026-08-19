@@ -54,7 +54,7 @@ function repairMessages({ description, runtimeContext, candidate, findingCategor
   ];
 }
 
-async function callWorkflowAgent({ messages, model, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = globalThis.fetch, env = process.env }) {
+async function callWorkflowAgent({ messages, model, reasoningEffort, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = globalThis.fetch, env = process.env }) {
   const baseUrl = String(env.OLLAMA_BASE_URL || '').trim();
   if (!baseUrl) throw { kind: 'route_unconfigured' };
   const controller = new AbortController();
@@ -62,9 +62,11 @@ async function callWorkflowAgent({ messages, model, timeoutMs = DEFAULT_TIMEOUT_
   try {
     const headers = { 'content-type': 'application/json' };
     if (env.OLLAMA_BASIC_AUTH) headers.authorization = env.OLLAMA_BASIC_AUTH;
+    const requestBody = { model, temperature: 0, max_tokens: 4096, messages };
+    if (typeof reasoningEffort === 'string' && reasoningEffort.trim()) requestBody.reasoning_effort = reasoningEffort.trim();
     const response = await fetchImpl(new URL('chat/completions', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`), {
       method: 'POST', headers, signal: controller.signal,
-      body: JSON.stringify({ model, temperature: 0, max_tokens: 4096, messages }),
+      body: JSON.stringify(requestBody),
     });
     const telemetry = { httpStatus: Number.isInteger(response?.status) ? response.status : null, contentType: safeContentType(response?.headers?.get?.('content-type')) };
     if (!response.ok) {
@@ -87,6 +89,7 @@ function safeAttempt({ attempt, generated, parsed, verification, capability }) {
     attempt,
     httpStatus: generated.telemetry.httpStatus,
     contentType: generated.telemetry.contentType,
+    outputCategory: parsed.outputCategory,
     strictJsonStatus: parsed.strictJsonStatus,
     repairedJsonStatus: parsed.repairedJsonStatus,
     staticStatus: verification?.status || 'repair',
@@ -95,7 +98,7 @@ function safeAttempt({ attempt, generated, parsed, verification, capability }) {
   };
 }
 
-async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex = 0, model = DEFAULT_AGENT_MODEL, maxAttempts = DEFAULT_MAX_ATTEMPTS, timeoutMs = DEFAULT_TIMEOUT_MS, schemaPath, fetchImpl, env, verify = verifyStatic } = {}) {
+async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex = 0, model = DEFAULT_AGENT_MODEL, maxAttempts = DEFAULT_MAX_ATTEMPTS, reasoningEffort, timeoutMs = DEFAULT_TIMEOUT_MS, schemaPath, fetchImpl, env, verify = verifyStatic } = {}) {
   if (!inputPath || !outputPath) throw new TypeError('inputPath and outputPath are required');
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) throw new TypeError('maxAttempts must be an integer from 1 to 3');
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
@@ -108,7 +111,7 @@ async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex =
   let report;
   try {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const generated = await callWorkflowAgent({ messages, model, timeoutMs, fetchImpl, env });
+      const generated = await callWorkflowAgent({ messages, model, reasoningEffort, timeoutMs, fetchImpl, env });
       const parsed = parseJsonCandidate(generated.rawOutput);
       let verification = null;
       let capability = { usesCredentials: false, writesExternally: false, hasCode: false };
@@ -144,7 +147,7 @@ async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex =
   }
   const envelope = {
     schemaVersion: '1.0', kind: 'runtime_aware_workflow_agent_preflight', executionPolicy: 'no_n8n_create_or_execution',
-    caseId: testCase.caseId, model, maxAttempts, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
+    caseId: testCase.caseId, model, maxAttempts, reasoningEffort: reasoningEffort || null, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
     runtimeContextStats: planningContextStats(runtimeContext), ...report,
   };
   atomicWrite(outputPath, envelope);
@@ -158,6 +161,7 @@ function main() {
     caseIndex: Number.parseInt(process.env.AGENT_PREFLIGHT_CASE_INDEX || '0', 10) || 0,
     model: process.env.AGENT_PREFLIGHT_MODEL || DEFAULT_AGENT_MODEL,
     maxAttempts: Number.parseInt(process.env.AGENT_PREFLIGHT_MAX_ATTEMPTS || String(DEFAULT_MAX_ATTEMPTS), 10),
+    reasoningEffort: process.env.AGENT_PREFLIGHT_REASONING_EFFORT,
     timeoutMs: Number.parseInt(process.env.AGENT_PREFLIGHT_TIMEOUT_MS || String(DEFAULT_TIMEOUT_MS), 10),
   }).then((report) => process.stdout.write(`${JSON.stringify(report)}\n`))
     .catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
