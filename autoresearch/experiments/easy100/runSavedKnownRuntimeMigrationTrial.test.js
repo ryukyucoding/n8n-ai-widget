@@ -18,12 +18,20 @@ test('keeps saved data private while reporting only migration outcomes', async (
   const report = await runSavedKnownRuntimeMigrationTrial({
     inputPath, predictionsPath, outputPath,
     canonicalize: ({ workflow }) => workflow,
-    inspect: () => (++inspected === 1 ? [{ category: 'parameter_schema' }] : []),
+    inspect: () => (++inspected === 1 ? [{
+      category: 'parameter_schema',
+      message: 'Private request must not be reported',
+      repairContext: { nodeIndex: 0, nodeType: 'test.node', parameterName: 'field' },
+    }] : []),
     migrate: () => ({ actions: [{ kind: 'known_migration', nodeIndex: 1, nodeType: 'test.node' }], blocked: [] }),
     verifyTrial: async () => ({ outcome: 'static_pass', toolCalls: [], patchActions: [], finalValidation: { status: 'pass', findingCategories: {} } }),
   });
   assert.equal(report.outcome, 'static_pass');
   assert.equal(report.authoritativeInitialFindingCount, 1);
   assert.equal(report.authoritativeFinalFindingCount, 0);
+  assert.deepEqual(report.authoritativeInitialFindings, [{
+    category: 'parameter_schema',
+    repairContext: { nodeIndex: 0, nodeType: 'test.node', parameterName: 'field' },
+  }]);
   assert.equal(JSON.stringify(report).includes('Private'), false);
 });

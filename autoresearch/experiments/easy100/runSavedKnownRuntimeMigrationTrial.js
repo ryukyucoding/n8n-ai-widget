@@ -15,6 +15,24 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+function summarizeAuthoritativeFindings(findings) {
+  return findings.map((finding) => {
+    const summary = {};
+    for (const key of ['category', 'severity', 'repairable', 'blocking', 'normalized']) {
+      if (Object.hasOwn(finding, key)) summary[key] = finding[key];
+    }
+    const context = finding?.repairContext;
+    if (context && Number.isInteger(context.nodeIndex) && typeof context.nodeType === 'string' && typeof context.parameterName === 'string') {
+      summary.repairContext = {
+        nodeIndex: context.nodeIndex,
+        nodeType: context.nodeType,
+        parameterName: context.parameterName,
+      };
+    }
+    return summary;
+  });
+}
+
 async function runSavedKnownRuntimeMigrationTrial({ inputPath, predictionsPath, outputPath, caseId = '2', canonicalize = canonicalizeWorkflow, inspect = getAuthoritativeRepairContext, migrate = applyKnownRuntimeMigrations, verifyTrial = runRuntimeRepairSkillTrial } = {}) {
   if (!inputPath || !predictionsPath || !outputPath) throw new TypeError('inputPath, predictionsPath, and outputPath are required');
   const candidate = loadCandidate({ inputPath, predictionsPath, caseId });
@@ -28,7 +46,9 @@ async function runSavedKnownRuntimeMigrationTrial({ inputPath, predictionsPath, 
     kind: 'easy100_known_runtime_migration_trial',
     caseId: String(caseId),
     authoritativeInitialFindingCount: initialFindings.length,
+    authoritativeInitialFindings: summarizeAuthoritativeFindings(initialFindings),
     authoritativeFinalFindingCount: finalFindings.length,
+    authoritativeFinalFindings: summarizeAuthoritativeFindings(finalFindings),
     migration,
     predictionSetFingerprint: sha256(fs.readFileSync(predictionsPath, 'utf8')),
   };
@@ -45,4 +65,4 @@ if (require.main === module) {
   }).then((report) => process.stdout.write(JSON.stringify({ outcome: report.outcome, authoritativeFinalFindingCount: report.authoritativeFinalFindingCount, migration: report.migration }) + '\n')).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }
 
-module.exports = { runSavedKnownRuntimeMigrationTrial };
+module.exports = { runSavedKnownRuntimeMigrationTrial, summarizeAuthoritativeFindings };
