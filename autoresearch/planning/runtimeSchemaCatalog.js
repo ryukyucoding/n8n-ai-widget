@@ -145,9 +145,21 @@ function buildRuntimePlanningContext({ userRequest, schemaPath = DEFAULT_SCHEMA_
   };
 }
 
+function buildRuntimeRepairContext({ runtimeContext, schemaPath = DEFAULT_SCHEMA_PATH } = {}) {
+  const allowedKeys = new Set((runtimeContext?.candidateNodes || []).map((node) => `${node.type}@${node.typeVersion}`));
+  const candidateNodes = catalogFromSchemas(loadRuntimeNodeTypes(schemaPath))
+    .filter((node) => allowedKeys.has(`${node.type}@${node.typeVersion}`));
+  return {
+    schemaSource: 'installed_runtime_export',
+    candidateNodes,
+    instruction: 'These are the complete repair cards for the allowed runtime nodes. Keep only their exact type and typeVersion combinations. For a retained node, use only parameter names listed on its card.',
+  };
+}
+
 module.exports = {
   DEFAULT_SCHEMA_PATH,
   buildRuntimePlanningContext,
+  buildRuntimeRepairContext,
   catalogFromSchemas,
   compactPlanningNode,
   explicitlyNamedRuntimeRequirements,

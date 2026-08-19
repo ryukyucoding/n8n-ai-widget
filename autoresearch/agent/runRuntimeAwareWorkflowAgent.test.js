@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { repairMessages, runRuntimeAwareWorkflowAgent } = require('./runRuntimeAwareWorkflowAgent');
+const { buildRepairInstructions, repairMessages, runRuntimeAwareWorkflowAgent } = require('./runRuntimeAwareWorkflowAgent');
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'workflow-agent-'));
@@ -37,8 +37,18 @@ test('repairs one static failure without retaining workflow data in the report',
 });
 
 test('does not expose credentials when supplying a candidate for repair', () => {
-  const messages = repairMessages({ description: 'x', runtimeContext: { candidateNodes: [] }, candidate: { nodes: [{ credentials: { token: 'secret' } }] }, findingCategories: { node_type: 1 } });
+  const messages = repairMessages({ description: 'x', repairContext: { candidateNodes: [] }, candidate: { nodes: [{ credentials: { token: 'secret' } }] }, repairInstructions: {} });
   assert.equal(messages.at(-1).content.includes('secret'), false);
+});
+
+test('makes unsupported candidate node identities actionable without including parameter values', () => {
+  const instructions = buildRepairInstructions({
+    candidate: { nodes: [{ type: 'old.node', typeVersion: 1, parameters: { token: 'secret' } }] },
+    repairContext: { candidateNodes: [{ type: 'current.node', typeVersion: 2, parameters: [{ name: 'operation' }] }] },
+    findingCategories: { node_type: 1 },
+  });
+  assert.deepEqual(instructions.incompatibleNodes, [{ nodeIndex: 0, candidateType: 'old.node', candidateTypeVersion: 1, requiredAction: 'replace_with_an_allowed_runtime_card' }]);
+  assert.equal(JSON.stringify(instructions).includes('secret'), false);
 });
 
 test('forwards an explicitly selected reasoning effort and reports only a safe output category', async () => {

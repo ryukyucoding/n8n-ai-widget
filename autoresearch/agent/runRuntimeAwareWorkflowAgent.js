@@ -10,7 +10,7 @@ const {
   findingCategoryCounts, loadEasyCases, readinessFrom, safeCapabilitySummary,
   safeHttpFailureCategory, verifyStatic,
 } = require('../experiments/easy100/runEasy100Batch');
-const { buildRuntimePlanningContext, planningContextStats } = require('../planning/runtimeSchemaCatalog');
+const { buildRuntimePlanningContext, buildRuntimeRepairContext, planningContextStats } = require('../planning/runtimeSchemaCatalog');
 
 const DEFAULT_AGENT_MODEL = 'qwen3.8:27b';
 const DEFAULT_TIMEOUT_MS = 180000;
@@ -45,12 +45,36 @@ function initialMessages({ description, runtimeContext }) {
   ];
 }
 
-function repairMessages({ description, runtimeContext, candidate, findingCategories }) {
+function buildRepairInstructions({ candidate, repairContext, findingCategories }) {
+  const allowedCards = Array.isArray(repairContext?.candidateNodes) ? repairContext.candidateNodes : [];
+  const allowedByIdentity = new Set(allowedCards.map((node) => `${node.type}@${node.typeVersion}`));
+  const incompatibleNodes = (Array.isArray(candidate?.nodes) ? candidate.nodes : [])
+    .map((node, nodeIndex) => ({ node, nodeIndex }))
+    .filter(({ node }) => !allowedByIdentity.has(`${node?.type}@${node?.typeVersion}`))
+    .map(({ node, nodeIndex }) => ({
+      nodeIndex,
+      candidateType: typeof node?.type === 'string' ? node.type : null,
+      candidateTypeVersion: Number.isFinite(Number(node?.typeVersion)) ? Number(node.typeVersion) : null,
+      requiredAction: 'replace_with_an_allowed_runtime_card',
+    }));
+  return {
+    findingCategories,
+    incompatibleNodes,
+    rules: [
+      'Preserve the user-requested behavior and repair the existing workflow instead of redesigning it.',
+      'Replace every incompatible node with an allowed runtime card before changing connections.',
+      'For retained nodes, remove parameter names not listed on that node card and set the card exact typeVersion.',
+      'Never add credentials, API keys, OAuth values, or prose.',
+    ],
+  };
+}
+
+function repairMessages({ description, repairContext, candidate, repairInstructions }) {
   return [
     { role: 'system', content: WORKFLOW_ENGINEER_SYSTEM },
     { role: 'user', content: description },
-    { role: 'user', content: JSON.stringify(runtimeContext) },
-    { role: 'user', content: `Repair this candidate using only the listed runtime cards. Static finding categories: ${JSON.stringify(findingCategories)}. Return the complete repaired workflow JSON only.\n${JSON.stringify(safeCandidateForRepair(candidate))}` },
+    { role: 'user', content: JSON.stringify(repairContext) },
+    { role: 'user', content: `Repair this candidate using the repair contract and instructions below. Return the complete repaired workflow JSON only.\n${JSON.stringify(repairInstructions)}\n${JSON.stringify(safeCandidateForRepair(candidate))}` },
   ];
 }
 
@@ -104,6 +128,7 @@ async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex =
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
   if (!testCase) throw new Error('requested case is unavailable');
   const runtimeContext = buildRuntimePlanningContext({ userRequest: testCase.description, schemaPath });
+  const repairContext = buildRuntimeRepairContext({ runtimeContext, schemaPath });
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
   const attempts = [];
@@ -134,7 +159,12 @@ async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex =
         break;
       }
       messages = parsed.ok
-        ? repairMessages({ description: testCase.description, runtimeContext, candidate: parsed.value, findingCategories: entry.findingCategories })
+        ? repairMessages({
+          description: testCase.description,
+          repairContext,
+          candidate: parsed.value,
+          repairInstructions: buildRepairInstructions({ candidate: parsed.value, repairContext, findingCategories: entry.findingCategories }),
+        })
         : [...initialMessages({ description: testCase.description, runtimeContext }), { role: 'user', content: 'The previous response was not a complete workflow JSON object. Return one complete workflow JSON object only.' }];
     }
   } catch (error) {
@@ -169,4 +199,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { DEFAULT_AGENT_MODEL, initialMessages, repairMessages, runRuntimeAwareWorkflowAgent, safeCandidateForRepair };
+module.exports = { DEFAULT_AGENT_MODEL, buildRepairInstructions, initialMessages, repairMessages, runRuntimeAwareWorkflowAgent, safeCandidateForRepair };
