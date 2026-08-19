@@ -8,6 +8,7 @@ WORKTREE="${AUTORESEARCH_WORKTREE:-/home/daniel/n8n-worktrees/autoresearch-easy1
 INPUT="${EASY100_INPUT:-/home/daniel/autoresearch-data/easy100/testing_data_low_100.jsonl}"
 PREDICTIONS="${EASY100_PREDICTIONS:-/home/daniel/autoresearch-data/easy100/batch-json-mode-off-20260818T083257Z/private/predictions.jsonl}"
 RESULTS="${AUTORESEARCH_RESULTS:-/home/daniel/autoresearch-data/easy100/authoritative-repair-context-$(date -u +%Y%m%dT%H%M%SZ)}"
+CASE_ID="${1:-${EASY100_REPAIR_CASE_ID:-2}}"
 
 mkdir -p "$RESULTS"
 chmod 700 "$RESULTS"
@@ -22,7 +23,7 @@ docker run --rm --network none --read-only \
   -e EASY100_INPUT_PATH=/data/input.jsonl \
   -e EASY100_PREDICTIONS_PATH=/data/predictions.jsonl \
   -e EASY100_REPAIR_CONTEXT_OUTPUT_PATH=/results/authoritative-repair-context.json \
-  -e EASY100_REPAIR_CASE_ID="${EASY100_REPAIR_CASE_ID:-2}" \
+  -e EASY100_REPAIR_CASE_ID="$CASE_ID" \
   -e PYTHON_BIN=python3 \
   -e PYTHONDONTWRITEBYTECODE=1 \
   --tmpfs /tmp:rw,noexec,nosuid,size=256m \
