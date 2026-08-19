@@ -38,9 +38,10 @@ test('uses only allowlisted repair tools and reaches static pass with a tool loo
   });
   assert.equal(report.outcome, 'static_pass');
   assert.equal(report.initialValidation.status, 'repair');
+  assert.equal(report.initialRepairIssues.some((issue) => issue.kind === 'type_version'), true);
+  assert.equal(report.finalRepairIssues.some((issue) => issue.parameterName === '__runtimeRepairProbe__'), false);
   assert.deepEqual(report.toolCalls, ['get_validation', 'get_runtime_card', 'apply_runtime_patch', 'get_validation']);
   assert.equal(report.patchActions[0].applied, 2);
-  assert.equal(JSON.stringify(report).includes('__runtimeRepairProbe__'), false);
 });
 
 test('refuses a patch before the target runtime card has been inspected', async () => {

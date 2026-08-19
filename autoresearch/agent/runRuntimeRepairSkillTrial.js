@@ -75,6 +75,17 @@ function repairIssues(workflow, nodeTypes) {
   return issues;
 }
 
+// Keep reports useful for deciding whether a new tool is justified, without
+// serializing the workflow itself or any parameter values.
+function safeIssueSummary(workflow, nodeTypes) {
+  const nodes = Array.isArray(workflow?.nodes) ? workflow.nodes : [];
+  return repairIssues(workflow, nodeTypes).map((issue) => ({
+    kind: issue.kind,
+    nodeType: typeof nodes[issue.nodeIndex]?.type === 'string' ? nodes[issue.nodeIndex].type : null,
+    parameterName: typeof issue.parameterName === 'string' ? issue.parameterName : null,
+  }));
+}
+
 async function staticValidation(workflow, userRequest, verify) {
   try {
     const verification = await verify(workflow, userRequest);
@@ -165,8 +176,10 @@ async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
   const loadedWorkflow = workflow ? clone(workflow) : buildFixture();
-  const skill = createSkill({ workflow: loadedWorkflow, userRequest, nodeTypes: nodeTypes || loadRuntimeNodeTypes(), verify });
+  const runtimeNodeTypes = nodeTypes || loadRuntimeNodeTypes();
+  const skill = createSkill({ workflow: loadedWorkflow, userRequest, nodeTypes: runtimeNodeTypes, verify });
   const initialValidation = await staticValidation(loadedWorkflow, userRequest, verify);
+  const initialRepairIssues = safeIssueSummary(loadedWorkflow, runtimeNodeTypes);
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: 'Repair the loaded workflow fixture using the available tools.' }];
   let failure = null;
   try {
@@ -184,6 +197,7 @@ async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 
     failure = { failureCategory: availabilityFailure(error), safeFailureCategory: error?.telemetry?.safeFailureCategory || null, httpStatus: error?.telemetry?.httpStatus || null };
   }
   const finalValidation = await staticValidation(loadedWorkflow, userRequest, verify);
+  const finalRepairIssues = safeIssueSummary(loadedWorkflow, runtimeNodeTypes);
   const report = {
     schemaVersion: '1.0', kind: 'runtime_repair_skill_trial', executionPolicy: 'no_n8n_create_or_execution',
     model, reasoningEffort, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
@@ -192,7 +206,9 @@ async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 
     toolCalls: skill.toolCalls,
     patchActions: skill.actionLog,
     initialValidation,
+    initialRepairIssues,
     finalValidation,
+    finalRepairIssues,
     ...failure,
   };
   atomicWrite(outputPath, report);
@@ -203,4 +219,4 @@ if (require.main === module) {
   runRuntimeRepairSkillTrial({ outputPath: process.env.RUNTIME_REPAIR_SKILL_OUTPUT_PATH, maxToolRounds: Number.parseInt(process.env.RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS || String(MAX_TOOL_ROUNDS), 10) }).then((report) => process.stdout.write(`${JSON.stringify(report)}\n`)).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }
 
-module.exports = { TOOL_DEFINITIONS, buildFixture, createSkill, runRuntimeRepairSkillTrial };
+module.exports = { TOOL_DEFINITIONS, buildFixture, createSkill, runRuntimeRepairSkillTrial, safeIssueSummary };
