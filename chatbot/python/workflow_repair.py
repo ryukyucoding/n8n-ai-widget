@@ -83,6 +83,61 @@ _DYNAMIC_INPUT_COUNT = re.compile(
     r"Array\.from\(\s*\{\s*length\s*:\s*parameters(?:\.([A-Za-z_]\w*)|\[['\"]([^'\"]+)['\"]\])\s*\|\|\s*(\d+)",
     re.DOTALL,
 )
+_DYNAMIC_PARAMETER_ASSIGNMENT = re.compile(
+    r"const\s+(?P<variable>[A-Za-z_]\w*)\s*=\s*\$parameter(?:\.([A-Za-z_]\w*)|\[['\"]([^'\"]+)['\"]\])\s*;"
+)
+_DYNAMIC_ARRAY_PORT = re.compile(
+    r"!Array\.isArray\(\s*(?P<variable>[A-Za-z_]\w*)\s*\).*?"
+    r"return\s*\[\s*\{\s*type\s*:\s*['\"](?P<port>[A-Za-z_]\w*)['\"]",
+    re.DOTALL,
+)
+_DYNAMIC_CONDITIONAL_PORTS = re.compile(
+    r"if\s*\(\s*(?P<left_variable>[A-Za-z_]\w*)\s*===\s*['\"](?P<left_value>[^'\"]+)['\"]\s*"
+    r"&&\s*(?P<right_variable>[A-Za-z_]\w*)\s*===\s*['\"](?P<right_value>[^'\"]+)['\"]\s*\)\s*"
+    r"\{\s*return\s*\[(?P<ports>.*?)\]\s*;\s*\}",
+    re.DOTALL,
+)
+_DYNAMIC_FALLBACK_PORTS = re.compile(r"return\s*\[(?P<ports>[^\]]+)\]\s*;", re.DOTALL)
+_PORT_TYPE_LITERAL = re.compile(r"(?:type\s*:\s*)?['\"](?P<port>[A-Za-z_]\w*)['\"]")
+
+
+def _port_types_from_return(raw_ports: str) -> Optional[List[str]]:
+    ports = _PORT_TYPE_LITERAL.findall(raw_ports)
+    return ports or None
+
+
+def _dynamic_array_ports(raw_ports: str, node: JSONDict) -> Optional[List[str]]:
+    """Read n8n's explicit single-or-array port pattern without evaluating JS."""
+    assignments = {
+        match.group("variable"): match.group(2) or match.group(3)
+        for match in _DYNAMIC_PARAMETER_ASSIGNMENT.finditer(raw_ports)
+    }
+    match = _DYNAMIC_ARRAY_PORT.search(raw_ports)
+    if not match or match.group("variable") not in assignments:
+        return None
+    parameter = assignments[match.group("variable")]
+    value = node.get("parameters", {}).get(parameter)
+    return [match.group("port")] * len(value) if isinstance(value, list) else [match.group("port")]
+
+
+def _dynamic_conditional_ports(raw_ports: str, node: JSONDict) -> Optional[List[str]]:
+    """Read an explicit two-parameter conditional port declaration safely."""
+    assignments = {
+        match.group("variable"): match.group(2) or match.group(3)
+        for match in _DYNAMIC_PARAMETER_ASSIGNMENT.finditer(raw_ports)
+    }
+    match = _DYNAMIC_CONDITIONAL_PORTS.search(raw_ports)
+    if not match:
+        return None
+    left = assignments.get(match.group("left_variable"))
+    right = assignments.get(match.group("right_variable"))
+    parameters = node.get("parameters", {})
+    if left and right and parameters.get(left) == match.group("left_value") and parameters.get(right) == match.group("right_value"):
+        return _port_types_from_return(match.group("ports"))
+    fallback_matches = list(_DYNAMIC_FALLBACK_PORTS.finditer(raw_ports))
+    if not fallback_matches:
+        return None
+    return _port_types_from_return(fallback_matches[-1].group("ports"))
 
 ALLOWED_NODE_FIELDS = {
     "id",
@@ -211,15 +266,15 @@ class RuntimeSchemaStore:
         if not isinstance(raw_inputs, str):
             return None
         match = _DYNAMIC_INPUT_COUNT.search(raw_inputs)
-        if not match:
-            return None
-        parameter_name = match.group(1) or match.group(2)
-        default_count = int(match.group(3))
-        raw_count = node.get("parameters", {}).get(parameter_name, default_count)
-        if isinstance(raw_count, bool) or not isinstance(raw_count, int) or raw_count < 0:
-            return None
-        # The recognized n8n pattern creates one main input object per item.
-        return ["main"] * raw_count
+        if match:
+            parameter_name = match.group(1) or match.group(2)
+            default_count = int(match.group(3))
+            raw_count = node.get("parameters", {}).get(parameter_name, default_count)
+            if isinstance(raw_count, bool) or not isinstance(raw_count, int) or raw_count < 0:
+                return None
+            # The recognized n8n pattern creates one main input object per item.
+            return ["main"] * raw_count
+        return _dynamic_conditional_ports(raw_inputs, node)
 
     def output_ports_for(self, node: JSONDict) -> Optional[List[str]]:
         """Return source output connection types for static runtime definitions."""
@@ -227,6 +282,8 @@ class RuntimeSchemaStore:
         if not description:
             return None
         raw_outputs = description.get("outputs")
+        if isinstance(raw_outputs, str):
+            return _dynamic_array_ports(raw_outputs, node)
         if not isinstance(raw_outputs, list):
             return None
         ports: List[str] = []
