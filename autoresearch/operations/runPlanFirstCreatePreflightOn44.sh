@@ -7,7 +7,7 @@ set -eu
 
 WORKTREE="${AUTORESEARCH_WORKTREE:-/home/daniel/n8n-worktrees/autoresearch-easy100}"
 INPUT="${EASY100_INPUT:-/home/daniel/autoresearch-data/easy100/testing_data_low_100.jsonl}"
-EXPECTED_REVISION="4ac8aed"
+REQUIRED_FEATURE_REVISION="4ac8aed"
 RESULTS="${AUTORESEARCH_RESULTS:-/home/daniel/autoresearch-data/easy100/plan-first-$(date -u +%Y%m%dT%H%M%SZ)}"
 ENVFILE="$(mktemp)"
 trap 'rm -f "$ENVFILE"' EXIT
@@ -18,8 +18,8 @@ chmod 600 "$ENVFILE"
 
 git -C "$WORKTREE" fetch origin codex/autoresearch-a2a
 git -C "$WORKTREE" checkout --detach FETCH_HEAD
-test "$(git -C "$WORKTREE" rev-parse --short HEAD)" = "$EXPECTED_REVISION" || {
-  echo "expected_revision_not_present" >&2
+git -C "$WORKTREE" merge-base --is-ancestor "$REQUIRED_FEATURE_REVISION" HEAD || {
+  echo "required_feature_revision_not_present" >&2
   exit 1
 }
 
