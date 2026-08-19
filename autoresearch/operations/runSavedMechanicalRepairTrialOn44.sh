@@ -8,6 +8,7 @@ WORKTREE="${AUTORESEARCH_WORKTREE:-/home/daniel/n8n-worktrees/autoresearch-easy1
 INPUT="${EASY100_INPUT:-/home/daniel/autoresearch-data/easy100/testing_data_low_100.jsonl}"
 PREDICTIONS="${EASY100_PREDICTIONS:-/home/daniel/autoresearch-data/easy100/batch-json-mode-off-20260818T083257Z/private/predictions.jsonl}"
 RESULTS="${AUTORESEARCH_RESULTS:-/home/daniel/autoresearch-data/easy100/saved-mechanical-repair-$(date -u +%Y%m%dT%H%M%SZ)}"
+RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS="${RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS:-8}"
 ENVFILE="$(mktemp)"
 trap 'rm -f "$ENVFILE"' EXIT
 
@@ -30,7 +31,7 @@ docker run --rm --network container:n8n-chatbot-1 --read-only \
   -e EASY100_PREDICTIONS_PATH=/data/predictions.jsonl \
   -e EASY100_REPAIR_OUTPUT_PATH=/results/saved-mechanical-repair-report.json \
   -e EASY100_REPAIR_CASE_ID=2 \
-  -e RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS=8 \
+  -e RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS="$RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS" \
   -e PYTHON_BIN=python3 \
   -e PYTHONDONTWRITEBYTECODE=1 \
   --tmpfs /tmp:rw,noexec,nosuid,size=256m \
