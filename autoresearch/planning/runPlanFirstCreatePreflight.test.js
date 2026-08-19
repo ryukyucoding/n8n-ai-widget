@@ -58,3 +58,16 @@ test('plan-first preflight does not call Create after planner rejection', async 
   assert.equal(report.outcome, 'planner_or_create_unavailable_or_rejected');
   assert.equal(calls, 1);
 });
+
+test('plan-first preflight classifies an incomplete planner envelope without calling Create', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-first-'));
+  const { inputPath, schemaPath } = writeFixture(root);
+  let calls = 0;
+  const report = await runPlanFirstCreatePreflight({ inputPath, outputPath: path.join(root, 'report.json'), schemaPath, env: { OLLAMA_BASE_URL: 'http://example.test' }, fetchImpl: async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ selected_nodes: [] }) } }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  } });
+  assert.equal(report.failureCategory, 'plan_contract_rejected');
+  assert.equal(report.safeFailureCategory, 'goal_missing');
+  assert.equal(calls, 1);
+});

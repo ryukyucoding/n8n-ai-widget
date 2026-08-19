@@ -88,6 +88,10 @@ function safePlanCompliance(workflow, plan) {
   };
 }
 
+function safePreflightFailureCategory(error) {
+  return error?.kind === 'plan_contract_rejected' ? 'plan_contract_rejected' : availabilityFailure(error);
+}
+
 async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 0, plannerModel = DEFAULT_PLANNER_MODEL, createModel = DEFAULT_CREATE_MODEL, plannerMaxTokens = DEFAULT_PLANNER_MAX_TOKENS, plannerReasoningEffort = 'none', plannerTimeoutMs = 60000, createTimeoutMs = 180000, schemaPath, fetchImpl, env, verify = verifyStatic } = {}) {
   if (!inputPath || !outputPath) throw new TypeError('inputPath and outputPath are required');
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
@@ -128,7 +132,7 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
   } catch (error) {
     report = {
       ...base, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
-      outcome: 'planner_or_create_unavailable_or_rejected', failureCategory: availabilityFailure(error),
+      outcome: 'planner_or_create_unavailable_or_rejected', failureCategory: safePreflightFailureCategory(error),
       safeFailureCategory: error?.safeFailureCategory || error?.telemetry?.safeFailureCategory || null,
       httpStatus: Number.isInteger(error?.telemetry?.httpStatus) ? error.telemetry.httpStatus : null,
     };
@@ -153,4 +157,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { DEFAULT_CREATE_MODEL, callCreateModel, planInstruction, runPlanFirstCreatePreflight, safePlanCompliance, safePlanSummary, selectedRuntimeCards };
+module.exports = { DEFAULT_CREATE_MODEL, callCreateModel, planInstruction, runPlanFirstCreatePreflight, safePlanCompliance, safePlanSummary, safePreflightFailureCategory, selectedRuntimeCards };

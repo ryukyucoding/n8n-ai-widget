@@ -33,6 +33,7 @@ test('rejects invented runtime nodes and keeps required user input explicit', ()
   const messages = buildRuntimeAwarePlannerMessages({ userRequest: 'Read an API', runtimeContext: context });
   assert.equal(messages.length, 3);
   assert.match(messages[0].content, /credential values/);
+  assert.match(messages[0].content, /Include every listed key/);
   assert.equal(parsePlanJson('Plan: {"goal":"x"}').goal, 'x');
 });
 

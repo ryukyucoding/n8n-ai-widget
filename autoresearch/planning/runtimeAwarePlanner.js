@@ -6,6 +6,7 @@ const PLANNER_SYSTEM_PROMPT = [
   'You are a runtime-aware n8n workflow planner.',
   'Turn the user request into a plan for the installed n8n runtime.',
   'Return one JSON object only with: goal, trigger, data_sources, selected_nodes, output_contract, data_flow_requirements, assumptions, required_user_inputs, required_configuration, generator_instruction.',
+  'Include every listed key, even when its value is an empty array or an empty object. Never omit goal or generator_instruction.',
   'selected_nodes must use only the supplied runtime candidate node types and exact typeVersion values.',
   'When explicitly named runtime nodes are required, selected_nodes must include them; when forbidden, selected_nodes must exclude them.',
   'Do not put credential values, API keys, URLs, or workflow JSON in the plan.',
@@ -14,6 +15,7 @@ const PLANNER_SYSTEM_PROMPT = [
 
 function contractError(safeFailureCategory, message) {
   const error = new Error(message);
+  error.kind = 'plan_contract_rejected';
   error.safeFailureCategory = safeFailureCategory;
   return error;
 }
