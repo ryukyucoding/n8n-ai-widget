@@ -48,19 +48,28 @@ def safe_benchmark_finding(
     repairable: bool = True,
     normalized: bool = False,
     blocking: Optional[bool] = None,
+    repair_context: Optional[JSONDict] = None,
 ) -> JSONDict:
     """Return the child protocol's fixed, de-identified finding shape."""
     if category not in SAFE_BENCHMARK_FINDING_CATEGORIES:
         raise ValueError("unsupported safe benchmark finding category")
     if severity not in {"warning", "repair", "fail"}:
         raise ValueError("unsupported safe benchmark finding severity")
-    return {
+    finding: JSONDict = {
         "category": category,
         "severity": severity,
         "repairable": bool(repairable),
         "normalized": bool(normalized),
         "blocking": bool(blocking) if blocking is not None else severity != "warning" and not normalized,
     }
+    if repair_context is not None:
+        allowed = {"nodeIndex", "nodeType", "parameterName"}
+        finding["repairContext"] = {
+            key: value
+            for key, value in repair_context.items()
+            if key in allowed and (isinstance(value, str) or isinstance(value, int))
+        }
+    return finding
 # n8n node descriptions can declare a variable number of inputs with a
 # declarative expression such as `Array.from({ length: parameters.numberInputs
 # || 2 }, ...)`. This recognizes that shared runtime-description pattern; it
@@ -271,7 +280,11 @@ def _validate_value(value: Any, definition: JSONDict, path: str) -> Optional[str
     return None
 
 
-def validate_node_parameters(workflow_dict: JSONDict, user_request: str = "") -> None:
+def validate_node_parameters(
+    workflow_dict: JSONDict,
+    user_request: str = "",
+    include_repair_context: bool = False,
+) -> None:
     """Validate every generated parameter against runtime-exported n8n descriptions."""
     store = RuntimeSchemaStore()
     if not store.schemas:
@@ -296,7 +309,7 @@ def validate_node_parameters(workflow_dict: JSONDict, user_request: str = "") ->
             "the workflow must not include that type"
         )
         safe_findings.append(safe_benchmark_finding("node_type", "repair", True, False, True))
-    for node in workflow_dict["nodes"]:
+    for node_index, node in enumerate(workflow_dict["nodes"]):
         description = store.description_for(node["type"], node["typeVersion"])
         if not description:
             versions = ", ".join(store.available_versions(node["type"])) or "none"
@@ -330,7 +343,16 @@ def validate_node_parameters(workflow_dict: JSONDict, user_request: str = "") ->
                     f"node {node['name']!r}: parameters.{name} is not valid for this node version; "
                     f"valid parameters: {valid_names}"
                 )
-                safe_findings.append(safe_benchmark_finding("parameter_schema", "repair", True, False, True))
+                repair_context = (
+                    {"nodeIndex": node_index, "nodeType": node["type"], "parameterName": name}
+                    if include_repair_context
+                    else None
+                )
+                safe_findings.append(
+                    safe_benchmark_finding(
+                        "parameter_schema", "repair", True, False, True, repair_context
+                    )
+                )
                 continue
             candidate_errors = [_validate_value(value, definition, f"parameters.{name}") for definition in candidates]
             if all(error is not None for error in candidate_errors):
