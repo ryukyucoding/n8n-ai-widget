@@ -30,6 +30,7 @@ docker run --rm --network container:n8n-chatbot-1 --read-only \
   -e EASY100_PREDICTIONS_PATH=/data/predictions.jsonl \
   -e EASY100_REPAIR_OUTPUT_PATH=/results/saved-mechanical-repair-report.json \
   -e EASY100_REPAIR_CASE_ID=2 \
+  -e RUNTIME_REPAIR_SKILL_MAX_TOOL_ROUNDS=8 \
   -e PYTHON_BIN=python3 \
   -e PYTHONDONTWRITEBYTECODE=1 \
   --tmpfs /tmp:rw,noexec,nosuid,size=256m \

@@ -166,6 +166,7 @@ async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 
   const startedMs = Date.now();
   const loadedWorkflow = workflow ? clone(workflow) : buildFixture();
   const skill = createSkill({ workflow: loadedWorkflow, userRequest, nodeTypes: nodeTypes || loadRuntimeNodeTypes(), verify });
+  const initialValidation = await staticValidation(loadedWorkflow, userRequest, verify);
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: 'Repair the loaded workflow fixture using the available tools.' }];
   let failure = null;
   try {
@@ -190,6 +191,7 @@ async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 
     toolCallCount: skill.toolCalls.length,
     toolCalls: skill.toolCalls,
     patchActions: skill.actionLog,
+    initialValidation,
     finalValidation,
     ...failure,
   };

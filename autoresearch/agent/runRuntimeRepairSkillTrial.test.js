@@ -37,6 +37,7 @@ test('uses only allowlisted repair tools and reaches static pass with a tool loo
     verify: async () => ({ status: ++verificationCount >= 2 ? 'pass' : 'repair', findings: [] }),
   });
   assert.equal(report.outcome, 'static_pass');
+  assert.equal(report.initialValidation.status, 'repair');
   assert.deepEqual(report.toolCalls, ['get_validation', 'get_runtime_card', 'apply_runtime_patch', 'get_validation']);
   assert.equal(report.patchActions[0].applied, 2);
   assert.equal(JSON.stringify(report).includes('__runtimeRepairProbe__'), false);
