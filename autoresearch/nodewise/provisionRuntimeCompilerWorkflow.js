@@ -41,8 +41,8 @@ async function createFailure(response) {
   return new Error(`workflow_create_failed_${response.status}:${category}`);
 }
 
-async function provision({ fetchImpl = globalThis.fetch, specification = smokeSpecification(), userRequest = 'Read public JSONPlaceholder post 1 and return id and title.', prefix = PREFIX } = {}) {
-  const workflow = compileStepSpecification({ specification });
+async function provision({ fetchImpl = globalThis.fetch, specification = smokeSpecification(), candidateWorkflow, userRequest = 'Read public JSONPlaceholder post 1 and return id and title.', prefix = PREFIX } = {}) {
+  const workflow = candidateWorkflow || compileStepSpecification({ specification });
   workflow.name = `${prefix}${Date.now()}`;
   const verification = await verifyCandidateWorkflow({ operation: 'create', userRequest, candidateWorkflow: workflow }, { n8nBaseUrl: baseUrl(), n8nApiKey: process.env.N8N_API_KEY });
   if (!['pass', 'warning'].includes(verification.status)) throw new Error('compiler_workflow_static_verification_failed');
