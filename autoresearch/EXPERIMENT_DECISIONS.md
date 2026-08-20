@@ -20,6 +20,15 @@ backlog: a direction is retained only when a controlled trial supports it.
   with exact installed cards (Manual Trigger v1, HTTP Request v4.4, Set v3.4)
   and the existing verifier returned `pass` with zero findings. This is static
   evidence only; it does not prove n8n execution or general workflow support.
+- The bounded compiler has now passed two controlled n8n executions:
+  1. public object selection, created at revision `68769ac` and manually
+     executed as workflow `p2wwyAyS0C1mIr8L`;
+  2. public Todo-array aggregation, created at revision `830a33f` and manually
+     executed as workflow `Vh9f60RfGCl9tgD4`, execution `558`.
+  The second run had one final item and exact assertions
+  `totalTodos=20` and `incompleteTodos=9` at verifier revision `2652686`.
+  This proves only the two named compiler subsets, not arbitrary Code or
+  arbitrary multi-service workflows.
 
 ## Retire
 
@@ -37,7 +46,8 @@ backlog: a direction is retained only when a controlled trial supports it.
 
 ## Next Gate
 
-With explicit approval, run one disposable, exact-ID controlled execution for
-the bounded compiler output, verify its declared output, then remove only that
-exact workflow. Do not generalize the result until that execution evidence
-exists. The next expansion should add only one capability at a time.
+Expand exactly one capability: preserve one named object from an earlier,
+guaranteed predecessor while an item-array is aggregated, then emit one joined
+output object. The controlled test must again create a disposable inactive
+workflow, use a human UI execution, assert its exact output, and avoid any
+credentialed or external-write node.
