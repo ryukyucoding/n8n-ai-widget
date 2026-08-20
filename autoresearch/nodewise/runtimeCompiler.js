@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const { loadRuntimeNodeTypes, latestVersion } = require('../planning/runtimeSchemaCatalog');
 const { validateStepSpecification } = require('./stepSpecification');
 
@@ -23,6 +24,11 @@ function nodeCard(nodeTypes, type) {
 
 function expression(path) {
   return `={{ $json.${path} }}`;
+}
+
+function stableNodeId(stepId) {
+  const hex = crypto.createHash('sha256').update(`nodewise-runtime-compiler:${stepId}`).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 function setParameters(mappings) {
@@ -62,7 +68,7 @@ function compileStepSpecification({ specification, nodeTypes = loadRuntimeNodeTy
     let parameters = {};
     if (step.capability === 'http_request') parameters = { method: 'GET', url: step.configuration.url.reference, options: {} };
     if (step.capability === 'data_transform' || step.capability === 'set_output') parameters = setParameters(step.configuration.mappings);
-    return { id: step.id, name: `Step ${index + 1}: ${step.id}`, ...card, parameters, position: [240 + index * 260, 300] };
+    return { id: stableNodeId(step.id), name: `Step ${index + 1}: ${step.id}`, ...card, parameters, position: [240 + index * 260, 300] };
   });
   const connections = {};
   for (let index = 0; index < nodes.length - 1; index += 1) {
@@ -71,4 +77,4 @@ function compileStepSpecification({ specification, nodeTypes = loadRuntimeNodeTy
   return { name: 'Nodewise compiled workflow', active: false, settings: { executionOrder: 'v1' }, nodes, connections };
 }
 
-module.exports = { compileStepSpecification, expression, setParameters, validateCompilable };
+module.exports = { compileStepSpecification, expression, setParameters, stableNodeId, validateCompilable };
