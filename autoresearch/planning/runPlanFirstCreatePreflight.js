@@ -82,9 +82,11 @@ function safePlanSummary(plan, acceptanceContract, runtimeContext) {
 function safePlanCompliance(workflow, plan) {
   const allowed = new Set(plan.selected_nodes.map((node) => `${node.type}@${node.typeVersion}`));
   const nodes = Array.isArray(workflow?.nodes) ? workflow.nodes : [];
+  const generated = new Set(nodes.map((node) => `${node?.type}@${node?.typeVersion}`));
   return {
     generatedNodeCount: nodes.length,
     nodesOutsideSelectedPlanCount: nodes.filter((node) => !allowed.has(`${node?.type}@${node?.typeVersion}`)).length,
+    missingSelectedNodeTypeCount: [...allowed].filter((key) => !generated.has(key)).length,
   };
 }
 
@@ -114,6 +116,7 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
     const parsed = parseJsonCandidate(created.rawOutput);
     let verification = null;
     let capability = { usesCredentials: false, writesExternally: false, hasCode: false };
+    const planCompliance = parsed.ok ? safePlanCompliance(parsed.value, plan) : null;
     if (parsed.ok) {
       verification = await verify(parsed.value, testCase.description);
       capability = safeCapabilitySummary(parsed.value);
@@ -123,9 +126,10 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
       planner: safePlanSummary(plan, acceptanceContract, runtimeContext),
       create: {
         httpStatus: created.telemetry.httpStatus, strictJsonStatus: parsed.strictJsonStatus,
-        repairedJsonStatus: parsed.repairedJsonStatus, staticStatus: verification?.status || 'not_run',
+        repairedJsonStatus: parsed.repairedJsonStatus,
+        staticStatus: planCompliance?.missingSelectedNodeTypeCount ? 'plan_incomplete' : (verification?.status || 'not_run'),
         findingCategories: findingCategoryCounts(verification),
-        planCompliance: parsed.ok ? safePlanCompliance(parsed.value, plan) : null,
+        planCompliance,
         executionReadiness: readinessFrom({ parsed, verification, capability }).category,
       },
     };

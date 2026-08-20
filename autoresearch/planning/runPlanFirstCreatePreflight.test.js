@@ -37,8 +37,9 @@ test('plan-first preflight reports only safe completion metrics', async () => {
   const report = await runPlanFirstCreatePreflight({ inputPath, outputPath: path.join(root, 'report.json'), schemaPath, env: { OLLAMA_BASE_URL: 'http://example.test' }, fetchImpl: async () => responses.shift(), verify: async () => ({ status: 'pass', findings: [] }) });
   assert.equal(report.outcome, 'completed');
   assert.equal(report.planner.allSelectedNodesInRuntimeCatalog, true);
-  assert.equal(report.create.staticStatus, 'pass');
-  assert.deepEqual(report.create.planCompliance, { generatedNodeCount: 0, nodesOutsideSelectedPlanCount: 0 });
+  assert.equal(report.create.staticStatus, 'plan_incomplete');
+  assert.deepEqual(report.create.planCompliance, { generatedNodeCount: 0, nodesOutsideSelectedPlanCount: 0, missingSelectedNodeTypeCount: 1 });
+  assert.equal(report.create.staticStatus, 'plan_incomplete');
   assert.equal(JSON.stringify(report).includes('Read one URL'), false);
 });
 
@@ -47,7 +48,7 @@ test('generator instruction carries only selected runtime cards and compliance i
   const instruction = planInstruction(selectedPlan, { candidateNodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, parameters: [] }, { type: 'n8n-nodes-base.set', typeVersion: 3.4, parameters: [] }] });
   assert.equal(instruction.includes('n8n-nodes-base.httpRequest'), true);
   assert.equal(instruction.includes('n8n-nodes-base.set'), false);
-  assert.deepEqual(safePlanCompliance({ nodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2 }, { type: 'invented', typeVersion: 1 }] }, selectedPlan), { generatedNodeCount: 2, nodesOutsideSelectedPlanCount: 1 });
+  assert.deepEqual(safePlanCompliance({ nodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2 }, { type: 'invented', typeVersion: 1 }] }, selectedPlan), { generatedNodeCount: 2, nodesOutsideSelectedPlanCount: 1, missingSelectedNodeTypeCount: 0 });
 });
 
 test('plan-first preflight does not call Create after planner rejection', async () => {
