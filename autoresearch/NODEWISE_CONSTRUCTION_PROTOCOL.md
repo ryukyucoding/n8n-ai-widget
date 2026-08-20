@@ -55,6 +55,10 @@ bounded tasks. `autoresearch/nodewise/collectIntentTrial.js` later reads the
 broker state and emits only this safe aggregate; it does not retain requests or
 agent plan contents in its report.
 
+On `.44`, use `debuggerInboxOn44.sh` and `replyDebuggerTaskOn44.sh` rather
+than calling Node directly. The wrappers resolve the local Node runtime and
+source the owner-only broker environment without printing its token.
+
 ## Model Setting
 
 Use `gpt-5.6-sol` with **High** reasoning for this initial five-case planning
