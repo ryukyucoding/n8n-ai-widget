@@ -29,6 +29,12 @@ backlog: a direction is retained only when a controlled trial supports it.
   `totalTodos=20` and `incompleteTodos=9` at verifier revision `2652686`.
   This proves only the two named compiler subsets, not arbitrary Code or
   arbitrary multi-service workflows.
+- The next bounded composition has also passed: user-object retrieval,
+  Todo-array retrieval, guaranteed-predecessor reference, wrapper-aware Code
+  aggregation, and joined one-item output. At revision `16da366`, workflow
+  `HXk8CwMj9dqnEC3J` was created and read back; human execution `559` passed
+  exact-ID verification with one final item containing non-empty `name` and
+  `email`, plus `totalTodos=20` and `incompleteTodos=9`.
 
 ## Retire
 
@@ -46,8 +52,8 @@ backlog: a direction is retained only when a controlled trial supports it.
 
 ## Next Gate
 
-Expand exactly one capability: preserve one named object from an earlier,
-guaranteed predecessor while an item-array is aggregated, then emit one joined
-output object. The controlled test must again create a disposable inactive
-workflow, use a human UI execution, assert its exact output, and avoid any
-credentialed or external-write node.
+The public-data C07 composition is now verified. Before adding another
+capability, consolidate the evidence into the report and define a new safety
+boundary for credentials or external writes. Do not treat the public-data
+success as evidence for credentialed services, arbitrary JavaScript, branches,
+or arbitrary natural-language requests.
