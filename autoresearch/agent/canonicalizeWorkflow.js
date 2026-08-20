@@ -10,9 +10,13 @@ const { spawnSync } = require('node:child_process');
 const PYTHON_SOURCE = [
   'import json, sys',
   'sys.path.insert(0, sys.argv[1])',
-  'from workflow_repair import canonicalize_workflow',
+  'from workflow_repair import canonicalize_workflow, validate_connection_ports, StructuredValidationError',
   'envelope = json.loads(sys.stdin.read())',
   'workflow = canonicalize_workflow(json.dumps(envelope["workflow"]), user_request=envelope.get("userRequest", ""))',
+  // Normalize only ports for which the installed runtime proves one compatible
+  // index. Ambiguous ports remain findings for the later authoritative check.
+  'try: validate_connection_ports(workflow)',
+  'except StructuredValidationError: pass',
   'print(json.dumps(workflow, ensure_ascii=False))',
 ].join('; ');
 

@@ -2,7 +2,12 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { canonicalizeWorkflow } = require('./canonicalizeWorkflow');
+const { canonicalizeWorkflow, PYTHON_SOURCE } = require('./canonicalizeWorkflow');
+
+test('includes only runtime-proven connection-port normalization in the canonical path', () => {
+  assert.match(PYTHON_SOURCE, /validate_connection_ports/);
+  assert.match(PYTHON_SOURCE, /except StructuredValidationError: pass/);
+});
 
 test('keeps canonical workflow data in memory after the Python boundary succeeds', () => {
   let input;
