@@ -125,7 +125,7 @@ function parseArguments(call) {
   try { return JSON.parse(call?.function?.arguments || '{}'); } catch { return null; }
 }
 
-function createSkill({ workflow, userRequest, nodeTypes, verify }) {
+function createSkill({ workflow, userRequest, nodeTypes, verify, issueProvider = (currentWorkflow) => repairIssues(currentWorkflow, nodeTypes) }) {
   const inspected = new Set();
   const toolCalls = [];
   const actionLog = [];
@@ -136,7 +136,7 @@ function createSkill({ workflow, userRequest, nodeTypes, verify }) {
     if (!args || !TOOL_DEFINITIONS.some((tool) => tool.function.name === name)) return { ok: false, error: 'invalid_tool_call' };
     if (name === 'get_validation') {
       const validation = await staticValidation(workflow, userRequest, verify);
-      return { ok: true, validation, issues: repairIssues(workflow, nodeTypes) };
+      return { ok: true, validation, issues: issueProvider(workflow) };
     }
     if (name === 'get_runtime_card') {
       const nodeIndex = args.nodeIndex;
@@ -146,7 +146,7 @@ function createSkill({ workflow, userRequest, nodeTypes, verify }) {
     }
     const operations = Array.isArray(args.operations) ? args.operations : [];
     if (!operations.length || operations.length > 8) return { ok: false, error: 'invalid_patch_operations' };
-    const issues = repairIssues(workflow, nodeTypes);
+    const issues = issueProvider(workflow);
     let applied = 0;
     for (const operation of operations) {
       const node = workflow.nodes[operation?.nodeIndex];
@@ -196,15 +196,16 @@ async function callModel({ messages, model, reasoningEffort, timeoutMs, fetchImp
   } finally { clearTimeout(timer); }
 }
 
-async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 'Controlled runtime repair fixture.', model = DEFAULT_MODEL, reasoningEffort = 'none', timeoutMs = DEFAULT_TIMEOUT_MS, maxToolRounds = MAX_TOOL_ROUNDS, fetchImpl = globalThis.fetch, env = process.env, verify = verifyStatic, nodeTypes } = {}) {
+async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 'Controlled runtime repair fixture.', model = DEFAULT_MODEL, reasoningEffort = 'none', timeoutMs = DEFAULT_TIMEOUT_MS, maxToolRounds = MAX_TOOL_ROUNDS, fetchImpl = globalThis.fetch, env = process.env, verify = verifyStatic, nodeTypes, issueProvider } = {}) {
   if (!outputPath) throw new TypeError('outputPath is required');
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
   const loadedWorkflow = workflow ? clone(workflow) : buildFixture();
   const runtimeNodeTypes = nodeTypes || loadRuntimeNodeTypes();
-  const skill = createSkill({ workflow: loadedWorkflow, userRequest, nodeTypes: runtimeNodeTypes, verify });
+  const resolveIssues = issueProvider || ((currentWorkflow) => repairIssues(currentWorkflow, runtimeNodeTypes));
+  const skill = createSkill({ workflow: loadedWorkflow, userRequest, nodeTypes: runtimeNodeTypes, verify, issueProvider: resolveIssues });
   const initialValidation = await staticValidation(loadedWorkflow, userRequest, verify);
-  const initialRepairIssues = safeIssueSummary(loadedWorkflow, runtimeNodeTypes);
+  const initialRepairIssues = resolveIssues(loadedWorkflow);
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: 'Repair the loaded workflow fixture using the available tools.' }];
   let failure = null;
   try {
@@ -222,7 +223,7 @@ async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 
     failure = { failureCategory: availabilityFailure(error), safeFailureCategory: error?.telemetry?.safeFailureCategory || null, httpStatus: error?.telemetry?.httpStatus || null };
   }
   const finalValidation = await staticValidation(loadedWorkflow, userRequest, verify);
-  const finalRepairIssues = safeIssueSummary(loadedWorkflow, runtimeNodeTypes);
+  const finalRepairIssues = resolveIssues(loadedWorkflow);
   const report = {
     schemaVersion: '1.0', kind: 'runtime_repair_skill_trial', executionPolicy: 'no_n8n_create_or_execution',
     model, reasoningEffort, startedAt, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs,
