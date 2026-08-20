@@ -25,9 +25,16 @@ test('keeps candidate data out of the public trial report', async () => {
   const findings = [{ category: 'parameter_schema', repairContext: { nodeIndex: 0, nodeType: 'test.node', parameterName: 'legacy' } }];
   const report = await runSavedAuthoritativeSchemaRepairTrial({
     inputPath, predictionsPath, outputPath, caseId: '0', canonicalize: ({ workflow }) => workflow,
-    inspect: () => findings,
-    runTrial: async ({ issueProvider }) => ({ outcome: 'static_blocked', initialRepairIssues: issueProvider({}), finalRepairIssues: issueProvider({}) }),
+    inspect: ({ workflow }) => workflow.repaired ? [] : findings,
+    runTrial: async ({ issueProvider }) => {
+      issueProvider({});
+      const trial = { outcome: 'static_blocked', initialRepairIssues: issueProvider({}), finalRepairIssues: [] };
+      Object.defineProperty(trial, 'finalWorkflow', { value: { repaired: true }, enumerable: false });
+      return trial;
+    },
   });
   assert.equal(report.authoritativeInitialFindingCategories.parameter_schema, 1);
+  assert.deepEqual(report.authoritativeFinalFindingCategories, {});
+  assert.equal(report.outcome, 'static_pass');
   assert.equal(JSON.stringify(report).includes('Private'), false);
 });

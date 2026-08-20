@@ -238,6 +238,10 @@ async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 
     ...failure,
   };
   atomicWrite(outputPath, report);
+  // Callers that perform an immediate in-process postcheck must inspect the
+  // exact repaired object. Keep it non-enumerable so no workflow data can
+  // enter the JSON report written to disk.
+  Object.defineProperty(report, 'finalWorkflow', { value: loadedWorkflow, enumerable: false });
   return report;
 }
 

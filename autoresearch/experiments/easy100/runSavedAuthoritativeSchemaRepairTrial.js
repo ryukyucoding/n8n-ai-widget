@@ -35,9 +35,17 @@ async function runSavedAuthoritativeSchemaRepairTrial({ inputPath, predictionsPa
   const initialFindings = inspect({ workflow, userRequest: candidate.description });
   const issueProvider = (currentWorkflow) => authoritativeSchemaIssues({ workflow: currentWorkflow, userRequest: candidate.description, inspect });
   const trial = await runTrial({ ...options, outputPath, workflow, userRequest: candidate.description, issueProvider });
-  const finalFindings = inspect({ workflow, userRequest: candidate.description });
+  // The skill repairs an in-memory working copy. Inspect that same object,
+  // rather than the original saved candidate, before declaring an outcome.
+  const repairedWorkflow = trial.finalWorkflow || workflow;
+  const finalFindings = inspect({ workflow: repairedWorkflow, userRequest: candidate.description });
+  const authoritativePass = finalFindings.length === 0;
+  const outcome = trial.outcome === 'agent_unavailable'
+    ? 'agent_unavailable'
+    : (authoritativePass ? 'static_pass' : 'static_blocked');
   const report = {
     ...trial,
+    outcome,
     kind: 'easy100_saved_authoritative_schema_repair_trial',
     caseId: String(caseId),
     authoritativeInitialFindingCategories: countCategories(initialFindings),
