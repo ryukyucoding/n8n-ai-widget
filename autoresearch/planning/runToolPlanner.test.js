@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { callToolPlanner, planFromArguments } = require('./runToolPlanner');
+const { callToolPlanner, planFromArguments, requiredToolChoice } = require('./runToolPlanner');
 function response(message) { return new Response(JSON.stringify({ choices: [{ message }] }), { status: 200, headers: { 'content-type': 'application/json' } }); }
 const runtimeContext = { candidateNodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4 }], explicitlyNamedNodeRequirements: { required: [], forbidden: [] } };
 
@@ -11,9 +11,11 @@ test('builds an accepted plan through catalog then constrained submission', asyn
     { role: 'assistant', tool_calls: [{ id: 'catalog', function: { name: 'get_runtime_catalog', arguments: '{}' } }] },
     { role: 'assistant', tool_calls: [{ id: 'plan', function: { name: 'submit_plan', arguments: JSON.stringify({ goal: 'Read API', selected_nodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4 }], generator_instruction: 'Read it.', required_user_inputs: [], required_configuration: [] }) } }] },
   ];
-  const result = await callToolPlanner({ userRequest: 'Read API', runtimeContext, model: 'test', env: { OLLAMA_BASE_URL: 'http://example.test' }, fetchImpl: async () => response(calls.shift()) });
+  const requestBodies = [];
+  const result = await callToolPlanner({ userRequest: 'Read API', runtimeContext, model: 'test', env: { OLLAMA_BASE_URL: 'http://example.test' }, fetchImpl: async (_url, request) => { requestBodies.push(JSON.parse(request.body)); return response(calls.shift()); } });
   assert.equal(result.plan.goal, 'Read API');
   assert.deepEqual(result.toolCalls, ['get_runtime_catalog', 'submit_plan']);
+  assert.deepEqual(requestBodies.map((body) => body.tool_choice), [requiredToolChoice('get_runtime_catalog'), requiredToolChoice('submit_plan')]);
 });
 
 test('converts fixed tool fields into a full planner envelope', () => {

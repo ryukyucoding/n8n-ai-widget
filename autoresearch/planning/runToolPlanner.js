@@ -18,7 +18,11 @@ function planFromArguments(args) {
     trigger: '', data_sources: [], data_flow_requirements: [], assumptions: [], output_contract: { required: false } };
 }
 
-async function callModel({ messages, model, maxTokens, reasoningEffort, timeoutMs, fetchImpl, env }) {
+function requiredToolChoice(name) {
+  return { type: 'function', function: { name } };
+}
+
+async function callModel({ messages, model, maxTokens, reasoningEffort, timeoutMs, fetchImpl, env, toolChoice = 'auto' }) {
   const baseUrl = String(env?.OLLAMA_BASE_URL || '').trim();
   if (!baseUrl) throw { kind: 'route_unconfigured' };
   const controller = new AbortController();
@@ -26,7 +30,7 @@ async function callModel({ messages, model, maxTokens, reasoningEffort, timeoutM
   try {
     const headers = { 'content-type': 'application/json' };
     if (env.OLLAMA_BASIC_AUTH) headers.authorization = env.OLLAMA_BASIC_AUTH;
-    const body = { model, temperature: 0, max_tokens: maxTokens, messages, tools: PLANNER_TOOLS, tool_choice: 'auto' };
+    const body = { model, temperature: 0, max_tokens: maxTokens, messages, tools: PLANNER_TOOLS, tool_choice: toolChoice };
     if (typeof reasoningEffort === 'string' && reasoningEffort.trim()) body.reasoning_effort = reasoningEffort.trim();
     const response = await fetchImpl(new URL('chat/completions', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`), { method: 'POST', headers, signal: controller.signal, body: JSON.stringify(body) });
     const telemetry = { httpStatus: Number.isInteger(response?.status) ? response.status : null, contentType: safeContentType(response?.headers?.get?.('content-type')) };
@@ -44,7 +48,10 @@ async function callToolPlanner({ userRequest, runtimeContext, model, maxTokens =
   const toolCalls = [];
   const toolResults = [];
   for (let round = 0; round < MAX_TOOL_ROUNDS && !accepted; round += 1) {
-    const generated = await callModel({ messages, model, maxTokens, reasoningEffort, timeoutMs, fetchImpl, env });
+    const generated = await callModel({
+      messages, model, maxTokens, reasoningEffort, timeoutMs, fetchImpl, env,
+      toolChoice: requiredToolChoice(catalogRead ? 'submit_plan' : 'get_runtime_catalog'),
+    });
     telemetry = generated.telemetry;
     const calls = Array.isArray(generated.message?.tool_calls) ? generated.message.tool_calls : [];
     if (!calls.length) break;
@@ -76,4 +83,4 @@ async function callToolPlanner({ userRequest, runtimeContext, model, maxTokens =
   return { ...accepted, telemetry, toolCalls, toolResults };
 }
 
-module.exports = { MAX_TOOL_ROUNDS, PLANNER_TOOLS, SYSTEM_PROMPT, callToolPlanner, planFromArguments };
+module.exports = { MAX_TOOL_ROUNDS, PLANNER_TOOLS, SYSTEM_PROMPT, callToolPlanner, planFromArguments, requiredToolChoice };
