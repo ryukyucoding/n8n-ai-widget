@@ -46,7 +46,7 @@ async function runPlanFirstCreateSmoke({ inputPath, outputDir, caseIndices = [0,
   }
   const report = {
     schemaVersion: '1.0', kind: 'plan_first_create_smoke', executionPolicy: 'no_n8n_create_or_execution',
-    model: { planner: options.plannerModel || 'qwen3.8:27b', create: options.createModel || 'qwen2.5-coder-32b-ft-original:latest' },
+    model: { planner: options.plannerModel || 'qwen3.8:27b', plannerMode: options.plannerMode || 'json', create: options.createModel || 'qwen2.5-coder-32b-ft-original:latest' },
     records,
     aggregate: { attemptedCases: records.length, outcomes, staticStatuses, findingCategories: findings, builderOmittedPlannedNodeCases: records.filter((record) => (record.missingSelectedNodeTypeCount || 0) > 0).length },
   };
@@ -61,7 +61,7 @@ if (require.main === module) {
       outputDir: process.env.PLAN_FIRST_OUTPUT_DIR,
       caseIndices: parseIndices(process.env.PLAN_FIRST_CASE_INDICES),
       options: {
-        plannerModel: process.env.PLAN_FIRST_PLANNER_MODEL || 'qwen3.8:27b', createModel: process.env.PLAN_FIRST_CREATE_MODEL || 'qwen2.5-coder-32b-ft-original:latest',
+        plannerModel: process.env.PLAN_FIRST_PLANNER_MODEL || 'qwen3.8:27b', plannerMode: process.env.PLAN_FIRST_PLANNER_MODE || 'json', createModel: process.env.PLAN_FIRST_CREATE_MODEL || 'qwen2.5-coder-32b-ft-original:latest',
         plannerMaxTokens: Number.parseInt(process.env.PLAN_FIRST_PLANNER_MAX_TOKENS || '700', 10), plannerReasoningEffort: process.env.PLAN_FIRST_PLANNER_REASONING_EFFORT || 'none',
         plannerTimeoutMs: Number.parseInt(process.env.PLAN_FIRST_PLANNER_TIMEOUT_MS || '60000', 10), createTimeoutMs: Number.parseInt(process.env.PLAN_FIRST_CREATE_TIMEOUT_MS || '180000', 10),
       },

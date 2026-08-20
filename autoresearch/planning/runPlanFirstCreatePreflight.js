@@ -14,6 +14,7 @@ const {
 const { buildRuntimePlanningContext, planningContextStats } = require('./runtimeSchemaCatalog');
 const { buildPlanFirstContract, buildRuntimeAwarePlannerMessages } = require('./runtimeAwarePlanner');
 const { callPlanner, DEFAULT_PLANNER_MAX_TOKENS, DEFAULT_PLANNER_MODEL } = require('./runPlannerPreflight');
+const { callToolPlanner } = require('./runToolPlanner');
 
 const DEFAULT_CREATE_MODEL = 'qwen2.5-coder-32b-ft-original:latest';
 
@@ -94,7 +95,7 @@ function safePreflightFailureCategory(error) {
   return error?.kind === 'plan_contract_rejected' ? 'plan_contract_rejected' : availabilityFailure(error);
 }
 
-async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 0, plannerModel = DEFAULT_PLANNER_MODEL, createModel = DEFAULT_CREATE_MODEL, plannerMaxTokens = DEFAULT_PLANNER_MAX_TOKENS, plannerReasoningEffort = 'none', plannerTimeoutMs = 60000, createTimeoutMs = 180000, schemaPath, fetchImpl, env, verify = verifyStatic } = {}) {
+async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 0, plannerModel = DEFAULT_PLANNER_MODEL, plannerMode = 'json', createModel = DEFAULT_CREATE_MODEL, plannerMaxTokens = DEFAULT_PLANNER_MAX_TOKENS, plannerReasoningEffort = 'none', plannerTimeoutMs = 60000, createTimeoutMs = 180000, schemaPath, fetchImpl, env, verify = verifyStatic } = {}) {
   if (!inputPath || !outputPath) throw new TypeError('inputPath and outputPath are required');
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
   if (!testCase) throw new Error('requested preflight case is unavailable');
@@ -103,15 +104,20 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
   const startedMs = Date.now();
   const base = {
     schemaVersion: '1.0', kind: 'plan_first_create_preflight', executionPolicy: 'no_n8n_create_or_execution',
-    caseId: testCase.caseId, plannerModel, createModel, startedAt, runtimeContextStats: planningContextStats(runtimeContext),
+    caseId: testCase.caseId, plannerModel, plannerMode, createModel, startedAt, runtimeContextStats: planningContextStats(runtimeContext),
   };
   let report;
   try {
-    const plannerResponse = await callPlanner({
-      messages: buildRuntimeAwarePlannerMessages({ userRequest: testCase.description, runtimeContext }),
-      model: plannerModel, maxTokens: plannerMaxTokens, reasoningEffort: plannerReasoningEffort, fetchImpl, env, timeoutMs: plannerTimeoutMs,
-    });
-    const { plan, acceptanceContract } = buildPlanFirstContract({ userRequest: testCase.description, rawPlan: plannerResponse.rawPlan, runtimeContext });
+    const useToolPlanner = plannerMode === 'tool';
+    const plannerResponse = useToolPlanner
+      ? await callToolPlanner({ userRequest: testCase.description, runtimeContext, model: plannerModel, maxTokens: plannerMaxTokens, reasoningEffort: plannerReasoningEffort, fetchImpl, env, timeoutMs: plannerTimeoutMs })
+      : await callPlanner({
+        messages: buildRuntimeAwarePlannerMessages({ userRequest: testCase.description, runtimeContext }),
+        model: plannerModel, maxTokens: plannerMaxTokens, reasoningEffort: plannerReasoningEffort, fetchImpl, env, timeoutMs: plannerTimeoutMs,
+      });
+    const { plan, acceptanceContract } = useToolPlanner
+      ? plannerResponse
+      : buildPlanFirstContract({ userRequest: testCase.description, rawPlan: plannerResponse.rawPlan, runtimeContext });
     const created = await callCreateModel({ fetchImpl, env, model: createModel, description: testCase.description, systemPrompt: testCase.systemPrompt, plan, runtimeContext, timeoutMs: createTimeoutMs });
     const parsed = parseJsonCandidate(created.rawOutput);
     let verification = null;
@@ -123,7 +129,11 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
     }
     report = {
       ...base, completedAt: new Date().toISOString(), latencyMs: Date.now() - startedMs, outcome: 'completed',
-      planner: safePlanSummary(plan, acceptanceContract, runtimeContext),
+      planner: {
+        ...safePlanSummary(plan, acceptanceContract, runtimeContext),
+        mode: plannerMode,
+        toolCallCount: Array.isArray(plannerResponse.toolCalls) ? plannerResponse.toolCalls.length : 0,
+      },
       create: {
         httpStatus: created.telemetry.httpStatus, strictJsonStatus: parsed.strictJsonStatus,
         repairedJsonStatus: parsed.repairedJsonStatus,
@@ -150,6 +160,7 @@ function main() {
     inputPath: process.env.PLAN_FIRST_INPUT_PATH, outputPath: process.env.PLAN_FIRST_OUTPUT_PATH,
     caseIndex: Number.parseInt(process.env.PLAN_FIRST_CASE_INDEX || '0', 10) || 0,
     plannerModel: process.env.PLAN_FIRST_PLANNER_MODEL || DEFAULT_PLANNER_MODEL,
+    plannerMode: process.env.PLAN_FIRST_PLANNER_MODE || 'json',
     createModel: process.env.PLAN_FIRST_CREATE_MODEL || DEFAULT_CREATE_MODEL,
     plannerMaxTokens: Number.parseInt(process.env.PLAN_FIRST_PLANNER_MAX_TOKENS || String(DEFAULT_PLANNER_MAX_TOKENS), 10),
     plannerReasoningEffort: process.env.PLAN_FIRST_PLANNER_REASONING_EFFORT || 'none',

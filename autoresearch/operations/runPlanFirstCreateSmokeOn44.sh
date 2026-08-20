@@ -25,6 +25,7 @@ docker run --rm --network container:n8n-chatbot-1 --read-only \
   -e PLAN_FIRST_OUTPUT_DIR=/results \
   -e PLAN_FIRST_CASE_INDICES="${PLAN_FIRST_CASE_INDICES:-0,1,2}" \
   -e PLAN_FIRST_PLANNER_MODEL=qwen3.8:27b \
+  -e PLAN_FIRST_PLANNER_MODE=tool \
   -e PLAN_FIRST_PLANNER_REASONING_EFFORT=none \
   -e PLAN_FIRST_PLANNER_TIMEOUT_MS=60000 \
   -e PLAN_FIRST_CREATE_MODEL=qwen2.5-coder-32b-ft-original:latest \
