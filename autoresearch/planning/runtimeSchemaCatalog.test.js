@@ -14,6 +14,9 @@ const nodeTypes = {
   'n8n-nodes-base.slack': {
     versions: { '2': { displayName: 'Slack', description: 'Send a Slack message', properties: [{ name: 'channel', type: 'string' }], inputs: ['main'], outputs: ['main'] } },
   },
+  'n8n-nodes-base.n8n': {
+    versions: { '1': { displayName: 'n8n', description: 'Manage this n8n instance', properties: [], inputs: ['main'], outputs: ['main'] } },
+  },
 };
 
 test('retrieves current node versions using request terms without exposing property values', () => {
@@ -32,6 +35,13 @@ test('extracts explicit required and forbidden node requirements from the same r
   const requirements = explicitlyNamedRuntimeRequirements({ userRequest: 'Use HTTP Request, but do not use Slack.', nodeTypes });
   assert.deepEqual(requirements.required, [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4 }]);
   assert.deepEqual(requirements.forbidden, [{ type: 'n8n-nodes-base.slack', typeVersion: 2 }]);
+});
+
+test('does not treat the platform name as an internal n8n node requirement or retrieval token', () => {
+  const requirements = explicitlyNamedRuntimeRequirements({ userRequest: 'Create an n8n workflow with HTTP Request.', nodeTypes });
+  assert.deepEqual(requirements.required, [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4 }]);
+  const nodes = retrieveRuntimeNodes({ userRequest: 'Create an n8n workflow with HTTP Request.', nodeTypes, limit: 5 });
+  assert.equal(nodes.some((node) => node.type === 'n8n-nodes-base.n8n'), false);
 });
 
 test('retains explicitly required node cards even when ranking is tightly bounded', () => {

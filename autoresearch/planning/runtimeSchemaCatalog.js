@@ -8,7 +8,7 @@ const path = require('node:path');
 
 const DEFAULT_SCHEMA_PATH = path.join(__dirname, '..', '..', 'chatbot', 'schemas', 'runtime_node_schemas.json');
 const TOKEN_PATTERN = /[a-z0-9]{2,}/gi;
-const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'from', 'into', 'that', 'this', 'then', 'using', 'user', 'data', 'workflow', 'create', 'make', 'get']);
+const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'from', 'into', 'that', 'this', 'then', 'using', 'user', 'data', 'workflow', 'create', 'make', 'get', 'n8n']);
 
 function tokens(value) {
   return [...new Set((String(value || '').toLowerCase().match(TOKEN_PATTERN) || []).filter((token) => !STOP_WORDS.has(token)))];
@@ -59,6 +59,9 @@ function explicitlyNamedRuntimeRequirements({ userRequest, nodeTypes }) {
   const required = [];
   const forbidden = [];
   for (const node of catalogFromSchemas(nodeTypes)) {
+    // A platform name in a request (for example, "create an n8n workflow")
+    // is not an instruction to use an internal node with the same name.
+    if (!tokens(node.displayName).length) continue;
     const pattern = new RegExp(`(?<![A-Za-z0-9])${node.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`, 'i');
     const matching = clauses.filter((clause) => pattern.test(clause));
     if (matching.some((clause) => negative.test(clause))) forbidden.push({ type: node.type, typeVersion: node.typeVersion });

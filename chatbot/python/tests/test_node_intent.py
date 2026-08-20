@@ -19,6 +19,7 @@ def schema_store() -> RuntimeSchemaStore:
         "n8n-nodes-base.code": {"versions": {"1": {"displayName": "Code"}}},
         "n8n-nodes-base.webhook": {"versions": {"1": {"displayName": "Webhook"}}},
         "n8n-nodes-base.scheduleTrigger": {"versions": {"1": {"displayName": "Schedule"}}},
+        "n8n-nodes-base.n8n": {"versions": {"1": {"displayName": "n8n"}}},
     }
     return store
 
@@ -78,6 +79,13 @@ class NodeIntentClassificationTests(unittest.TestCase):
             forbidden_error.exception.safe_findings,
             [{"category": "node_type", "severity": "repair", "repairable": True, "normalized": False, "blocking": True, "repairContext": {"forbiddenNodeType": "n8n-nodes-base.webhook"}}],
         )
+
+    def test_platform_name_is_not_an_internal_node_requirement(self) -> None:
+        required, forbidden = schema_store().classify_named_types(
+            "Create an n8n workflow with Webhook"
+        )
+        self.assertEqual(required, {"n8n-nodes-base.webhook"})
+        self.assertEqual(forbidden, set())
 
 
 if __name__ == "__main__":

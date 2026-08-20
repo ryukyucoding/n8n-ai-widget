@@ -34,6 +34,11 @@ SAFE_BENCHMARK_FINDING_CATEGORIES = frozenset({
     "payload_sanitization",
 })
 
+# "n8n" identifies the platform in ordinary user requests. It must not turn
+# those requests into an implicit requirement for the internal n8n-management
+# node whose display name happens to be the same word.
+AMBIGUOUS_RUNTIME_DISPLAY_NAMES = frozenset({"n8n"})
+
 
 class StructuredValidationError(ValueError):
     """A normal validator error with an optional safe benchmark projection."""
@@ -221,6 +226,8 @@ class RuntimeSchemaStore:
             for description in versions.values() if isinstance(versions, dict) else []:
                 display_name = description.get("displayName") if isinstance(description, dict) else None
                 if not isinstance(display_name, str) or len(display_name.strip()) < 3:
+                    continue
+                if display_name.strip().casefold() in AMBIGUOUS_RUNTIME_DISPLAY_NAMES:
                     continue
                 name_pattern = re.compile(
                     rf"(?<![A-Za-z0-9]){re.escape(display_name)}(?![A-Za-z0-9])",
