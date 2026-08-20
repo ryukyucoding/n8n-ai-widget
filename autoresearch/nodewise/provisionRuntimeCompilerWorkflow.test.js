@@ -19,3 +19,10 @@ test('classifies n8n create validation failures without exposing the response bo
   assert.equal(error.message, 'workflow_create_failed_400:node_schema_rejected');
   assert.equal(error.message.includes('secret'), false);
 });
+
+test('keeps a caller-provided cleanup prefix in the safe provisioning report', () => {
+  const report = safeReport({
+    workflow: { nodes: [] }, verification: { status: 'pass' }, created: { id: '123', name: '__todo__x' }, readback: { active: false }, prefix: '__todo__',
+  });
+  assert.equal(report.cleanup.prefix, '__todo__');
+});

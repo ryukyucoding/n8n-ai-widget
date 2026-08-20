@@ -19,14 +19,14 @@ function baseUrl() {
   return value.replace(/\/$/, '');
 }
 
-function safeReport({ workflow, verification, created, readback }) {
+function safeReport({ workflow, verification, created, readback, prefix = PREFIX }) {
   return {
     schemaVersion: '1.0', kind: 'nodewise_runtime_compiler_provisioning', executionPolicy: 'manual_ui_execution_required',
     outcome: 'created_readback_verified', workflowId: String(created.id), workflowName: created.name,
     inactive: readback.active === false,
     verificationStatus: verification.status,
     nodeCards: workflow.nodes.map((node) => ({ type: node.type, typeVersion: node.typeVersion })),
-    cleanup: { eligible: true, exactWorkflowId: String(created.id), prefix: PREFIX },
+    cleanup: { eligible: true, exactWorkflowId: String(created.id), prefix },
   };
 }
 
@@ -41,21 +41,21 @@ async function createFailure(response) {
   return new Error(`workflow_create_failed_${response.status}:${category}`);
 }
 
-async function provision({ fetchImpl = globalThis.fetch } = {}) {
-  const workflow = compileStepSpecification({ specification: smokeSpecification() });
-  workflow.name = `${PREFIX}${Date.now()}`;
-  const verification = await verifyCandidateWorkflow({ operation: 'create', userRequest: 'Read public JSONPlaceholder post 1 and return id and title.', candidateWorkflow: workflow }, { n8nBaseUrl: baseUrl(), n8nApiKey: process.env.N8N_API_KEY });
+async function provision({ fetchImpl = globalThis.fetch, specification = smokeSpecification(), userRequest = 'Read public JSONPlaceholder post 1 and return id and title.', prefix = PREFIX } = {}) {
+  const workflow = compileStepSpecification({ specification });
+  workflow.name = `${prefix}${Date.now()}`;
+  const verification = await verifyCandidateWorkflow({ operation: 'create', userRequest, candidateWorkflow: workflow }, { n8nBaseUrl: baseUrl(), n8nApiKey: process.env.N8N_API_KEY });
   if (!['pass', 'warning'].includes(verification.status)) throw new Error('compiler_workflow_static_verification_failed');
   const payload = sanitizeCreateWorkflowPayload(verification.workflow);
   const createdResponse = await fetchImpl(`${baseUrl()}/api/v1/workflows`, { method: 'POST', headers: headers(), body: JSON.stringify(payload) });
   if (!createdResponse.ok) throw await createFailure(createdResponse);
   const created = await createdResponse.json();
-  if (!created?.id || !String(created.name).startsWith(PREFIX)) throw new Error('created_workflow_identity_rejected');
+  if (!created?.id || !String(created.name).startsWith(prefix)) throw new Error('created_workflow_identity_rejected');
   const readbackResponse = await fetchImpl(`${baseUrl()}/api/v1/workflows/${encodeURIComponent(created.id)}`, { headers: headers() });
   if (!readbackResponse.ok) throw new Error(`workflow_readback_failed_${readbackResponse.status}`);
   const readback = await readbackResponse.json();
   if (String(readback?.id) !== String(created.id) || readback?.name !== created.name || readback?.active !== false) throw new Error('workflow_readback_identity_rejected');
-  return safeReport({ workflow: verification.workflow, verification, created, readback });
+  return safeReport({ workflow: verification.workflow, verification, created, readback, prefix });
 }
 
 async function main() {
