@@ -15,10 +15,12 @@ const PYTHON_SOURCE = [
   'workflow = canonicalize_workflow(json.dumps(envelope["workflow"]), user_request=envelope.get("userRequest", ""))',
   // Normalize only ports for which the installed runtime proves one compatible
   // index. Ambiguous ports remain findings for the later authoritative check.
-  'try: validate_connection_ports(workflow)',
-  'except StructuredValidationError: pass',
+  'try:',
+  '    validate_connection_ports(workflow)',
+  'except StructuredValidationError:',
+  '    pass',
   'print(json.dumps(workflow, ensure_ascii=False))',
-].join('; ');
+].join('\n');
 
 function canonicalizeWorkflow({ workflow, userRequest, python = process.env.PYTHON_BIN || 'python3', spawn = spawnSync, repairDirectory = path.join(__dirname, '..', '..', 'chatbot', 'python') } = {}) {
   if (!workflow || typeof workflow !== 'object') throw new TypeError('workflow must be an object');
