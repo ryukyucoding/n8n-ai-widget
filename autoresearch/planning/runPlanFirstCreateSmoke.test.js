@@ -20,5 +20,5 @@ test('aggregates de-identified planner and builder outcomes', async () => {
       ? { caseId: '0', outcome: 'completed', create: { staticStatus: 'plan_incomplete', planCompliance: { missingSelectedNodeTypeCount: 1, nodesOutsideSelectedPlanCount: 0 }, findingCategories: { node_type: 1 } } }
       : { caseId: '1', outcome: 'completed', create: { staticStatus: 'repair', planCompliance: { missingSelectedNodeTypeCount: 0, nodesOutsideSelectedPlanCount: 0 }, findingCategories: { parameter_schema: 2 } } },
   });
-  assert.deepEqual(report.aggregate, { attemptedCases: 2, outcomes: { completed: 2 }, staticStatuses: { plan_incomplete: 1, repair: 1 }, findingCategories: { node_type: 1, parameter_schema: 2 }, builderOmittedPlannedNodeCases: 1 });
+  assert.deepEqual(report.aggregate, { attemptedCases: 2, outcomes: { completed: 2 }, staticStatuses: { plan_incomplete: 1, repair: 1 }, findingCategories: { node_type: 1, parameter_schema: 2 }, builderOmittedPlannedNodeCases: 1, builderPlanViolationCases: 0 });
 });

@@ -51,6 +51,10 @@ test('generator instruction carries only selected runtime cards and compliance i
   assert.deepEqual(safePlanCompliance({ nodes: [{ type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2 }, { type: 'invented', typeVersion: 1 }] }, selectedPlan), { generatedNodeCount: 2, nodesOutsideSelectedPlanCount: 1, missingSelectedNodeTypeCount: 0 });
 });
 
+test('plan compliance blocks a workflow that adds nodes outside the accepted plan', () => {
+  assert.equal(require('./runPlanFirstCreatePreflight').planStaticStatus({ missingSelectedNodeTypeCount: 0, nodesOutsideSelectedPlanCount: 1 }, { status: 'pass' }), 'plan_violation');
+});
+
 test('plan-first preflight does not call Create after planner rejection', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-first-'));
   const { inputPath, schemaPath } = writeFixture(root);

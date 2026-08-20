@@ -42,6 +42,7 @@ async function callToolPlanner({ userRequest, runtimeContext, model, maxTokens =
   let accepted = null;
   let telemetry = { httpStatus: null, contentType: 'other_or_unavailable' };
   const toolCalls = [];
+  const toolResults = [];
   for (let round = 0; round < MAX_TOOL_ROUNDS && !accepted; round += 1) {
     const generated = await callModel({ messages, model, maxTokens, reasoningEffort, timeoutMs, fetchImpl, env });
     telemetry = generated.telemetry;
@@ -60,11 +61,19 @@ async function callToolPlanner({ userRequest, runtimeContext, model, maxTokens =
         try { accepted = buildPlanFirstContract({ userRequest, rawPlan: planFromArguments(args), runtimeContext }); result = { ok: true, selectedNodeCount: accepted.plan.selected_nodes.length, configurationStatus: accepted.acceptanceContract.configurationStatus }; }
         catch (error) { result = { ok: false, error: error?.safeFailureCategory || 'plan_contract_rejected' }; }
       }
+      toolResults.push({ name: typeof name === 'string' ? name : 'invalid_tool', ok: result.ok === true, error: result.ok === true ? null : result.error || 'tool_call_rejected' });
       messages.push({ role: 'tool', tool_call_id: call.id || `round-${round}`, content: JSON.stringify(result) });
     }
   }
-  if (!accepted) { const error = new Error('tool planner did not submit an accepted plan'); error.kind = 'plan_contract_rejected'; error.safeFailureCategory = 'tool_plan_not_accepted'; throw error; }
-  return { ...accepted, telemetry, toolCalls };
+  if (!accepted) {
+    const error = new Error('tool planner did not submit an accepted plan');
+    error.kind = 'plan_contract_rejected';
+    error.safeFailureCategory = 'tool_plan_not_accepted';
+    error.toolCalls = toolCalls;
+    error.toolResults = toolResults;
+    throw error;
+  }
+  return { ...accepted, telemetry, toolCalls, toolResults };
 }
 
 module.exports = { MAX_TOOL_ROUNDS, PLANNER_TOOLS, SYSTEM_PROMPT, callToolPlanner, planFromArguments };

@@ -95,6 +95,23 @@ function safePreflightFailureCategory(error) {
   return error?.kind === 'plan_contract_rejected' ? 'plan_contract_rejected' : availabilityFailure(error);
 }
 
+function planStaticStatus(planCompliance, verification) {
+  if (planCompliance?.nodesOutsideSelectedPlanCount) return 'plan_violation';
+  if (planCompliance?.missingSelectedNodeTypeCount) return 'plan_incomplete';
+  return verification?.status || 'not_run';
+}
+
+function safePlannerFailureDetails(error, plannerMode) {
+  return {
+    mode: plannerMode,
+    toolCallCount: Array.isArray(error?.toolCalls) ? error.toolCalls.length : 0,
+    toolCalls: Array.isArray(error?.toolCalls) ? error.toolCalls.slice(0, 16) : [],
+    toolErrorCategories: Array.isArray(error?.toolResults)
+      ? error.toolResults.filter((result) => !result.ok).map((result) => result.error || 'tool_call_rejected').slice(0, 16)
+      : [],
+  };
+}
+
 async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 0, plannerModel = DEFAULT_PLANNER_MODEL, plannerMode = 'json', createModel = DEFAULT_CREATE_MODEL, plannerMaxTokens = DEFAULT_PLANNER_MAX_TOKENS, plannerReasoningEffort = 'none', plannerTimeoutMs = 60000, createTimeoutMs = 180000, schemaPath, fetchImpl, env, verify = verifyStatic } = {}) {
   if (!inputPath || !outputPath) throw new TypeError('inputPath and outputPath are required');
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
@@ -137,7 +154,7 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
       create: {
         httpStatus: created.telemetry.httpStatus, strictJsonStatus: parsed.strictJsonStatus,
         repairedJsonStatus: parsed.repairedJsonStatus,
-        staticStatus: planCompliance?.missingSelectedNodeTypeCount ? 'plan_incomplete' : (verification?.status || 'not_run'),
+        staticStatus: planStaticStatus(planCompliance, verification),
         findingCategories: findingCategoryCounts(verification),
         planCompliance,
         executionReadiness: readinessFrom({ parsed, verification, capability }).category,
@@ -149,6 +166,7 @@ async function runPlanFirstCreatePreflight({ inputPath, outputPath, caseIndex = 
       outcome: 'planner_or_create_unavailable_or_rejected', failureCategory: safePreflightFailureCategory(error),
       safeFailureCategory: error?.safeFailureCategory || error?.telemetry?.safeFailureCategory || null,
       httpStatus: Number.isInteger(error?.telemetry?.httpStatus) ? error.telemetry.httpStatus : null,
+      planner: safePlannerFailureDetails(error, plannerMode),
     };
   }
   atomicWrite(outputPath, report);
@@ -172,4 +190,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { DEFAULT_CREATE_MODEL, callCreateModel, planInstruction, runPlanFirstCreatePreflight, safePlanCompliance, safePlanSummary, safePreflightFailureCategory, selectedRuntimeCards };
+module.exports = { DEFAULT_CREATE_MODEL, callCreateModel, planInstruction, planStaticStatus, runPlanFirstCreatePreflight, safePlanCompliance, safePlanSummary, safePlannerFailureDetails, safePreflightFailureCategory, selectedRuntimeCards };

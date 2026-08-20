@@ -48,7 +48,7 @@ async function runPlanFirstCreateSmoke({ inputPath, outputDir, caseIndices = [0,
     schemaVersion: '1.0', kind: 'plan_first_create_smoke', executionPolicy: 'no_n8n_create_or_execution',
     model: { planner: options.plannerModel || 'qwen3.8:27b', plannerMode: options.plannerMode || 'json', create: options.createModel || 'qwen2.5-coder-32b-ft-original:latest' },
     records,
-    aggregate: { attemptedCases: records.length, outcomes, staticStatuses, findingCategories: findings, builderOmittedPlannedNodeCases: records.filter((record) => (record.missingSelectedNodeTypeCount || 0) > 0).length },
+    aggregate: { attemptedCases: records.length, outcomes, staticStatuses, findingCategories: findings, builderOmittedPlannedNodeCases: records.filter((record) => (record.missingSelectedNodeTypeCount || 0) > 0).length, builderPlanViolationCases: records.filter((record) => (record.nodesOutsideSelectedPlanCount || 0) > 0).length },
   };
   atomicWrite(path.join(outputDir, 'plan-first-create-smoke.json'), report);
   return report;
