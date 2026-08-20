@@ -4,7 +4,7 @@ const { validateIntentPlan } = require('./intentPlan');
 
 const SOURCE_KINDS = new Set(['public_literal', 'user_setup', 'prior_step']);
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
-const TRANSFORMS = new Set(['select_fields', 'count_items', 'filter_items', 'count_false_boolean']);
+const TRANSFORMS = new Set(['select_fields', 'count_items', 'filter_items', 'count_false_boolean', 'join_object_and_count_false_boolean']);
 const CARDINALITIES = new Set(['one_object', 'items']);
 const VALUE_TYPES = new Set(['string', 'number', 'boolean', 'object', 'array']);
 
@@ -56,6 +56,16 @@ function validateConfiguration(step, index, priorStepIds) {
   if (step.capability === 'data_transform') {
     const operation = nonEmpty(config.operation, `steps[${index}].configuration.operation`);
     assert(TRANSFORMS.has(operation), `steps[${index}].configuration.operation is not supported`);
+    if (operation === 'join_object_and_count_false_boolean') {
+      const objectInput = sourceReference(config.objectInput, `steps[${index}].configuration.objectInput`, priorStepIds);
+      const itemsInput = sourceReference(config.itemsInput, `steps[${index}].configuration.itemsInput`, priorStepIds);
+      const field = nonEmpty(config.field, `steps[${index}].configuration.field`);
+      const totalField = nonEmpty(config.totalField, `steps[${index}].configuration.totalField`);
+      const falseCountField = nonEmpty(config.falseCountField, `steps[${index}].configuration.falseCountField`);
+      assert(objectInput.cardinality === 'one_object', `steps[${index}].configuration.objectInput must have one_object cardinality`);
+      assert(itemsInput.cardinality === 'items', `steps[${index}].configuration.itemsInput must have items cardinality`);
+      return { operation, objectInput, itemsInput, objectMappings: mappings(config.objectMappings, `steps[${index}].configuration.objectMappings`), field, totalField, falseCountField };
+    }
     const input = sourceReference(config.input, `steps[${index}].configuration.input`, priorStepIds);
     if (operation === 'select_fields') return { operation, input, mappings: mappings(config.mappings, `steps[${index}].configuration.mappings`) };
     if (operation === 'count_false_boolean') {

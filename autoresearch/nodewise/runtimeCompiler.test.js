@@ -51,6 +51,18 @@ test('compiles a bounded item-wrapper-aware boolean aggregation', () => {
   assert.match(code.parameters.jsCode, /record\.completed === false/);
 });
 
+test('compiles a guaranteed-predecessor object join and item aggregation', () => {
+  const spec = specification();
+  spec.steps.splice(2, 1, {
+    id: 'count', capability: 'data_transform', purpose: 'Join user data with incomplete counts.', inputs: ['fetch.item'], outputs: ['count.summary'], requiredUserSetup: [],
+    configuration: { operation: 'join_object_and_count_false_boolean', objectInput: { kind: 'prior_step', reference: 'fetch.item', cardinality: 'one_object' }, itemsInput: { kind: 'prior_step', reference: 'fetch.item', cardinality: 'items' }, objectMappings: [{ from: 'name', to: 'name', valueType: 'string' }], field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' },
+  });
+  spec.steps.splice(3, 1);
+  const workflow = compileStepSpecification({ specification: spec, nodeTypes: schemas() });
+  assert.match(workflow.nodes[2].parameters.jsCode, /\$\('Step 2: fetch'\)\.first\(\)\.json/);
+  assert.match(workflow.nodes[2].parameters.jsCode, /item\.json/);
+});
+
 test('rejects an unresolved setup or unsupported transform before emitting JSON', () => {
   const pending = specification();
   pending.requiredUserSetup = ['service account'];

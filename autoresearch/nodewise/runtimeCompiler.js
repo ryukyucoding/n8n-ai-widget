@@ -47,6 +47,16 @@ function countFalseBooleanCode({ field, totalField, falseCountField }) {
   ].join('\n');
 }
 
+function joinObjectAndCountFalseBooleanCode({ objectNodeName, objectMappings, field, totalField, falseCountField }) {
+  const objectFields = objectMappings.map((mapping) => `${mapping.to}: source.${mapping.from}`).join(', ');
+  return [
+    `const source = $('${objectNodeName}').first().json;`,
+    'const records = $input.all().map((item) => item.json);',
+    `const falseCount = records.filter((record) => record.${field} === false).length;`,
+    `return [{ json: { ${objectFields}, ${totalField}: records.length, ${falseCountField}: falseCount } }];`,
+  ].join('\n');
+}
+
 function validateCompilable(specification) {
   assert(specification.expectedOutput.deliveryShape === 'one_object', 'first compiler supports one_object output only');
   assert(specification.requiredUserSetup.length === 0, 'user setup must be resolved before compilation');
@@ -61,9 +71,13 @@ function validateCompilable(specification) {
       assert(['one_object', 'items'].includes(step.configuration.url.cardinality), 'first compiler requires a declared HTTP response cardinality');
     }
     if (step.capability === 'data_transform') {
-      assert(['select_fields', 'count_false_boolean'].includes(step.configuration.operation), 'first compiler does not support this transform');
-      const expectedCardinality = step.configuration.operation === 'select_fields' ? 'one_object' : 'items';
-      assert(step.configuration.input.cardinality === expectedCardinality, `first compiler requires ${expectedCardinality} transform input`);
+      assert(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean'].includes(step.configuration.operation), 'first compiler does not support this transform');
+      if (step.configuration.operation === 'select_fields') assert(step.configuration.input.cardinality === 'one_object', 'first compiler requires one_object transform input');
+      if (step.configuration.operation === 'count_false_boolean') assert(step.configuration.input.cardinality === 'items', 'first compiler requires items transform input');
+      if (step.configuration.operation === 'join_object_and_count_false_boolean') {
+        assert(step.configuration.objectInput.cardinality === 'one_object', 'first compiler requires one_object join input');
+        assert(step.configuration.itemsInput.cardinality === 'items', 'first compiler requires items join input');
+      }
     }
     if (step.capability === 'set_output') assert(step.configuration.input.cardinality === 'one_object', 'first compiler requires one_object output input');
   }
@@ -72,8 +86,9 @@ function validateCompilable(specification) {
 function compileStepSpecification({ specification, nodeTypes = loadRuntimeNodeTypes() } = {}) {
   const spec = validateStepSpecification({ ...specification, kind: 'nodewise_workflow_intent' });
   validateCompilable(spec);
+  const nodeNameByStepId = Object.fromEntries(spec.steps.map((step, index) => [step.id, `Step ${index + 1}: ${step.id}`]));
   const nodes = spec.steps.map((step, index) => {
-    const type = step.capability === 'data_transform' && step.configuration.operation === 'count_false_boolean'
+    const type = step.capability === 'data_transform' && ['count_false_boolean', 'join_object_and_count_false_boolean'].includes(step.configuration.operation)
       ? 'n8n-nodes-base.code'
       : TYPE_BY_CAPABILITY[step.capability];
     const card = nodeCard(nodeTypes, type);
@@ -81,6 +96,10 @@ function compileStepSpecification({ specification, nodeTypes = loadRuntimeNodeTy
     if (step.capability === 'http_request') parameters = { method: 'GET', url: step.configuration.url.reference, options: {} };
     if (step.capability === 'data_transform' && step.configuration.operation === 'select_fields') parameters = setParameters(step.configuration.mappings);
     if (step.capability === 'data_transform' && step.configuration.operation === 'count_false_boolean') parameters = { jsCode: countFalseBooleanCode(step.configuration) };
+    if (step.capability === 'data_transform' && step.configuration.operation === 'join_object_and_count_false_boolean') {
+      const sourceStepId = step.configuration.objectInput.reference.split('.', 1)[0];
+      parameters = { jsCode: joinObjectAndCountFalseBooleanCode({ ...step.configuration, objectNodeName: nodeNameByStepId[sourceStepId] }) };
+    }
     if (step.capability === 'set_output') parameters = setParameters(step.configuration.mappings);
     return { id: stableNodeId(step.id), name: `Step ${index + 1}: ${step.id}`, ...card, parameters, position: [240 + index * 260, 300] };
   });
@@ -91,4 +110,4 @@ function compileStepSpecification({ specification, nodeTypes = loadRuntimeNodeTy
   return { name: 'Nodewise compiled workflow', active: false, settings: { executionOrder: 'v1' }, nodes, connections };
 }
 
-module.exports = { compileStepSpecification, countFalseBooleanCode, expression, setParameters, stableNodeId, validateCompilable };
+module.exports = { compileStepSpecification, countFalseBooleanCode, expression, joinObjectAndCountFalseBooleanCode, setParameters, stableNodeId, validateCompilable };
