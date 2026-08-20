@@ -6,7 +6,14 @@ set -eu
 
 WORKTREE="${AUTORESEARCH_WORKTREE:-/home/daniel/n8n-worktrees/autoresearch-easy100}"
 INPUT="${EASY100_INPUT:-/home/daniel/autoresearch-data/easy100/testing_data_low_100.jsonl}"
-SOURCE_RESULTS="${RUNTIME_AWARE_RESULTS:?RUNTIME_AWARE_RESULTS is required}"
+if [ -n "${RUNTIME_AWARE_RESULTS:-}" ]; then
+  SOURCE_RESULTS="$RUNTIME_AWARE_RESULTS"
+else
+  SOURCE_RESULTS="$(ls -dt \
+    /home/daniel/autoresearch-data/easy100/runtime-aware-batch-platform-filter-* \
+    /home/daniel/autoresearch-data/easy100/runtime-aware-batch-* 2>/dev/null | head -1 || true)"
+fi
+test -n "$SOURCE_RESULTS"
 PREDICTIONS="$SOURCE_RESULTS/private/runtime-aware-predictions.jsonl"
 RESULTS="${AUTORESEARCH_RESULTS:-/home/daniel/autoresearch-data/easy100/authoritative-schema-skill-$(date -u +%Y%m%dT%H%M%SZ)}"
 ENVFILE="$(mktemp)"
@@ -46,4 +53,5 @@ docker run --rm --network container:n8n-chatbot-1 --read-only \
   node /work/autoresearch/experiments/easy100/runAuthoritativeSchemaRepairSmoke.js
 
 printf 'REVISION=%s\n' "$(git -C "$WORKTREE" rev-parse --short HEAD)"
+printf 'SOURCE_RESULTS=%s\n' "$SOURCE_RESULTS"
 printf 'RESULTS_DIR=%s\n' "$RESULTS"
