@@ -14,6 +14,12 @@ backlog: a direction is retained only when a controlled trial supports it.
   adds nodes outside an accepted plan is a `plan_violation`.
 - Automatic repair is limited to named, value-preserving runtime migrations.
   Parameter deletion is not a safe general repair.
+- A deterministic nodewise compiler can bridge a small current-runtime subset.
+  At revision `3ef98bd`, the offline `.44` smoke compiled
+  `manual_trigger -> public HTTPS GET -> select_fields -> one_object output`
+  with exact installed cards (Manual Trigger v1, HTTP Request v4.4, Set v3.4)
+  and the existing verifier returned `pass` with zero findings. This is static
+  evidence only; it does not prove n8n execution or general workflow support.
 
 ## Retire
 
@@ -31,8 +37,7 @@ backlog: a direction is retained only when a controlled trial supports it.
 
 ## Next Gate
 
-Test a bounded construction skill rather than another planner. The agent may
-only add installed node cards, set schema-allowed parameters, connect known
-ports, validate, and finalize. The first trial must use multiple Easy-100
-descriptions and report static validity separately from user setup and
-execution eligibility. It must not create or execute n8n workflows.
+With explicit approval, run one disposable, exact-ID controlled execution for
+the bounded compiler output, verify its declared output, then remove only that
+exact workflow. Do not generalize the result until that execution evidence
+exists. The next expansion should add only one capability at a time.
