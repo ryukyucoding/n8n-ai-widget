@@ -6,7 +6,14 @@ set -eu
 
 WORKTREE="${AUTORESEARCH_WORKTREE:-/home/daniel/n8n-worktrees/autoresearch-easy100}"
 INPUT="${EASY100_INPUT:-/home/daniel/autoresearch-data/easy100/testing_data_low_100.jsonl}"
-RESULTS="${RUNTIME_AWARE_RESULTS:?RUNTIME_AWARE_RESULTS is required}"
+if [ -n "${RUNTIME_AWARE_RESULTS:-}" ]; then
+  RESULTS="$RUNTIME_AWARE_RESULTS"
+else
+  RESULTS="$(ls -dt \
+    /home/daniel/autoresearch-data/easy100/runtime-aware-batch-platform-filter-* \
+    /home/daniel/autoresearch-data/easy100/runtime-aware-batch-* 2>/dev/null | head -1 || true)"
+fi
+test -n "$RESULTS"
 PREDICTIONS="$RESULTS/private/runtime-aware-predictions.jsonl"
 
 git -C "$WORKTREE" fetch origin codex/autoresearch-a2a
@@ -31,4 +38,5 @@ docker run --rm --network none --read-only \
   node /work/autoresearch/experiments/easy100/summarizeRuntimeAwareBatch.js
 
 printf 'REVISION=%s\n' "$(git -C "$WORKTREE" rev-parse --short HEAD)"
+printf 'SOURCE_RESULTS=%s\n' "$RESULTS"
 printf 'RESULTS_DIR=%s\n' "$RESULTS"
