@@ -19,6 +19,24 @@ surface where an LLM must remember changing n8n syntax, but does not make nodes
 independent. Each step still declares its data inputs and outputs, and the
 compiler retains ownership of the global graph.
 
+## Step Specification
+
+An intent alone is deliberately not sufficient to compile a workflow. For
+example, `http_request` needs a method and a source for its URL; a transform
+needs a known operation and its input. The next boundary is a **Step
+Specification**, validated by `autoresearch/nodewise/stepSpecification.js`.
+
+It adds compiler-ready semantic configuration without exposing n8n parameter
+names or credential values. The first supported subset is intentionally small:
+
+- public or user-supplied HTTPS HTTP requests;
+- select-fields, count-items, and filter-items transforms;
+- explicit final-output field mappings.
+
+Arbitrary JavaScript, arbitrary API payloads, external actions, and ambiguous
+branches remain out of scope. They must be clarified or handled later by a
+separate specialised skill; they are not silently guessed by the compiler.
+
 ## Intent Plan Contract
 
 The exact JSON contract is enforced by `autoresearch/nodewise/intentPlan.js`.
