@@ -122,7 +122,7 @@ function safeAttempt({ attempt, generated, parsed, verification, capability }) {
   };
 }
 
-async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex = 0, model = DEFAULT_AGENT_MODEL, maxAttempts = DEFAULT_MAX_ATTEMPTS, reasoningEffort, timeoutMs = DEFAULT_TIMEOUT_MS, schemaPath, fetchImpl, env, verify = verifyStatic } = {}) {
+async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex = 0, model = DEFAULT_AGENT_MODEL, maxAttempts = DEFAULT_MAX_ATTEMPTS, reasoningEffort, timeoutMs = DEFAULT_TIMEOUT_MS, schemaPath, fetchImpl, env, verify = verifyStatic, onParseableCandidate } = {}) {
   if (!inputPath || !outputPath) throw new TypeError('inputPath and outputPath are required');
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) throw new TypeError('maxAttempts must be an integer from 1 to 3');
   const testCase = loadEasyCases(inputPath, caseIndex + 1)[caseIndex];
@@ -132,6 +132,7 @@ async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex =
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
   const attempts = [];
+  let latestParseableCandidate = null;
   let messages = initialMessages({ description: testCase.description, runtimeContext });
   let report;
   try {
@@ -141,6 +142,7 @@ async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex =
       let verification = null;
       let capability = { usesCredentials: false, writesExternally: false, hasCode: false };
       if (parsed.ok) {
+        latestParseableCandidate = parsed.value;
         try {
           verification = await verify(parsed.value, testCase.description);
           capability = safeCapabilitySummary(parsed.value);
@@ -181,6 +183,9 @@ async function runRuntimeAwareWorkflowAgent({ inputPath, outputPath, caseIndex =
     runtimeContextStats: planningContextStats(runtimeContext), ...report,
   };
   atomicWrite(outputPath, envelope);
+  if (latestParseableCandidate && typeof onParseableCandidate === 'function') {
+    onParseableCandidate({ caseId: testCase.caseId, candidate: latestParseableCandidate, report: envelope });
+  }
   return envelope;
 }
 
