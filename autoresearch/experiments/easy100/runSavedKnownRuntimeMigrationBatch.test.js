@@ -23,7 +23,9 @@ test('aggregates only de-identified runtime migration results', async () => {
     verify: async () => ({ status: 'pass' }),
   });
   assert.equal(report.checked, 2);
+  assert.equal(report.staticPassBeforeMigration, 0);
   assert.equal(report.staticPass, 2);
+  assert.equal(report.recoveredByMigration, 2);
   assert.deepEqual(report.migrationActionKinds, { known_migration: 2 });
   assert.equal(JSON.stringify(report).includes('Private'), false);
 });

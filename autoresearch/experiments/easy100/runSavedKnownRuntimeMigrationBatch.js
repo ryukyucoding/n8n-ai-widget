@@ -49,6 +49,13 @@ async function runSavedKnownRuntimeMigrationBatch({ inputPath, predictionsPath, 
     try {
       const workflow = canonicalize({ workflow: prediction.predicted, userRequest: description });
       const initialFindings = inspect({ workflow, userRequest: description });
+      let initialVerification;
+      try {
+        initialVerification = await verify(workflow, description);
+      } catch {
+        initialVerification = { status: 'repair' };
+      }
+      const initialStaticPass = (initialVerification.status === 'pass' || initialVerification.status === 'warning') && initialFindings.length === 0;
       const migration = migrate(workflow, initialFindings);
       let verification;
       try {
@@ -61,6 +68,8 @@ async function runSavedKnownRuntimeMigrationBatch({ inputPath, predictionsPath, 
       records.push({
         caseId,
         outcome: staticPass ? 'static_pass' : 'static_blocked',
+        initialStaticPass,
+        recoveredByMigration: !initialStaticPass && staticPass,
         initialFindingCategories: countCategories(initialFindings),
         finalFindingCategories: countCategories(finalFindings),
         migrationActions: summarizeActions(migration),
@@ -82,7 +91,9 @@ async function runSavedKnownRuntimeMigrationBatch({ inputPath, predictionsPath, 
     executionPolicy: 'no_model_no_n8n_execution',
     predictionSetFingerprint: sha256(fs.readFileSync(predictionsPath, 'utf8')),
     checked: records.length,
+    staticPassBeforeMigration: records.filter((record) => record.initialStaticPass).length,
     staticPass: records.filter((record) => record.outcome === 'static_pass').length,
+    recoveredByMigration: records.filter((record) => record.recoveredByMigration).length,
     staticBlocked: records.filter((record) => record.outcome === 'static_blocked').length,
     unavailable: records.filter((record) => record.outcome === 'canonicalization_or_validation_unavailable').length,
     finalFindingCategories,
@@ -99,7 +110,7 @@ if (require.main === module) {
     inputPath: process.env.EASY100_INPUT_PATH,
     predictionsPath: process.env.EASY100_PREDICTIONS_PATH,
     outputPath: process.env.EASY100_MIGRATION_BATCH_OUTPUT_PATH,
-  }).then((report) => process.stdout.write(JSON.stringify({ checked: report.checked, staticPass: report.staticPass, staticBlocked: report.staticBlocked, unavailable: report.unavailable, finalFindingCategories: report.finalFindingCategories, migrationActionKinds: report.migrationActionKinds }) + '\n')).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
+  }).then((report) => process.stdout.write(JSON.stringify({ checked: report.checked, staticPassBeforeMigration: report.staticPassBeforeMigration, staticPass: report.staticPass, recoveredByMigration: report.recoveredByMigration, staticBlocked: report.staticBlocked, unavailable: report.unavailable, finalFindingCategories: report.finalFindingCategories, migrationActionKinds: report.migrationActionKinds }) + '\n')).catch((error) => { process.stderr.write(`${error.message || error}\n`); process.exitCode = 1; });
 }
 
 module.exports = { countCategories, runSavedKnownRuntimeMigrationBatch, summarizeActions };
