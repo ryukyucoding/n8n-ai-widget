@@ -10,6 +10,7 @@ function schemas() {
     'n8n-nodes-base.manualTrigger': { versions: { '1': descriptor } },
     'n8n-nodes-base.httpRequest': { versions: { '4.4': descriptor } },
     'n8n-nodes-base.set': { versions: { '3.4': descriptor } },
+    'n8n-nodes-base.code': { versions: { '2': descriptor } },
   };
 }
 
@@ -35,11 +36,26 @@ test('compiles only runtime-selected cards into a linear workflow', () => {
   assert.equal(Object.keys(workflow.connections).length, 3);
 });
 
+test('compiles a bounded item-wrapper-aware boolean aggregation', () => {
+  const spec = specification();
+  spec.steps.splice(2, 1, {
+    id: 'count', capability: 'data_transform', purpose: 'Count incomplete records.', inputs: ['fetch.item'], outputs: ['count.summary'], requiredUserSetup: [],
+    configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'fetch.item', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' },
+  });
+  spec.steps.splice(3, 1);
+  spec.expectedOutput.fields = ['totalTodos', 'incompleteTodos'];
+  const workflow = compileStepSpecification({ specification: spec, nodeTypes: schemas() });
+  const code = workflow.nodes[2];
+  assert.deepEqual([code.type, code.typeVersion], ['n8n-nodes-base.code', 2]);
+  assert.match(code.parameters.jsCode, /item\.json/);
+  assert.match(code.parameters.jsCode, /record\.completed === false/);
+});
+
 test('rejects an unresolved setup or unsupported transform before emitting JSON', () => {
   const pending = specification();
   pending.requiredUserSetup = ['service account'];
   assert.throws(() => compileStepSpecification({ specification: pending, nodeTypes: schemas() }), /user setup/);
   const arbitrary = specification();
   arbitrary.steps[2].configuration.operation = 'count_items';
-  assert.throws(() => compileStepSpecification({ specification: arbitrary, nodeTypes: schemas() }), /select_fields/);
+  assert.throws(() => compileStepSpecification({ specification: arbitrary, nodeTypes: schemas() }), /does not support/);
 });
