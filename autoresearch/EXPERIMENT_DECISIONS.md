@@ -35,6 +35,15 @@ backlog: a direction is retained only when a controlled trial supports it.
   `HXk8CwMj9dqnEC3J` was created and read back; human execution `559` passed
   exact-ID verification with one final item containing non-empty `name` and
   `email`, plus `totalTodos=20` and `incompleteTodos=9`.
+- Easy-100 case 14 demonstrates that the compiler boundary can extend beyond
+  linear public GET flows without reusing legacy node JSON. At revision
+  `b268b15`, the bounded compiler produced a six-node public Twitch-status
+  workflow with Manual Trigger v1, Set v3.4, HTTP Request v4.4, If v2.3, and
+  two explicit result branches. It was created and read back as inactive
+  workflow `cBN0TemiZvntbbw3`; human execution `560` passed exact-ID evidence
+  at verifier revision `c17fcd2`, producing one output item with a valid
+  channel and boolean status. This proves this named public POST-and-branch
+  subset only, not arbitrary HTTP POSTs or arbitrary branching.
 
 ## Retire
 
@@ -52,8 +61,8 @@ backlog: a direction is retained only when a controlled trial supports it.
 
 ## Next Gate
 
-The public-data C07 composition is now verified. Before adding another
-capability, consolidate the evidence into the report and define a new safety
-boundary for credentials or external writes. Do not treat the public-data
-success as evidence for credentialed services, arbitrary JavaScript, branches,
-or arbitrary natural-language requests.
+Consolidate the four controlled executions into the report. Before adding a
+credentialed, externally writing, or user-supplied public API workflow, define
+its setup, consent, and execution-evidence boundary. Do not treat the public
+data successes as evidence for arbitrary JavaScript, arbitrary HTTP POSTs,
+arbitrary branching, or arbitrary natural-language requests.
