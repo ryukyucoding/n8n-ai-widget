@@ -52,6 +52,7 @@ test('uses only allowlisted repair tools and reaches static pass with a tool loo
     outputPath: path.join(root, 'report.json'),
     env: { OLLAMA_BASE_URL: 'http://example.test' },
     nodeTypes,
+    canRemoveParameter: () => true,
     fetchImpl: async () => response(calls.shift()),
     verify: async () => ({ status: ++verificationCount >= 2 ? 'pass' : 'repair', findings: [] }),
   });

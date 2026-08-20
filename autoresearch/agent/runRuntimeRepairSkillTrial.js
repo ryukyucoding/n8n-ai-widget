@@ -18,7 +18,7 @@ const MAX_TOOL_ROUNDS = 4;
 const TOOL_DEFINITIONS = [
   { type: 'function', function: { name: 'get_validation', description: 'Validate the loaded workflow and return safe repair issues.', parameters: { type: 'object', properties: {}, additionalProperties: false } } },
   { type: 'function', function: { name: 'get_runtime_card', description: 'Read the installed n8n runtime card for one workflow node index, including only parameters applicable to its current resource, operation, and version.', parameters: { type: 'object', properties: { nodeIndex: { type: 'integer' } }, required: ['nodeIndex'], additionalProperties: false } } },
-  { type: 'function', function: { name: 'apply_runtime_patch', description: 'Apply only allowed type-version or invalid-parameter-removal edits after inspecting that node runtime card.', parameters: { type: 'object', properties: { operations: { type: 'array', items: { type: 'object', properties: { kind: { type: 'string', enum: ['set_type_version', 'remove_parameter'] }, nodeIndex: { type: 'integer' }, typeVersion: { type: 'number' }, parameterName: { type: 'string' } }, required: ['kind', 'nodeIndex'], additionalProperties: false }, maxItems: 8 } }, required: ['operations'], additionalProperties: false } } },
+  { type: 'function', function: { name: 'apply_runtime_patch', description: 'Apply only allowlisted, value-preserving runtime edits after inspecting that node runtime card.', parameters: { type: 'object', properties: { operations: { type: 'array', items: { type: 'object', properties: { kind: { type: 'string', enum: ['set_type_version', 'remove_parameter'] }, nodeIndex: { type: 'integer' }, typeVersion: { type: 'number' }, parameterName: { type: 'string' } }, required: ['kind', 'nodeIndex'], additionalProperties: false }, maxItems: 8 } }, required: ['operations'], additionalProperties: false } } },
 ];
 
 const SYSTEM_PROMPT = [
@@ -125,7 +125,7 @@ function parseArguments(call) {
   try { return JSON.parse(call?.function?.arguments || '{}'); } catch { return null; }
 }
 
-function createSkill({ workflow, userRequest, nodeTypes, verify, issueProvider = (currentWorkflow) => repairIssues(currentWorkflow, nodeTypes) }) {
+function createSkill({ workflow, userRequest, nodeTypes, verify, issueProvider = (currentWorkflow) => repairIssues(currentWorkflow, nodeTypes), canRemoveParameter = () => false }) {
   const inspected = new Set();
   const toolCalls = [];
   const actionLog = [];
@@ -160,6 +160,7 @@ function createSkill({ workflow, userRequest, nodeTypes, verify, issueProvider =
       }
       if (operation.kind === 'remove_parameter'
         && typeof operation.parameterName === 'string'
+        && canRemoveParameter({ workflow, node, nodeIndex: operation.nodeIndex, parameterName: operation.parameterName, issues })
         && issues.some((issue) => issue.kind === 'parameter_schema' && issue.nodeIndex === operation.nodeIndex && issue.parameterName === operation.parameterName)) {
         delete node.parameters[operation.parameterName];
         applied += 1;
@@ -196,14 +197,14 @@ async function callModel({ messages, model, reasoningEffort, timeoutMs, fetchImp
   } finally { clearTimeout(timer); }
 }
 
-async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 'Controlled runtime repair fixture.', model = DEFAULT_MODEL, reasoningEffort = 'none', timeoutMs = DEFAULT_TIMEOUT_MS, maxToolRounds = MAX_TOOL_ROUNDS, fetchImpl = globalThis.fetch, env = process.env, verify = verifyStatic, nodeTypes, issueProvider } = {}) {
+async function runRuntimeRepairSkillTrial({ outputPath, workflow, userRequest = 'Controlled runtime repair fixture.', model = DEFAULT_MODEL, reasoningEffort = 'none', timeoutMs = DEFAULT_TIMEOUT_MS, maxToolRounds = MAX_TOOL_ROUNDS, fetchImpl = globalThis.fetch, env = process.env, verify = verifyStatic, nodeTypes, issueProvider, canRemoveParameter } = {}) {
   if (!outputPath) throw new TypeError('outputPath is required');
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
   const loadedWorkflow = workflow ? clone(workflow) : buildFixture();
   const runtimeNodeTypes = nodeTypes || loadRuntimeNodeTypes();
   const resolveIssues = issueProvider || ((currentWorkflow) => repairIssues(currentWorkflow, runtimeNodeTypes));
-  const skill = createSkill({ workflow: loadedWorkflow, userRequest, nodeTypes: runtimeNodeTypes, verify, issueProvider: resolveIssues });
+  const skill = createSkill({ workflow: loadedWorkflow, userRequest, nodeTypes: runtimeNodeTypes, verify, issueProvider: resolveIssues, canRemoveParameter });
   const initialValidation = await staticValidation(loadedWorkflow, userRequest, verify);
   const initialRepairIssues = resolveIssues(loadedWorkflow);
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: 'Repair the loaded workflow fixture using the available tools.' }];
