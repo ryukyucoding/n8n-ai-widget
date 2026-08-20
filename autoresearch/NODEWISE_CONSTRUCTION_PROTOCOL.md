@@ -50,6 +50,11 @@ The orchestrator validates every reply with `parseAndValidateIntentPlan` and
 reports: valid plans, rejected plans, clarification-required plans, and any
 contract error category.
 
+`autoresearch/operations/submitNodewiseIntentTrialOn44.sh` submits the five
+bounded tasks. `autoresearch/nodewise/collectIntentTrial.js` later reads the
+broker state and emits only this safe aggregate; it does not retain requests or
+agent plan contents in its report.
+
 ## Model Setting
 
 Use `gpt-5.6-sol` with **High** reasoning for this initial five-case planning
