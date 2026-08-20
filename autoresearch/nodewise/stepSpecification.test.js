@@ -9,9 +9,9 @@ function fixture() {
     schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Read public records and count them.',
     steps: [
       { id: 'start', capability: 'manual_trigger', purpose: 'Start.', inputs: [], outputs: ['start.signal'], requiredUserSetup: [], configuration: {} },
-      { id: 'fetch', capability: 'http_request', purpose: 'Read public records.', inputs: ['start.signal'], outputs: ['fetch.items'], requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://example.test/items' } } },
-      { id: 'count', capability: 'data_transform', purpose: 'Count records.', inputs: ['fetch.items'], outputs: ['count.value'], requiredUserSetup: [], configuration: { operation: 'count_items', input: { kind: 'prior_step', reference: 'fetch.items' }, fields: [] } },
-      { id: 'output', capability: 'set_output', purpose: 'Return count.', inputs: ['count.value'], outputs: ['output.result'], requiredUserSetup: [], configuration: { fields: [{ name: 'count', source: { kind: 'prior_step', reference: 'count.value' } }] } },
+      { id: 'fetch', capability: 'http_request', purpose: 'Read public records.', inputs: ['start.signal'], outputs: ['fetch.item'], requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://example.test/items', cardinality: 'one_object' } } },
+      { id: 'select', capability: 'data_transform', purpose: 'Select fields.', inputs: ['fetch.item'], outputs: ['select.item'], requiredUserSetup: [], configuration: { operation: 'select_fields', input: { kind: 'prior_step', reference: 'fetch.item', cardinality: 'one_object' }, mappings: [{ from: 'id', to: 'id', valueType: 'number' }] } },
+      { id: 'output', capability: 'set_output', purpose: 'Return result.', inputs: ['select.item'], outputs: ['output.result'], requiredUserSetup: [], configuration: { input: { kind: 'prior_step', reference: 'select.item', cardinality: 'one_object' }, mappings: [{ from: 'id', to: 'id', valueType: 'number' }] } },
     ],
     expectedOutput: { deliveryShape: 'one_object', fields: ['count'] }, requiredUserSetup: [],
   };
@@ -25,7 +25,7 @@ test('accepts a compiler-ready specification without n8n parameter names', () =>
 
 test('rejects HTTP setup that is neither public nor user-provided', () => {
   const specification = fixture();
-  specification.steps[1].configuration.url = { kind: 'invented', reference: 'https://example.test/items' };
+  specification.steps[1].configuration.url = { kind: 'invented', reference: 'https://example.test/items', cardinality: 'one_object' };
   assert.throws(() => parseAndValidateStepSpecification(JSON.stringify(specification)), /kind is not supported/);
 });
 

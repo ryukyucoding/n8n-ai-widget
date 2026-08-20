@@ -37,6 +37,12 @@ Arbitrary JavaScript, arbitrary API payloads, external actions, and ambiguous
 branches remain out of scope. They must be clarified or handled later by a
 separate specialised skill; they are not silently guessed by the compiler.
 
+The first compiler implementation is narrower than the Step Specification:
+`manual_trigger -> public HTTPS GET -> select_fields -> one_object set_output`.
+It emits the installed runtime's exact type versions and only the known HTTP
+and Set parameter shapes. Count, filter, branches, writes, and user setup are
+rejected at this first boundary rather than being compiled speculatively.
+
 ## Intent Plan Contract
 
 The exact JSON contract is enforced by `autoresearch/nodewise/intentPlan.js`.

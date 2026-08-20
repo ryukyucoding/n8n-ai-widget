@@ -5,6 +5,8 @@ const { validateIntentPlan } = require('./intentPlan');
 const SOURCE_KINDS = new Set(['public_literal', 'user_setup', 'prior_step']);
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 const TRANSFORMS = new Set(['select_fields', 'count_items', 'filter_items']);
+const CARDINALITIES = new Set(['one_object', 'items']);
+const VALUE_TYPES = new Set(['string', 'number', 'boolean', 'object', 'array']);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -22,7 +24,21 @@ function sourceReference(value, field, priorStepIds) {
   const reference = nonEmpty(value.reference, `${field}.reference`);
   if (kind === 'public_literal') assert(/^https:\/\//.test(reference), `${field}.reference must be a public HTTPS URL`);
   if (kind === 'prior_step') assert(priorStepIds.has(reference.split('.', 1)[0]), `${field}.reference must reference an earlier step`);
-  return { kind, reference };
+  const cardinality = nonEmpty(value.cardinality, `${field}.cardinality`);
+  assert(CARDINALITIES.has(cardinality), `${field}.cardinality is not supported`);
+  return { kind, reference, cardinality };
+}
+
+function mappings(value, field) {
+  assert(Array.isArray(value) && value.length >= 1 && value.length <= 20, `${field} must contain 1 to 20 mappings`);
+  return value.map((mapping, index) => {
+    assert(mapping && typeof mapping === 'object' && !Array.isArray(mapping), `${field}[${index}] must be an object`);
+    const from = nonEmpty(mapping.from, `${field}[${index}].from`);
+    const to = nonEmpty(mapping.to, `${field}[${index}].to`);
+    const valueType = nonEmpty(mapping.valueType, `${field}[${index}].valueType`);
+    assert(VALUE_TYPES.has(valueType), `${field}[${index}].valueType is not supported`);
+    return { from, to, valueType };
+  });
 }
 
 function validateConfiguration(step, index, priorStepIds) {
@@ -41,20 +57,14 @@ function validateConfiguration(step, index, priorStepIds) {
     const operation = nonEmpty(config.operation, `steps[${index}].configuration.operation`);
     assert(TRANSFORMS.has(operation), `steps[${index}].configuration.operation is not supported`);
     const input = sourceReference(config.input, `steps[${index}].configuration.input`, priorStepIds);
-    const fields = Array.isArray(config.fields) ? config.fields.map((field, fieldIndex) => nonEmpty(field, `steps[${index}].configuration.fields[${fieldIndex}]`)) : [];
-    if (operation === 'select_fields') assert(fields.length >= 1, `steps[${index}].configuration.fields is required for select_fields`);
-    return { operation, input, fields };
+    const fieldMappings = operation === 'select_fields' ? mappings(config.mappings, `steps[${index}].configuration.mappings`) : [];
+    return { operation, input, mappings: fieldMappings };
   }
   if (step.capability === 'set_output') {
-    assert(Array.isArray(config.fields) && config.fields.length >= 1, `steps[${index}].configuration.fields is required for set_output`);
+    const input = sourceReference(config.input, `steps[${index}].configuration.input`, priorStepIds);
     return {
-      fields: config.fields.map((field, fieldIndex) => {
-        assert(field && typeof field === 'object' && !Array.isArray(field), `steps[${index}].configuration.fields[${fieldIndex}] must be an object`);
-        return {
-          name: nonEmpty(field.name, `steps[${index}].configuration.fields[${fieldIndex}].name`),
-          source: sourceReference(field.source, `steps[${index}].configuration.fields[${fieldIndex}].source`, priorStepIds),
-        };
-      }),
+      input,
+      mappings: mappings(config.mappings, `steps[${index}].configuration.mappings`),
     };
   }
   throw new Error(`steps[${index}].capability cannot yet be compiled safely`);
