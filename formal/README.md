@@ -6,9 +6,11 @@ modes and adds a third `Compiler Beta` mode.
 
 It does not modify the `ollama-widget` branch, restart n8n, or use the
 standalone beta container. Before replacement it builds a candidate image and
-runs the focused tests. The previous chatbot image receives a rollback tag and
-the previous container is kept stopped under a timestamped rollback name. If
-the new container does not pass health and mode checks, the script restores the
+runs the focused tests. It recreates every Docker network and network alias
+used by the existing chatbot, including the public widget proxy route. The
+previous chatbot image receives a rollback tag and the previous container is
+kept stopped under a timestamped rollback name. If the new container does not
+pass health, mode, or public `widget.js` checks, the script restores the
 previous container automatically.
 
 Run on the .44 server only after the feature branch has been fetched into the

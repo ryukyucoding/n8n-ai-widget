@@ -14,11 +14,24 @@ CANDIDATE_IMAGE="n8n-chatbot-runtime-compiler:${REVISION}"
 ROLLBACK_TAG="n8n-chatbot:rollback-runtime-compiler-${REVISION}-${STAMP}"
 ROLLBACK_CONTAINER="${SOURCE_CHATBOT}-rollback-${STAMP}"
 ENVFILE="$(mktemp)"
+NETWORK_INFO_DIR="$(mktemp -d)"
 OLD_RENAMED=false
 NEW_STARTED=false
 
 cleanup() {
   rm -f "$ENVFILE"
+  rm -rf "$NETWORK_INFO_DIR"
+}
+
+connect_with_saved_aliases() {
+  local index="$1"
+  local target="$2"
+  local -a args=(docker network connect)
+  while IFS= read -r alias; do
+    [ -n "$alias" ] && args+=(--alias "$alias")
+  done < "$NETWORK_INFO_DIR/${index}.aliases"
+  args+=("${NETWORKS[$index]}" "$target")
+  "${args[@]}"
 }
 
 rollback_on_error() {
@@ -30,6 +43,9 @@ rollback_on_error() {
       docker rm -f "$SOURCE_CHATBOT" >/dev/null 2>&1 || true
     fi
     docker rename "$ROLLBACK_CONTAINER" "$SOURCE_CHATBOT" >/dev/null 2>&1 || true
+    for index in "${!NETWORKS[@]}"; do
+      connect_with_saved_aliases "$index" "$SOURCE_CHATBOT" >/dev/null 2>&1 || true
+    done
     docker start "$SOURCE_CHATBOT" >/dev/null 2>&1 || true
   fi
   cleanup
@@ -43,8 +59,11 @@ test -d "$WORKTREE/chatbot"
 docker inspect "$SOURCE_CHATBOT" >/dev/null
 test "$(docker inspect -f '{{.State.Running}}' "$SOURCE_CHATBOT")" = "true"
 
-NETWORK="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$SOURCE_CHATBOT" | head -n 1)"
-test -n "$NETWORK"
+mapfile -t NETWORKS < <(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$SOURCE_CHATBOT")
+test "${#NETWORKS[@]}" -gt 0
+for index in "${!NETWORKS[@]}"; do
+  docker inspect -f "{{with index .NetworkSettings.Networks \"${NETWORKS[$index]}\"}}{{range .Aliases}}{{println .}}{{end}}{{end}}" "$SOURCE_CHATBOT" > "$NETWORK_INFO_DIR/${index}.aliases"
+done
 docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$SOURCE_CHATBOT" > "$ENVFILE"
 grep -q '^N8N_API_KEY=' "$ENVFILE"
 grep -q '^N8N_BASE_URL=' "$ENVFILE"
@@ -61,9 +80,17 @@ docker tag "$OLD_IMAGE" "$ROLLBACK_TAG"
 docker stop "$SOURCE_CHATBOT"
 docker rename "$SOURCE_CHATBOT" "$ROLLBACK_CONTAINER"
 OLD_RENAMED=true
+for index in "${!NETWORKS[@]}"; do
+  docker network disconnect "${NETWORKS[$index]}" "$ROLLBACK_CONTAINER"
+done
+
+PRIMARY_NETWORK_ARGS=(--network "${NETWORKS[0]}")
+while IFS= read -r alias; do
+  [ -n "$alias" ] && PRIMARY_NETWORK_ARGS+=(--network-alias "$alias")
+done < "$NETWORK_INFO_DIR/0.aliases"
 
 docker run -d --name "$SOURCE_CHATBOT" --restart unless-stopped \
-  --network "$NETWORK" --publish "${FORMAL_PORT}:3001" \
+  "${PRIMARY_NETWORK_ARGS[@]}" --publish "${FORMAL_PORT}:3001" \
   --env-file "$ENVFILE" \
   -e PORT=3001 \
   -e RUNTIME_COMPILER_BETA_ENABLED=true \
@@ -71,6 +98,9 @@ docker run -d --name "$SOURCE_CHATBOT" --restart unless-stopped \
   -e N8N_PUBLIC_URL="$PUBLIC_N8N_URL" \
   "$CANDIDATE_IMAGE" >/dev/null
 NEW_STARTED=true
+for index in "${!NETWORKS[@]}"; do
+  [ "$index" -eq 0 ] || connect_with_saved_aliases "$index" "$SOURCE_CHATBOT"
+done
 
 for _ in $(seq 1 10); do
   if curl --fail --silent --show-error "http://127.0.0.1:${FORMAL_PORT}/health" >/dev/null; then
@@ -80,6 +110,7 @@ for _ in $(seq 1 10); do
 done
 curl --fail --silent --show-error "http://127.0.0.1:${FORMAL_PORT}/health"
 curl --fail --silent --show-error "http://127.0.0.1:${FORMAL_PORT}/models" | grep -q '"compilerBeta":{"enabled":true,"standalone":false'
+curl --fail --silent --show-error "${PUBLIC_N8N_URL%/}/widget.js" | grep -q 'n8n-ai-widget'
 
 echo "revision=${REVISION}"
 echo "rollback_tag=${ROLLBACK_TAG}"
