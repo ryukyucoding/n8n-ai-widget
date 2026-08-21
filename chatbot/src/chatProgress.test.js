@@ -60,7 +60,7 @@ nodeTest('Create sends stream:true, renders progress, ignores unknown events, an
 nodeTest('malformed NDJSON rejects and the existing error path removes typing', async () => {
   const h = harness(['{bad}\n']);
   await assert.rejects(() => h.run({ message: 'safe test' }, {}));
-  assert.ok(source.includes('catch (err) {\n        typing.remove();'));
+  assert.match(source, /catch \(err\) \{\r?\n\s*typing\.remove\(\);/);
 });
 
 nodeTest('Edit stays on the JSON agent request and draft handoff is absent', () => {

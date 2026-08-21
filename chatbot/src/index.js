@@ -31,6 +31,7 @@ const { verifyCandidateWorkflow } = require('./candidateWorkflowVerifier');
 const { runTimedStage, GenerateStageError } = require('./generateLifecycle');
 const { evaluateShadowRepair } = require('./shadowRepairOrchestrator');
 const { observeShadowRepair, shadowRepairEnabled } = require('./shadowObservation');
+const { SUPPORTED_PATTERNS, compileBetaRequest } = require('./runtimeCompilerBeta');
 const {
   createCandidateLimit,
   evaluateCorrectnessFirstRepair,
@@ -91,6 +92,12 @@ const WORKFLOW_PLANNER_ENABLED = !['0', 'false', 'no'].includes(
 const WORKFLOW_PLANNER_MODEL = process.env.WORKFLOW_PLANNER_MODEL || 'gpt-oss:120b';
 const SHADOW_REPAIR_ENABLED = shadowRepairEnabled(process.env.SHADOW_REPAIR_ENABLED);
 const CORRECTNESS_FIRST_REPAIR_ENABLED = shadowRepairEnabled(process.env.CORRECTNESS_FIRST_REPAIR_ENABLED);
+const RUNTIME_COMPILER_BETA_ENABLED = ['1', 'true', 'yes'].includes(
+  String(process.env.RUNTIME_COMPILER_BETA_ENABLED || 'false').toLowerCase()
+);
+const BETA_CHAT_STANDALONE = ['1', 'true', 'yes'].includes(
+  String(process.env.BETA_CHAT_STANDALONE || 'false').toLowerCase()
+);
 
 function timeoutMs(name, fallback) {
   const value = Number.parseInt(process.env[name] || String(fallback), 10);
@@ -223,7 +230,53 @@ app.get('/models', (req, res) => {
   res.json({
     create: { models: CREATE_MODELS, defaultModel: DEFAULT_CREATE_MODEL },
     edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
+    compiler: { models: [], defaultModel: '' },
+    compilerBeta: { enabled: RUNTIME_COMPILER_BETA_ENABLED, standalone: BETA_CHAT_STANDALONE, supportedPatterns: SUPPORTED_PATTERNS },
   });
+});
+
+// The compiler beta is deliberately separate from free-form model generation.
+// It accepts only named public-data patterns whose exact runtime JSON has been
+// tested. Unsupported requests are rejected rather than silently falling back.
+app.post('/beta/compile', async (req, res) => {
+  if (!RUNTIME_COMPILER_BETA_ENABLED) return res.status(404).json({ error: 'Runtime Compiler Beta is disabled.' });
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  if (!message) return res.status(400).json({ error: 'message is required' });
+  if (!N8N_API_KEY) return res.status(503).json({ error: 'Runtime Compiler Beta requires an n8n API key.' });
+
+  const compiled = compileBetaRequest(message);
+  if (compiled.status !== 'supported') {
+    return res.status(422).json({
+      error: '這個 Beta 目前只支援兩個已驗證的公開資料 pattern；不會改由模型猜測或建立 workflow。',
+      code: 'beta_pattern_not_supported', supportedPatterns: compiled.supportedPatterns,
+    });
+  }
+
+  try {
+    const verification = await verifyCandidateWorkflow({
+      operation: 'create', userRequest: message, candidateWorkflow: compiled.workflow,
+    }, { n8nBaseUrl: N8N_BASE_URL, n8nApiKey: N8N_API_KEY });
+    if (!['pass', 'warning'].includes(verification.status)) {
+      return res.status(422).json({ error: 'Runtime Compiler Beta workflow verification failed.', code: 'beta_static_verification_failed' });
+    }
+    const n8nRes = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-N8N-API-KEY': N8N_API_KEY, Connection: 'close' },
+      body: JSON.stringify(sanitizeCreateWorkflowPayload(verification.workflow)), dispatcher: DIRECT_FETCH,
+    }, 2);
+    if (!n8nRes.ok) throw new Error(`n8n_create_failed_${n8nRes.status}`);
+    const created = await n8nRes.json();
+    const postActionVerification = await verifyCreatedWorkflow(created);
+    return res.status(200).json({
+      message: `Runtime Compiler Beta 已建立 workflow「${created.name}」。請在 n8n 手動執行並確認輸出。`,
+      workflowId: created.id, workflowName: created.name,
+      workflowUrl: `${process.env.N8N_PUBLIC_URL || 'http://localhost:5678'}/workflow/${created.id}`,
+      workflow: created, postActionVerification, compilerPattern: compiled.pattern,
+    });
+  } catch (error) {
+    console.error('[chatbot] runtime compiler beta failed:', error.message || error);
+    return res.status(500).json({ error: 'Runtime Compiler Beta could not create the workflow.', code: 'beta_create_failed' });
+  }
 });
 
 // ---------------------------------------------------------------------------
