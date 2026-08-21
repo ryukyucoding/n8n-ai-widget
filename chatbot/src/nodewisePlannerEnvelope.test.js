@@ -15,6 +15,16 @@ test('keeps unresolved video automation requirements out of the compiler', () =>
   assert.equal(result.requiredUserInputs.length, 3);
 });
 
+test('accepts an unsupported result with no missing user input yet', () => {
+  const result = validatePlannerEnvelope({
+    schemaVersion: '1.0', kind: 'nodewise_planner_result', outcome: 'unsupported_capability',
+    goal: 'Generate a video and upload it to Drive.', requiredUserInputs: [],
+    capabilityGaps: ['authenticated POST', 'bounded polling', 'binary upload'],
+  });
+  assert.deepEqual(result.requiredUserInputs, []);
+  assert.equal(result.capabilityGaps.length, 3);
+});
+
 test('refuses a non-ready planner result that tries to smuggle in workflow instructions', () => {
   assert.throws(() => validatePlannerEnvelope({
     schemaVersion: '1.0', kind: 'nodewise_planner_result', outcome: 'unsupported_capability', goal: 'Delete records.',

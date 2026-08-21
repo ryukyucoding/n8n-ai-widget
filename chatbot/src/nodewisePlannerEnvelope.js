@@ -9,7 +9,7 @@ function assert(condition, message) {
 }
 
 function stringList(value, field, { required = false } = {}) {
-  if (value === undefined && !required) return [];
+  if ((value === undefined || (Array.isArray(value) && value.length === 0)) && !required) return [];
   assert(Array.isArray(value) && value.length > 0, `${field} must be a non-empty array`);
   return value.map((item, index) => {
     assert(typeof item === 'string' && item.trim(), `${field}[${index}] must be a non-empty string`);
