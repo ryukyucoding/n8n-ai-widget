@@ -59,7 +59,7 @@ test -d "$WORKTREE/chatbot"
 docker inspect "$SOURCE_CHATBOT" >/dev/null
 test "$(docker inspect -f '{{.State.Running}}' "$SOURCE_CHATBOT")" = "true"
 
-mapfile -t NETWORKS < <(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$SOURCE_CHATBOT")
+mapfile -t NETWORKS < <(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$SOURCE_CHATBOT" | sed '/^[[:space:]]*$/d')
 test "${#NETWORKS[@]}" -gt 0
 for index in "${!NETWORKS[@]}"; do
   docker inspect -f "{{with index .NetworkSettings.Networks \"${NETWORKS[$index]}\"}}{{range .Aliases}}{{println .}}{{end}}{{end}}" "$SOURCE_CHATBOT" > "$NETWORK_INFO_DIR/${index}.aliases"
