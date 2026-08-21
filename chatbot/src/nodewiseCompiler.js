@@ -58,6 +58,9 @@ function validateSpecification(value) {
   assert(typeof value.goal === 'string' && value.goal.trim(), 'goal is required');
   assert(Array.isArray(value.requiredUserSetup) && value.requiredUserSetup.length === 0, 'user setup must be resolved before compilation');
   assert(value.expectedOutput?.deliveryShape === 'one_object', 'only one_object output is supported');
+  assert(Array.isArray(value.expectedOutput.fields) && value.expectedOutput.fields.length > 0, 'expectedOutput.fields is required');
+  const expectedOutputFields = value.expectedOutput.fields.map((field, index) => safeIdentifier(field, `expectedOutput.fields[${index}]`));
+  assert(new Set(expectedOutputFields).size === expectedOutputFields.length, 'expectedOutput.fields must be unique');
   assert(Array.isArray(value.steps) && value.steps.length >= 2 && value.steps.length <= 10, 'steps must contain 2 to 10 entries');
 
   const seen = new Set();
@@ -102,6 +105,15 @@ function validateSpecification(value) {
     seen.add(step.id);
     return { id: step.id, capability: step.capability, configuration };
   });
+  const finalStep = steps.at(-1);
+  const finalFields = finalStep.capability === 'data_transform' && finalStep.configuration.operation === 'join_object_and_count_false_boolean'
+    ? [...finalStep.configuration.objectMappings.map((mapping) => mapping.to), finalStep.configuration.totalField, finalStep.configuration.falseCountField]
+    : finalStep.capability === 'set_output' || (finalStep.capability === 'data_transform' && finalStep.configuration.operation === 'select_fields')
+      ? finalStep.configuration.mappings.map((mapping) => mapping.to)
+      : [];
+  assert(finalFields.length > 0, 'final step must produce declared output fields');
+  assert(finalFields.length === expectedOutputFields.length && finalFields.every((field, index) => field === expectedOutputFields[index]), 'final step fields must match expectedOutput.fields');
+
   return { goal: value.goal.trim(), steps };
 }
 

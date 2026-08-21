@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const { compileNodewiseSpecification } = require('./nodewiseCompiler');
 
@@ -28,4 +30,21 @@ test('refuses an unresolved credential-dependent plan before emitting JSON', () 
   const specification = todoSpecification();
   specification.requiredUserSetup = ['Slack credential'];
   assert.throws(() => compileNodewiseSpecification(specification), /user setup/);
+});
+
+test('accepts the Sol user-2 plan and preserves its declared public endpoints', () => {
+  const fixturePath = path.join(__dirname, '..', 'tests', 'nodewiseSpecs', 'sol-user2-todo-summary.json');
+  const specification = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+
+  const workflow = compileNodewiseSpecification(specification);
+
+  assert.equal(workflow.nodes[1].parameters.url, 'https://jsonplaceholder.typicode.com/users/2');
+  assert.equal(workflow.nodes[2].parameters.url, 'https://jsonplaceholder.typicode.com/todos?userId=2');
+  assert.match(workflow.nodes[3].parameters.jsCode, /Step 2: fetch-user/);
+});
+
+test('refuses a plan whose declared output contract differs from its final transform', () => {
+  const specification = todoSpecification();
+  specification.expectedOutput.fields = ['name', 'email', 'totalTodos', 'completedTodos'];
+  assert.throws(() => compileNodewiseSpecification(specification), /final step fields/);
 });
