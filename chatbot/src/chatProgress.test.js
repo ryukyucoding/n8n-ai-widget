@@ -6,6 +6,7 @@ const nodeTest = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, 'chat.html'), 'utf8');
+const serverSource = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
 
 function extractProgressHelper() {
   const start = source.indexOf('async function generateWithProgress');
@@ -66,4 +67,12 @@ nodeTest('malformed NDJSON rejects and the existing error path removes typing', 
 nodeTest('Edit stays on the JSON agent request and draft handoff is absent', () => {
   assert.ok(source.includes('} else {\n          res = await fetch(AGENT_URL, {'));
   assert.doesNotMatch(source, /DRAFT_WORKFLOW_KEY|draft_needs_setup|draft_needs_repair|editHandoff|createDraftHandoff/);
+});
+
+nodeTest('Compiler Beta uses the established Create transport with an explicit mode', () => {
+  assert.match(source, /mode: 'compiler_beta'/);
+  assert.match(source, /useCompiler[\s\S]*fetch\(GENERATE_URL/);
+  assert.doesNotMatch(source, /COMPILER_URL/);
+  assert.match(serverSource, /if \(mode === 'compiler_beta'\)/);
+  assert.match(serverSource, /compileRuntimeBeta\(compilerMessage\)/);
 });

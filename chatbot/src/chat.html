@@ -230,7 +230,6 @@
   <script>
     var AGENT_URL = window.location.origin + '/agent/run';
     var GENERATE_URL = window.location.origin + '/generate';
-    var COMPILER_URL = window.location.origin + '/beta/compile';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
     var MODE_KEY = 'n8n-widget-active-mode';
@@ -517,7 +516,7 @@
         var body = useCreate
           ? { message: text, model: modelSelect.value }
           : useCompiler
-            ? { message: text }
+            ? { message: text, mode: 'compiler_beta' }
           : {
               message: text,
               sessionId: loadSessionId(),
@@ -532,7 +531,7 @@
           res = { ok: generated.ok };
           data = generated.data;
         } else if (useCompiler) {
-          res = await fetch(COMPILER_URL, {
+          res = await fetch(GENERATE_URL, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
           });
           data = await res.json();
