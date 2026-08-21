@@ -195,7 +195,7 @@
     <div class="header-icon">⚡</div>
     <div>
       <div class="header-title">AI Workflow Generator</div>
-      <div class="header-sub">建立與畫布編輯使用獨立模型</div>
+      <div class="header-sub" id="header-sub">建立與畫布編輯使用獨立模型</div>
     </div>
     <div class="header-spacer"></div>
     <button id="clear-btn" title="清空對話">清空</button>
@@ -307,9 +307,12 @@
       if (!config) return;
       modelConfig = config;
       if (config.compilerBeta && config.compilerBeta.standalone) {
+        var createButton = document.querySelector('[data-mode="create"]');
+        if (createButton) createButton.textContent = 'Fine-tuned Create';
         var editButton = document.querySelector('[data-mode="edit"]');
         if (editButton) editButton.hidden = true;
         document.querySelector('.mode-switch').classList.add('two-mode');
+        document.getElementById('header-sub').textContent = 'Fine-tuned Create 與 Runtime Compiler Beta';
       }
       var compilerButton = document.querySelector('[data-mode="compiler"]');
       if (compilerButton) compilerButton.disabled = !(config.compilerBeta && config.compilerBeta.enabled);
