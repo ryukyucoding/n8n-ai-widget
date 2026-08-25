@@ -6,6 +6,7 @@ const STATES = Object.freeze({
   CAPABILITY_GAP: 'capability_gap',
   PLAN_READY: 'plan_ready',
   STATIC_VALIDATION_FAILED: 'static_validation_failed',
+  READY_TO_CREATE_DRAFT: 'ready_to_create_draft',
   SETUP_REQUIRED: 'setup_required',
   CONFIRM_EXTERNAL_WRITE: 'confirm_external_write',
   READY_TO_CREATE: 'ready_to_create',
@@ -22,9 +23,9 @@ function stateForPlannerResult(result) {
   throw new Error(`unsupported planner outcome: ${result.outcome}`);
 }
 
-function nextStateAfterStaticValidation({ passed, setupRequirements = [], requiresConfirmation = false }) {
+function nextStateAfterStaticValidation({ passed, credentialDisposition = 'bind_and_create', requiresConfirmation = false }) {
   if (!passed) return STATES.STATIC_VALIDATION_FAILED;
-  if (setupRequirements.length > 0) return STATES.SETUP_REQUIRED;
+  if (credentialDisposition === 'create_inactive_draft') return STATES.READY_TO_CREATE_DRAFT;
   if (requiresConfirmation) return STATES.CONFIRM_EXTERNAL_WRITE;
   return STATES.READY_TO_CREATE;
 }
@@ -35,6 +36,7 @@ function userActionForState(state) {
     [STATES.CAPABILITY_GAP]: 'save_request_or_switch_mode',
     [STATES.PLAN_READY]: 'review_plan',
     [STATES.STATIC_VALIDATION_FAILED]: 'review_validation_findings',
+    [STATES.READY_TO_CREATE_DRAFT]: 'create_inactive_draft',
     [STATES.SETUP_REQUIRED]: 'configure_credentials_and_fields',
     [STATES.CONFIRM_EXTERNAL_WRITE]: 'confirm_external_write',
     [STATES.READY_TO_CREATE]: 'create_workflow',

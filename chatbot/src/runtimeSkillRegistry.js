@@ -65,7 +65,8 @@ const SKILLS = Object.freeze([
     maturity: 'implemented_prototype',
     compiler: 'rssEmailDraftCompiler',
     requiresUserSetup: true,
-    setupRequirements: ['SMTP credential', 'sender email', 'recipient email'],
+    credentialRequirements: ['SMTP credential'],
+    configurationRequirements: ['sender email', 'recipient email'],
     risk: 'external_write',
   },
   {
@@ -74,7 +75,7 @@ const SKILLS = Object.freeze([
     maturity: 'planned',
     compiler: null,
     requiresUserSetup: true,
-    setupRequirements: ['service credential'],
+    credentialRequirements: ['service credential'],
     risk: 'external_write',
   },
   {
@@ -101,16 +102,39 @@ function resolveSkillRequirements(skillIds) {
   assert(Array.isArray(skillIds), 'skillIds must be an array');
   const requested = [...new Set(skillIds)].map(getSkill);
   const missing = requested.filter((skill) => skill.maturity === 'planned');
-  const setupRequirements = [...new Set(requested.flatMap((skill) => skill.setupRequirements || []))];
+  const credentialRequirements = [...new Set(requested.flatMap((skill) => skill.credentialRequirements || []))];
+  const configurationRequirements = [...new Set(requested.flatMap((skill) => skill.configurationRequirements || []))];
   const hasExternalWrite = requested.some((skill) => skill.risk === 'external_write');
 
   return {
     requested: requested.map((skill) => skill.id),
     available: missing.length === 0,
     missing: missing.map((skill) => skill.id),
-    setupRequirements,
+    credentialRequirements,
+    configurationRequirements,
     requiresConfirmation: hasExternalWrite,
   };
 }
 
-module.exports = { SKILLS, getSkill, resolveSkillRequirements };
+// Credential values never enter the planner or compiler. This function only
+// decides whether a named credential can be bound, or whether the created
+// workflow must remain an inactive draft until the user sets it up in n8n.
+function resolveCredentialBindings(skillIds, availableCredentialNames = []) {
+  assert(Array.isArray(availableCredentialNames), 'availableCredentialNames must be an array');
+  const requirements = resolveSkillRequirements(skillIds).credentialRequirements;
+  const available = new Set(availableCredentialNames.filter((name) => typeof name === 'string').map((name) => name.trim()));
+  const bindings = requirements.map((requirement) => ({
+    requirement,
+    status: available.has(requirement) ? 'resolved' : 'setup_required',
+  }));
+  const unresolved = bindings.filter((binding) => binding.status === 'setup_required');
+
+  return {
+    bindings,
+    unresolvedRequirements: unresolved.map((binding) => binding.requirement),
+    configurationRequirements: resolveSkillRequirements(skillIds).configurationRequirements,
+    createDisposition: unresolved.length === 0 ? 'bind_and_create' : 'create_inactive_draft',
+  };
+}
+
+module.exports = { SKILLS, getSkill, resolveSkillRequirements, resolveCredentialBindings };
