@@ -1,0 +1,202 @@
+{
+  "schemaVersion": "1.0",
+  "benchmarkId": "create-candidate-quality-v1",
+  "operation": "create",
+  "plannerComparison": {
+    "included": false,
+    "reason": "First-round comparison isolates Create candidate quality."
+  },
+  "candidateModelSlots": [
+    "candidate_a",
+    "candidate_b",
+    "candidate_c"
+  ],
+  "reproducibility": {
+    "promptTemplateId": "create-candidate-v1",
+    "promptTemplateFingerprintRequired": true,
+    "runtimeSchemaSnapshotPath": "chatbot/schemas/runtime_node_schemas.json",
+    "runtimeSchemaSnapshotFingerprintRequired": true,
+    "decodingProfileId": "fixed-create-benchmark-v1",
+    "decodingProfileFingerprintRequired": true,
+    "perCaseMinimumRepetitions": 5,
+    "perAttemptTimeoutMs": 120000,
+    "randomization": "shuffle model-case-attempt order with a recorded non-sensitive run seed"
+  },
+  "attemptRecord": {
+    "requiredFields": [
+      "runId",
+      "caseId",
+      "modelSlot",
+      "attemptIndex",
+      "startedAt",
+      "elapsedMs",
+      "outcome",
+      "failureStage",
+      "jsonParseStatus",
+      "runtimeSchemaStatus",
+      "connectionPortStatus",
+      "mustExecuteBeforeStatus",
+      "semanticReviewStatus",
+      "executionEvidenceStatus"
+    ],
+    "outcomeValues": [
+      "completed",
+      "timeout",
+      "transport_failure",
+      "invalid_output",
+      "verification_failure"
+    ],
+    "failureStageValues": [
+      "none",
+      "generation",
+      "json_parse",
+      "runtime_schema",
+      "connection_port",
+      "must_execute_before",
+      "semantic_review",
+      "execution_assertion"
+    ],
+    "forbidFields": [
+      "modelIdentifier",
+      "modelHost",
+      "endpoint",
+      "authorization",
+      "credential",
+      "workflowId",
+      "rawPrompt",
+      "rawModelOutput",
+      "workflowJson"
+    ]
+  },
+  "metrics": [
+    "generation_latency_ms",
+    "timeout_rate",
+    "json_parse_pass_rate",
+    "runtime_schema_pass_rate",
+    "connection_port_pass_rate",
+    "must_execute_before_pass_rate",
+    "semantic_review_pass_rate",
+    "first_candidate_pass_rate",
+    "repair_needed_rate",
+    "candidate_count",
+    "c01_safe_execution_assertion_pass_rate",
+    "c04_c07_execution_evidence_status"
+  ],
+  "cases": [
+    {
+      "caseId": "C01",
+      "definitionStatus": "ready",
+      "userRequest": "Retrieve a single public JSONPlaceholder post and return its id and title.",
+      "acceptanceContract": {
+        "contractRevision": 1,
+        "expectedDeliveryState": "ready-to-run",
+        "executionAssertions": [
+          { "path": "id", "required": true, "expectedType": "number" },
+          { "path": "title", "required": true, "expectedType": "string" }
+        ]
+      },
+      "safetyTier": "controlled_fixture",
+      "allowedNodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.set"
+      ],
+      "allowedUrls": ["https://jsonplaceholder.typicode.com/posts/1"],
+      "expectedDeliveryState": "ready-to-run",
+      "executionEvidencePolicy": "safe_execution_assertion"
+    },
+    {
+      "caseId": "C02",
+      "definitionStatus": "blocked_missing_case_spec",
+      "userRequest": null,
+      "acceptanceContract": null,
+      "allowedNodeTypes": null,
+      "allowedUrls": null,
+      "expectedDeliveryState": null,
+      "executionEvidencePolicy": "not_applicable_until_case_spec_exists"
+    },
+    {
+      "caseId": "C03",
+      "definitionStatus": "blocked_missing_case_spec",
+      "userRequest": null,
+      "acceptanceContract": null,
+      "allowedNodeTypes": null,
+      "allowedUrls": null,
+      "expectedDeliveryState": null,
+      "executionEvidencePolicy": "not_applicable_until_case_spec_exists"
+    },
+    {
+      "caseId": "C04",
+      "definitionStatus": "ready",
+      "userRequest": "Retrieve a public JSONPlaceholder user and return the name and username.",
+      "acceptanceContract": {
+        "contractRevision": 1,
+        "expectedDeliveryState": "ready-to-run",
+        "executionAssertions": [
+          { "path": "name", "required": true, "expectedType": "string" },
+          { "path": "username", "required": true, "expectedType": "string" }
+        ]
+      },
+      "safetyTier": "sandbox_required",
+      "executionEnvironment": { "requiredCapability": "isolated_code_execution" },
+      "allowedNodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.set"
+      ],
+      "allowedUrls": ["https://jsonplaceholder.typicode.com/users/1"],
+      "expectedDeliveryState": "ready-to-run",
+      "executionEvidencePolicy": "skipped_or_manual_or_sandbox_evidence"
+    },
+    {
+      "caseId": "C05",
+      "definitionStatus": "blocked_missing_case_spec",
+      "userRequest": null,
+      "acceptanceContract": null,
+      "allowedNodeTypes": null,
+      "allowedUrls": null,
+      "expectedDeliveryState": null,
+      "executionEvidencePolicy": "not_applicable_until_case_spec_exists"
+    },
+    {
+      "caseId": "C06",
+      "definitionStatus": "blocked_missing_case_spec",
+      "userRequest": null,
+      "acceptanceContract": null,
+      "allowedNodeTypes": null,
+      "allowedUrls": null,
+      "expectedDeliveryState": null,
+      "executionEvidencePolicy": "not_applicable_until_case_spec_exists"
+    },
+    {
+      "caseId": "C07",
+      "definitionStatus": "ready",
+      "userRequest": "Retrieve public JSONPlaceholder user and todo data, then return a todo summary.",
+      "acceptanceContract": {
+        "contractRevision": 1,
+        "expectedDeliveryState": "ready-to-run",
+        "executionAssertions": [
+          { "path": "name", "required": true, "expectedType": "string" },
+          { "path": "email", "required": true, "expectedType": "string" },
+          { "path": "total_todos", "required": true, "expectedType": "number", "equals": 20 },
+          { "path": "incomplete_todos", "required": true, "expectedType": "number", "equals": 9 }
+        ]
+      },
+      "safetyTier": "sandbox_required",
+      "executionEnvironment": { "requiredCapability": "isolated_code_execution" },
+      "allowedNodeTypes": [
+        "n8n-nodes-base.manualTrigger",
+        "n8n-nodes-base.httpRequest",
+        "n8n-nodes-base.code",
+        "n8n-nodes-base.set"
+      ],
+      "allowedUrls": [
+        "https://jsonplaceholder.typicode.com/users/1",
+        "https://jsonplaceholder.typicode.com/todos?userId=1"
+      ],
+      "expectedDeliveryState": "ready-to-run",
+      "executionEvidencePolicy": "skipped_or_manual_or_sandbox_evidence"
+    }
+  ]
+}

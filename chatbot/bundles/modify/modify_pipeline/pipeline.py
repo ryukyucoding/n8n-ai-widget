@@ -216,12 +216,17 @@ class TwoPhaseConfig:
     max_tokens_modify: int = 8192
     api_key: Optional[str] = None
     base_url: Optional[str] = None
+    default_headers: Optional[Dict[str, str]] = None
 
 
 def _client(cfg: TwoPhaseConfig) -> Any:
     from openai import OpenAI
 
-    return OpenAI(api_key=cfg.api_key, base_url=cfg.base_url or None)
+    return OpenAI(
+        api_key=cfg.api_key,
+        base_url=cfg.base_url or None,
+        default_headers=cfg.default_headers,
+    )
 
 
 def _usage_from_response(resp: Any) -> Optional[JSONDict]:

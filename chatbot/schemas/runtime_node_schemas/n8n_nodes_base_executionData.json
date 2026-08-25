@@ -1,0 +1,103 @@
+{
+  "displayName": "Execution Data",
+  "name": "n8n-nodes-base.executionData",
+  "icon": "node:execution-data",
+  "group": [
+    "input"
+  ],
+  "iconColor": "light-green",
+  "version": [
+    1,
+    1.1
+  ],
+  "description": "Add execution data for search",
+  "defaults": {
+    "name": "Execution Data"
+  },
+  "inputs": [
+    "main"
+  ],
+  "outputs": [
+    "main"
+  ],
+  "properties": [
+    {
+      "displayName": "Save important data using this node. It will be displayed on each execution for easy reference and you can filter by it.<br />Filtering is available on Pro and Enterprise plans. <a href='https://n8n.io/pricing/' target='_blank'>More Info</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": ""
+    },
+    {
+      "displayName": "Operation",
+      "name": "operation",
+      "type": "options",
+      "default": "save",
+      "noDataExpression": true,
+      "options": [
+        {
+          "name": "Save Highlight Data (for Search/review)",
+          "value": "save",
+          "action": "Save Highlight Data (for search/review)"
+        }
+      ]
+    },
+    {
+      "displayName": "Data to Save",
+      "name": "dataToSave",
+      "placeholder": "Add Saved Field",
+      "type": "fixedCollection",
+      "typeOptions": {
+        "multipleValueButtonText": "Add Saved Field",
+        "multipleValues": true
+      },
+      "displayOptions": {
+        "show": {
+          "operation": [
+            "save"
+          ]
+        }
+      },
+      "default": {},
+      "options": [
+        {
+          "displayName": "Values",
+          "name": "values",
+          "values": [
+            {
+              "displayName": "Key",
+              "name": "key",
+              "type": "string",
+              "default": "",
+              "placeholder": "e.g. myKey",
+              "requiresDataPath": "single"
+            },
+            {
+              "displayName": "Value",
+              "name": "value",
+              "type": "string",
+              "default": "",
+              "placeholder": "e.g. myValue"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "hints": [
+    {
+      "type": "warning",
+      "message": "Some keys are longer than 50 characters. They will be truncated.",
+      "displayCondition": "={{ $parameter.dataToSave.values.some((x) => x.key.length > 50) }}",
+      "whenToDisplay": "beforeExecution",
+      "location": "outputPane"
+    },
+    {
+      "type": "warning",
+      "message": "Some values are longer than 512 characters. They will be truncated.",
+      "displayCondition": "={{ $parameter.dataToSave.values.some((x) => x.value.length > 512) }}",
+      "whenToDisplay": "beforeExecution",
+      "location": "outputPane"
+    }
+  ],
+  "typeVersion": 1.1
+}

@@ -1,0 +1,366 @@
+{
+  "displayName": "MCP Client Tool",
+  "name": "@n8n/n8n-nodes-langchain.mcpClientTool",
+  "icon": {
+    "light": "file:../mcp.svg",
+    "dark": "file:../mcp.dark.svg"
+  },
+  "group": [
+    "output"
+  ],
+  "version": [
+    1,
+    1.1,
+    1.2
+  ],
+  "description": "Connect tools from an MCP Server",
+  "defaults": {
+    "name": "MCP Client"
+  },
+  "codex": {
+    "categories": [
+      "AI"
+    ],
+    "subcategories": {
+      "AI": [
+        "Tools"
+      ],
+      "Tools": [
+        "Recommended Tools"
+      ]
+    },
+    "alias": [
+      "Model Context Protocol",
+      "MCP Client"
+    ],
+    "resources": {
+      "primaryDocumentation": [
+        {
+          "url": "https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp/"
+        }
+      ]
+    }
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "type": "ai_tool",
+      "displayName": "Tools"
+    }
+  ],
+  "credentials": [
+    {
+      "name": "httpBearerAuth",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "authentication": [
+            "bearerAuth"
+          ]
+        }
+      }
+    },
+    {
+      "name": "httpHeaderAuth",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "authentication": [
+            "headerAuth"
+          ]
+        }
+      }
+    },
+    {
+      "name": "mcpOAuth2Api",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "authentication": [
+            "mcpOAuth2Api"
+          ]
+        }
+      }
+    },
+    {
+      "name": "httpMultipleHeadersAuth",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "authentication": [
+            "multipleHeadersAuth"
+          ]
+        }
+      }
+    }
+  ],
+  "properties": [
+    {
+      "displayName": "This node must be connected to an AI agent. <a data-action='openSelectiveNodeCreator' data-action-parameter-creatorview='AI'>Insert one</a>",
+      "name": "notice",
+      "type": "notice",
+      "default": "",
+      "typeOptions": {
+        "containerClass": "ndv-connection-hint-notice"
+      }
+    },
+    {
+      "displayName": "SSE Endpoint",
+      "name": "sseEndpoint",
+      "type": "string",
+      "description": "SSE Endpoint of your MCP server",
+      "placeholder": "e.g. https://my-mcp-server.ai/sse",
+      "default": "",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "@version": [
+            1
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Endpoint",
+      "name": "endpointUrl",
+      "type": "string",
+      "description": "Endpoint of your MCP server",
+      "placeholder": "e.g. https://my-mcp-server.ai/mcp",
+      "default": "",
+      "required": true,
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Server Transport",
+      "name": "serverTransport",
+      "type": "options",
+      "options": [
+        {
+          "name": "HTTP Streamable",
+          "value": "httpStreamable"
+        },
+        {
+          "name": "Server Sent Events (Deprecated)",
+          "value": "sse"
+        }
+      ],
+      "default": "sse",
+      "description": "The transport used by your endpoint",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            1.1
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Server Transport",
+      "name": "serverTransport",
+      "type": "options",
+      "options": [
+        {
+          "name": "HTTP Streamable",
+          "value": "httpStreamable"
+        },
+        {
+          "name": "Server Sent Events (Deprecated)",
+          "value": "sse"
+        }
+      ],
+      "default": "httpStreamable",
+      "description": "The transport used by your endpoint",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.2
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Authentication",
+      "name": "authentication",
+      "type": "options",
+      "options": [
+        {
+          "name": "Bearer Auth",
+          "value": "bearerAuth"
+        },
+        {
+          "name": "Header Auth",
+          "value": "headerAuth"
+        },
+        {
+          "name": "None",
+          "value": "none"
+        }
+      ],
+      "default": "none",
+      "description": "The way to authenticate with your endpoint",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "lt": 1.2
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Authentication",
+      "name": "authentication",
+      "type": "options",
+      "options": [
+        {
+          "name": "Bearer Auth",
+          "value": "bearerAuth"
+        },
+        {
+          "name": "Header Auth",
+          "value": "headerAuth"
+        },
+        {
+          "name": "MCP OAuth2",
+          "value": "mcpOAuth2Api"
+        },
+        {
+          "name": "Multiple Headers Auth",
+          "value": "multipleHeadersAuth"
+        },
+        {
+          "name": "None",
+          "value": "none"
+        }
+      ],
+      "default": "none",
+      "description": "The way to authenticate with your endpoint",
+      "displayOptions": {
+        "show": {
+          "@version": [
+            {
+              "_cnd": {
+                "gte": 1.2
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Credentials",
+      "name": "credentials",
+      "type": "credentials",
+      "default": "",
+      "displayOptions": {
+        "show": {
+          "authentication": [
+            "headerAuth",
+            "bearerAuth",
+            "mcpOAuth2Api",
+            "multipleHeadersAuth"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Tools to Include",
+      "name": "include",
+      "type": "options",
+      "description": "How to select the tools you want to be exposed to the AI Agent",
+      "default": "all",
+      "options": [
+        {
+          "name": "All",
+          "value": "all",
+          "description": "Also include all unchanged fields from the input"
+        },
+        {
+          "name": "Selected",
+          "value": "selected",
+          "description": "Also include the tools listed in the parameter \"Tools to Include\""
+        },
+        {
+          "name": "All Except",
+          "value": "except",
+          "description": "Exclude the tools listed in the parameter \"Tools to Exclude\""
+        }
+      ]
+    },
+    {
+      "displayName": "Tools to Include",
+      "name": "includeTools",
+      "type": "multiOptions",
+      "default": [],
+      "description": "Choose from the list, or specify IDs using an <a href=\"https://docs.n8n.io/code/expressions/\">expression</a>",
+      "typeOptions": {
+        "loadOptionsMethod": "getTools",
+        "loadOptionsDependsOn": [
+          "sseEndpoint"
+        ]
+      },
+      "displayOptions": {
+        "show": {
+          "include": [
+            "selected"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Tools to Exclude",
+      "name": "excludeTools",
+      "type": "multiOptions",
+      "default": [],
+      "description": "Choose from the list, or specify IDs using an <a href=\"https://docs.n8n.io/code/expressions/\">expression</a>",
+      "typeOptions": {
+        "loadOptionsMethod": "getTools"
+      },
+      "displayOptions": {
+        "show": {
+          "include": [
+            "except"
+          ]
+        }
+      }
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "placeholder": "Add Option",
+      "description": "Additional options to add",
+      "type": "collection",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Timeout",
+          "name": "timeout",
+          "type": "number",
+          "typeOptions": {
+            "minValue": 1
+          },
+          "default": 60000,
+          "description": "Time in ms to wait for tool calls to finish"
+        }
+      ]
+    }
+  ],
+  "typeVersion": 1.2
+}

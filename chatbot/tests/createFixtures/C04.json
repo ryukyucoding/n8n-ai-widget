@@ -1,0 +1,32 @@
+{
+  "caseId": "C04",
+  "userRequest": "Retrieve a public JSONPlaceholder user and return the name and username.",
+  "safetyTier": "sandbox_required",
+  "executionEnvironment": {
+    "requiredCapability": "isolated_code_execution"
+  },
+  "allowedNodeTypes": [
+    "n8n-nodes-base.manualTrigger",
+    "n8n-nodes-base.httpRequest",
+    "n8n-nodes-base.code",
+    "n8n-nodes-base.set"
+  ],
+  "allowedUrls": [
+    "https://jsonplaceholder.typicode.com/users/1"
+  ],
+  "forbiddenCapabilities": [
+    "credentials",
+    "webhook",
+    "schedule",
+    "email",
+    "slack",
+    "google",
+    "write"
+  ],
+  "expectedDeliveryState": "ready-to-run",
+  "executionAssertions": [
+    { "path": "name", "required": true, "expectedType": "string" },
+    { "path": "username", "required": true, "expectedType": "string" }
+  ],
+  "exactIdCleanupRequired": true
+}

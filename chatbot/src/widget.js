@@ -2,7 +2,16 @@
 (function () {
   'use strict';
 
-  var CHAT_BASE = 'http://localhost:3001';
+  var CHAT_BASE = (function () {
+    var scripts = document.getElementsByTagName('script');
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].src;
+      if (src && src.indexOf('/widget.js') !== -1) {
+        return src.substring(0, src.indexOf('/widget.js'));
+      }
+    }
+    return 'http://localhost:3001';
+  })();
   var MSG_TYPE = 'n8n-ai-widget';
   var n8nHookStore = null;
 
@@ -146,19 +155,22 @@
   }
 
   function routerSoftReloadWorkflow(workflowId) {
-    var router = getVueRouter();
-    if (!router) {
-      return Promise.resolve({ ok: false, reason: 'no_router' });
-    }
+    // Do not route through /home/workflows: it visibly throws the user out of
+    // the canvas whenever Pinia hydration is unavailable. A direct reload of
+    // the workflow URL keeps the user in the same workflow and rebuilds n8n's
+    // document stores from the saved version.
     var target = '/workflow/' + encodeURIComponent(String(workflowId));
-    return router.push('/home/workflows').then(function () {
-      return router.push(target);
-    }).then(function () {
-      return { ok: true, method: 'router' };
-    }).catch(function (err) {
-      console.error('[n8n-ai-widget] Router refresh failed:', err);
-      return { ok: false, reason: 'router_error', error: err && err.message ? err.message : String(err) };
-    });
+    try {
+      window.location.assign(target);
+      return Promise.resolve({ ok: true, method: 'page_reload' });
+    } catch (err) {
+      console.error('[n8n-ai-widget] Workflow reload failed:', err);
+      return Promise.resolve({
+        ok: false,
+        reason: 'reload_error',
+        error: err && err.message ? err.message : String(err),
+      });
+    }
   }
 
   function refreshN8nCanvas(payload) {

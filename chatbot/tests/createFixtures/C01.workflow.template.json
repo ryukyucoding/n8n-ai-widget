@@ -1,0 +1,98 @@
+{
+  "fixtureVersion": 1,
+  "caseId": "C01",
+  "fixturePrefix": "__controlled_fixture__C01__",
+  "finalOutputNode": "final_output",
+  "nodeKeys": {
+    "manual_trigger": "c01_manual_trigger",
+    "http_get": "c01_http_get",
+    "final_output": "c01_final_output"
+  },
+  "workflow": {
+    "name": "__controlled_fixture__C01__v1",
+    "active": false,
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "nodes": [
+      {
+        "name": "c01_manual_trigger",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "parameters": {},
+        "position": [
+          0,
+          0
+        ],
+        "fixtureKey": "manual_trigger"
+      },
+      {
+        "name": "c01_http_get",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "parameters": {
+          "method": "GET",
+          "url": "https://jsonplaceholder.typicode.com/posts/1",
+          "options": {}
+        },
+        "position": [
+          260,
+          0
+        ],
+        "fixtureKey": "http_get"
+      },
+      {
+        "name": "c01_final_output",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "name": "id",
+                "value": "={{ $json.id }}",
+                "type": "number"
+              },
+              {
+                "name": "title",
+                "value": "={{ $json.title }}",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        },
+        "position": [
+          520,
+          0
+        ],
+        "fixtureKey": "final_output"
+      }
+    ],
+    "connections": {
+      "c01_manual_trigger": {
+        "main": [
+          [
+            {
+              "node": "c01_http_get",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "c01_http_get": {
+        "main": [
+          [
+            {
+              "node": "c01_final_output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    }
+  }
+}

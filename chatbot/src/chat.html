@@ -51,6 +51,14 @@
     }
     #clear-btn:hover { background: rgba(255,255,255,0.28); }
 
+    .model-panel { padding: 10px 12px; background: #fff7f5; border-bottom: 1px solid #ffe0db; }
+    .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .mode-btn { border: 1px solid #f3c8c0; background: #fff; color: #8a3c31; border-radius: 8px; padding: 7px 5px; font: inherit; font-size: 12px; cursor: pointer; }
+    .mode-btn.active { background: #ff6d5a; border-color: #ff6d5a; color: #fff; font-weight: 600; }
+    .model-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: #6b4a45; }
+    #model-select { min-width: 0; flex: 1; border: 1px solid #f3c8c0; border-radius: 6px; padding: 5px; background: #fff; font: inherit; }
+    #mode-hint { margin-top: 7px; font-size: 11px; line-height: 1.35; color: #8a5a52; }
+
     /* Messages area */
     #messages {
       flex: 1;
@@ -108,6 +116,17 @@
     }
     .typing span:nth-child(2) { animation-delay: 0.2s; }
     .typing span:nth-child(3) { animation-delay: 0.4s; }
+    .typing.progress {
+      display: block;
+      max-width: 88%;
+      padding: 9px 12px;
+      border: 1px solid #ffd1ca;
+      border-radius: 7px;
+      background: #fff7f5;
+      color: #a14a3e;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
     @keyframes blink {
       0%, 80%, 100% { opacity: 0.3; transform: scale(0.9); }
       40%            { opacity: 1;   transform: scale(1.1); }
@@ -175,20 +194,24 @@
     <div class="header-icon">⚡</div>
     <div>
       <div class="header-title">AI Workflow Generator</div>
-      <div class="header-sub">意圖分解 → insert / modify / delete agents → 寫回 n8n</div>
+      <div class="header-sub">建立與畫布編輯使用獨立模型</div>
     </div>
     <div class="header-spacer"></div>
     <button id="clear-btn" title="清空對話">清空</button>
   </div>
 
+  <div class="model-panel">
+    <div class="mode-switch" role="tablist" aria-label="工作模式">
+      <button class="mode-btn active" type="button" data-mode="create">建立 workflow</button>
+      <button class="mode-btn" type="button" data-mode="edit">插入／刪除／修改</button>
+    </div>
+    <label class="model-row">模型<select id="model-select" aria-label="選擇模型"></select></label>
+    <div id="mode-hint">從零建立新 workflow；不會讀取或修改目前畫布。</div>
+  </div>
+
   <div id="messages">
     <div class="bubble bot">
-      👋 在此描述要對 **目前開啟的 workflow** 做的變更（會自動從網址帶入 workflow id）。<br><br>
-      範例：<em>「把 Slack 節點改成發到 #general」</em>、<em>「在 HTTP Request 後面加一個 Set」</em>、<em>「刪掉用不到的 Code 節點」</em><br><br>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;cursor:pointer;">
-        <input type="checkbox" id="quick-mode" />
-        快速模式（只做從零生成，不跑意圖分解與編輯 agents）
-      </label>
+      👋 選擇上方的工作模式後，描述你想完成的事情。建立與畫布編輯會使用各自獨立的模型清單。
     </div>
   </div>
 
@@ -203,16 +226,72 @@
   </div>
 
   <script>
-    var AGENT_URL = 'http://localhost:3001/agent/run';
-    var GENERATE_URL = 'http://localhost:3001/generate';
+    var AGENT_URL = window.location.origin + '/agent/run';
+    var GENERATE_URL = window.location.origin + '/generate';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
+    var MODE_KEY = 'n8n-widget-active-mode';
     var WIDGET_MSG_TYPE = 'n8n-ai-widget';
+    var MODELS_URL = window.location.origin + '/models';
+    // Edit sessions can span iframe reloads. Restore their mode so a pending
+    // clarification is never accidentally sent to the Create endpoint.
+    var activeMode = (function () {
+      try {
+        if (localStorage.getItem(SESSION_KEY)) return 'edit';
+        return localStorage.getItem(MODE_KEY) === 'edit' ? 'edit' : 'create';
+      } catch (e) {
+        return 'create';
+      }
+    })();
+    // The fallback prevents an empty selector when a reverse proxy exposes
+    // /chat but has not yet exposed /models. The server still validates every
+    // submitted model against its configured allow-list.
+    var modelConfig = {
+      create: { models: ['qwen2.5-coder-32b-ft-original:latest'], defaultModel: 'qwen2.5-coder-32b-ft-original:latest' },
+      edit: { models: ['gpt-4o', 'gpt-oss:120b'], defaultModel: 'gpt-4o' }
+    };
 
     var messagesEl = document.getElementById('messages');
     var inputEl    = document.getElementById('input');
     var sendBtn    = document.getElementById('send-btn');
     var clearBtn   = document.getElementById('clear-btn');
+    var modelSelect = document.getElementById('model-select');
+    var modeHint = document.getElementById('mode-hint');
+
+    function greeting() {
+      return activeMode === 'create'
+        ? '👋 描述你想從零建立的 workflow。<br><br>範例：<em>「每天早上 9 點把 Airtable 資料寄到 Slack」</em>'
+        : '👋 描述要對 <strong>目前開啟的 workflow</strong> 做的插入、刪除或修改。<br><br>範例：<em>「在 HTTP Request 後面加一個 Set」</em>、<em>「刪掉用不到的 Code 節點」</em>';
+    }
+
+    function renderModelOptions() {
+      var group = modelConfig[activeMode] || {};
+      var models = group.models || [];
+      modelSelect.innerHTML = '';
+      models.forEach(function (model) {
+        var option = document.createElement('option'); option.value = model; option.textContent = model; modelSelect.appendChild(option);
+      });
+      if (group.defaultModel) modelSelect.value = group.defaultModel;
+      modelSelect.disabled = models.length === 0;
+      modeHint.textContent = activeMode === 'create'
+        ? '從零建立新 workflow；不會讀取或修改目前畫布。'
+        : '對目前畫布進行插入、刪除或修改；需要先開啟目標 workflow。';
+    }
+
+    function switchMode(mode) {
+      if (mode === 'create' && loadSessionId()) {
+        modeHint.textContent = '目前有未完成的畫布編輯追問；請先完成或按「清空」再建立新的 workflow。';
+        return;
+      }
+      activeMode = mode;
+      try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+      document.querySelectorAll('.mode-btn').forEach(function (button) { button.classList.toggle('active', button.dataset.mode === mode); });
+      renderModelOptions();
+    }
+
+    document.querySelectorAll('.mode-btn').forEach(function (button) { button.addEventListener('click', function () { switchMode(button.dataset.mode); }); });
+    switchMode(activeMode);
+    fetch(MODELS_URL).then(function (res) { return res.ok ? res.json() : null; }).then(function (config) { if (config) { modelConfig = config; renderModelOptions(); } }).catch(function () { renderModelOptions(); });
 
     function currentWorkflowId() {
       var q = new URLSearchParams(window.location.search || '');
@@ -348,6 +427,44 @@
       return el;
     }
 
+    function setProgress(typing, message) {
+      typing.className = 'typing progress';
+      typing.textContent = message;
+      scrollBottom();
+    }
+
+    async function generateWithProgress(body, typing) {
+      body.stream = true;
+      var res = await fetch(GENERATE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      var contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/x-ndjson') || !res.body) {
+        return { ok: res.ok, data: await res.json() };
+      }
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+      var result = null;
+      while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop();
+        lines.forEach(function(line) {
+          if (!line.trim()) return;
+          var event = JSON.parse(line);
+          if (event.event === 'progress') setProgress(typing, event.message || 'Processing...');
+          if (event.event === 'result') result = event;
+        });
+      }
+      if (!result) throw new Error('Server did not return a Create result');
+      return { ok: result.status >= 200 && result.status < 300, data: result.data };
+    }
+
     // Auto-grow textarea
     inputEl.addEventListener('input', function () {
       this.style.height = 'auto';
@@ -367,25 +484,31 @@
       var typing = addTyping();
 
       try {
-        var qm = document.getElementById('quick-mode');
-        var useQuick = qm && qm.checked;
-        var wfId = useQuick ? null : currentWorkflowId();
-        var body = useQuick
-          ? { message: text }
+        var useCreate = activeMode === 'create';
+        var wfId = useCreate ? null : currentWorkflowId();
+        var body = useCreate
+          ? { message: text, model: modelSelect.value }
           : {
               message: text,
               sessionId: loadSessionId(),
               workflowId: wfId,
               clearSession: false,
+              model: modelSelect.value,
             };
-        var url = useQuick ? GENERATE_URL : AGENT_URL;
-        var res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-
-        var data = await res.json();
+        var res;
+        var data;
+        if (useCreate) {
+          var generated = await generateWithProgress(body, typing);
+          res = { ok: generated.ok };
+          data = generated.data;
+        } else {
+          res = await fetch(AGENT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          data = await res.json();
+        }
         typing.remove();
 
         if (!res.ok || data.error) {
@@ -401,6 +524,11 @@
             ? '<br><br>候選：<em>' + escHtml(data.candidates.join(', ')) + '</em>'
             : '';
           saveSessionId(data.sessionId);
+          // A clarification belongs to the edit pipeline even after an iframe reload.
+          activeMode = 'edit';
+          try { localStorage.setItem(MODE_KEY, activeMode); } catch (e) {}
+          document.querySelectorAll('.mode-btn').forEach(function (button) { button.classList.toggle('active', button.dataset.mode === 'edit'); });
+          renderModelOptions();
           addBubble('❓ ' + escHtml(data.message || '') + cands, 'bot');
         } else if (data.action === 'done') {
           saveSessionId(null);
@@ -409,7 +537,7 @@
             ? await notifyParentCanvasRefresh(data.workflow)
             : null;
           addBubble(formatBotReply(data.message, refreshResult), 'bot');
-        } else if (useQuick) {
+        } else if (useCreate) {
           var htmlQ = escHtml(data.message || '已建立 workflow。').replace(/\n/g, '<br>');
           if (data.workflowUrl) {
             htmlQ += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
@@ -442,8 +570,7 @@
       chatHistory = [];
       try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
       try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
-      messagesEl.innerHTML =
-        '<div class="bubble bot">👋 在此描述要對 <strong>目前開啟的 workflow</strong> 做的變更（會自動從網址帶入 workflow id）。<br><br>範例：<em>「把 Slack 節點改成發到 #general」</em>、<em>「在 HTTP Request 後面加一個 Set」</em>、<em>「刪掉用不到的 Code 節點」</em><br><br><label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;cursor:pointer;"><input type="checkbox" id="quick-mode" />快速模式（只做從零生成，不跑意圖分解與編輯 agents）</label></div>';
+      messagesEl.innerHTML = '<div class="bubble bot">' + greeting() + '</div>';
     });
 
     inputEl.addEventListener('keydown', function (e) {

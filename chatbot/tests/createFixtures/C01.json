@@ -1,0 +1,28 @@
+{
+  "caseId": "C01",
+  "userRequest": "Retrieve a single public JSONPlaceholder post and return its id and title.",
+  "safetyTier": "controlled_fixture",
+  "allowedNodeTypes": [
+    "n8n-nodes-base.manualTrigger",
+    "n8n-nodes-base.httpRequest",
+    "n8n-nodes-base.set"
+  ],
+  "allowedUrls": [
+    "https://jsonplaceholder.typicode.com/posts/1"
+  ],
+  "forbiddenCapabilities": [
+    "credentials",
+    "webhook",
+    "schedule",
+    "email",
+    "slack",
+    "google",
+    "write"
+  ],
+  "expectedDeliveryState": "ready-to-run",
+  "executionAssertions": [
+    { "path": "id", "required": true, "expectedType": "number" },
+    { "path": "title", "required": true, "expectedType": "string" }
+  ],
+  "exactIdCleanupRequired": true
+}

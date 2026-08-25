@@ -103,6 +103,7 @@ def run_insert_widget(
     model: str,
     api_key: str,
     base_url: Optional[str] = None,
+    default_headers: Optional[Dict[str, str]] = None,
 ) -> JSONDict:
     from insert_pipeline import (
         NodeSchemaStore,
@@ -132,7 +133,11 @@ def run_insert_widget(
     )
     from n8n_type_version_fix import resolve_insert_type_version
 
-    client = OpenAI(api_key=api_key, base_url=base_url or None)
+    client = OpenAI(
+        api_key=api_key,
+        base_url=base_url or None,
+        default_headers=default_headers,
+    )
     dbg = insert_pipeline_debug_enabled()
     if dbg:
         _ins_trace("START", f"instruction ({len(instruction)} chars):\n{instruction}")

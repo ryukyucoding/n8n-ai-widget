@@ -1,0 +1,68 @@
+{
+  "displayName": "Vector Store Retriever",
+  "name": "@n8n/n8n-nodes-langchain.retrieverVectorStore",
+  "icon": "node:vector-store-retriever",
+  "iconColor": "black",
+  "group": [
+    "transform"
+  ],
+  "version": 1,
+  "description": "Use a Vector Store as Retriever",
+  "defaults": {
+    "name": "Vector Store Retriever"
+  },
+  "codex": {
+    "categories": [
+      "AI"
+    ],
+    "subcategories": {
+      "AI": [
+        "Retrievers"
+      ]
+    },
+    "resources": {
+      "primaryDocumentation": [
+        {
+          "url": "https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.retrievervectorstore/"
+        }
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "displayName": "Vector Store",
+      "maxConnections": 1,
+      "type": "ai_vectorStore",
+      "required": true
+    }
+  ],
+  "outputs": [
+    "ai_retriever"
+  ],
+  "outputNames": [
+    "Retriever"
+  ],
+  "builderHint": {
+    "relatedNodes": [
+      {
+        "nodeType": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+        "relationHint": "Connect to provide vectors for retrieval in RAG workflows"
+      }
+    ],
+    "inputs": {
+      "ai_vectorStore": {
+        "required": true
+      }
+    }
+  },
+  "properties": [
+    {
+      "displayName": "Limit",
+      "name": "topK",
+      "type": "number",
+      "default": 4,
+      "description": "The maximum number of results to return"
+    }
+  ],
+  "typeVersion": 1
+}

@@ -1,0 +1,60 @@
+{
+  "displayName": "Loop Over Items (Split in Batches)",
+  "name": "n8n-nodes-base.splitInBatches",
+  "icon": "node:loop-over-items",
+  "iconColor": "dark-green",
+  "group": [
+    "organization"
+  ],
+  "version": 3,
+  "description": "Split data into batches and iterate over each batch",
+  "defaults": {
+    "name": "Loop Over Items"
+  },
+  "inputs": [
+    "main"
+  ],
+  "outputs": [
+    "main",
+    "main"
+  ],
+  "outputNames": [
+    "done",
+    "loop"
+  ],
+  "properties": [
+    {
+      "displayName": "You may not need this node — n8n nodes automatically run once for each input item. <a href=\"https://docs.n8n.io/getting-started/key-concepts/looping.html#using-loops-in-n8n\" target=\"_blank\">More info</a>",
+      "name": "splitInBatchesNotice",
+      "type": "notice",
+      "default": ""
+    },
+    {
+      "displayName": "Batch Size",
+      "name": "batchSize",
+      "type": "number",
+      "typeOptions": {
+        "minValue": 1
+      },
+      "default": 1,
+      "description": "The number of items to return with each call"
+    },
+    {
+      "displayName": "Options",
+      "name": "options",
+      "type": "collection",
+      "placeholder": "Add option",
+      "default": {},
+      "options": [
+        {
+          "displayName": "Reset",
+          "name": "reset",
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the node starts again from the beginning of the input items. This will treat incoming data as a new set rather than continuing with the previous items."
+        }
+      ]
+    }
+  ],
+  "typeVersion": 3
+}
