@@ -1,0 +1,13 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { NODEWISE_PLANNER_RESULT_PROMPT } = require('./nodewisePlannerPrompt');
+
+test('planner prompt defines mutually exclusive readiness outcomes', () => {
+  for (const outcome of ['ready_to_compile', 'clarification_required', 'unsupported_capability']) {
+    assert.match(NODEWISE_PLANNER_RESULT_PROMPT, new RegExp(outcome));
+  }
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Do not emit raw n8n workflow JSON/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Do not include specification/);
+});
