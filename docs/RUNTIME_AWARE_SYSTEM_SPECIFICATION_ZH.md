@@ -1,6 +1,6 @@
 # Runtime-Aware n8n Workflow 系統規格
 
-**版本：** 0.2
+**版本：** 0.3
 **適用分支：** `codex/autoresearch-a2a`  
 **最後更新：** 2026-08-25
 
@@ -116,6 +116,19 @@ flowchart TD
 
 使用者若說「改成只保留 12 小時內的文章」，系統必須把整份 plan 作為新版，產生新 fingerprint。系統會顯示 **Plan Diff**：變更若涉及拓樸、credential、外部寫入、資料目的地或權限，使用者必須完整重審；若只改不改變風險的常數或格式，仍需明確核准新版，但只需對差異快速核准。fingerprint 永遠不重用，差異式審核只降低閱讀摩擦，不降低一致性要求。
 
+Plan Diff 對使用者必須是 **Semantic Delta**，不是 JSON 或 node-property diff。最少包含：`變更摘要`、`新增/移除的步驟`、`風險或權限是否改變`、`維持不變的關鍵承諾`。例如：「抓取範圍由全部文章改為過去 12 小時；每日排程與 Email 目的地維持不變；不新增 credential 或外部寫入。」技術 diff 只提供給進階除錯畫面。
+
+### 5.1.1 降級草稿
+
+降級草稿只在使用者看過 capability gap 並明確同意後建立。它必須保持 inactive，且每一段缺失 capability 都要產生標準 Sticky Note 與 placeholder。Sticky Note 必須包含：
+
+1. 缺失 capability 與系統無法安全代為完成的原因。
+2. 已完成上游的輸出形狀、欄位與資料來源。
+3. 下游需要的輸入形狀、欄位與副作用。
+4. 使用者在 n8n 畫布需進行的手動設定步驟。
+
+降級草稿不是「建立成功」的替代說法；聊天與 n8n workflow 名稱都要標示 `setup_required` 或 `manual_completion_required`。
+
 ### 5.2 何時詢問 configuration
 
 採混合策略：
@@ -157,6 +170,20 @@ IR 是 planner 與 compiler 的唯一協議，不是 n8n JSON 的縮寫。最小
 
 IR v1 不含任意 expression 或 code。日期、字串、數學與欄位引用未來應採受限且型別化的 expression AST，再由 compiler 映射為 n8n expression；禁止將使用者文字直接串進 JavaScript。這個 AST compiler 是第二階段，在完成前只能用既有 transform skill 或回報 capability gap。
 
+IR 的 `steps` 陣列僅用於顯示與穩定排序，**不可表示隱含線性連線**。每個 step 必須以 `dependsOn` 宣告 DAG 依賴；有分支時，連線還必須帶 `sourcePort` 與 `branch`，匯合時明示 `mergePolicy`。例如：
+
+```json
+{
+  "id": "notify_failure",
+  "kind": "delivery.notification",
+  "dependsOn": [{"step": "check_status", "sourcePort": "main", "branch": "false"}],
+  "inputShape": "SingleItem<FailureStatus>",
+  "outputShape": "NoOutput"
+}
+```
+
+Compiler 必須拒絕未宣告依賴、未定義 branch、循環依賴，以及多個上游輸入卻沒有 `mergePolicy` 的 IR。這是 P0 契約，但目前尚未接上 compiler。
+
 ### 6.1 目前 registry 中的能力
 
 | Skill | 狀態 | 風險 | 說明 |
@@ -186,7 +213,9 @@ IR v1 不含任意 expression 或 code。日期、字串、數學與欄位引用
 
 ### 7.1 Pre-LLM 防線
 
-聊天 UI 與 gateway 都必須在任何 planner 呼叫前執行 DLP/redaction。UI 先以 API key/token/password 常見格式、JWT、私鑰區塊與 entropy heuristic 偵測，命中時阻止送出或替換為 `{{SECRET_PLACEHOLDER}}`；gateway 再執行一次以防繞過 UI。系統要引導使用者到 n8n Credentials 或隔離 setup form 輸入 secret。
+聊天 UI 與 gateway 都必須在任何 planner 呼叫前執行 DLP/redaction。UI 先以 API key/token/password 常見格式、JWT、私鑰區塊與 entropy heuristic 偵測；gateway 再執行一次以防繞過 UI。系統要引導使用者到 n8n Credentials 或隔離 setup form 輸入 secret。
+
+高確定性特徵（私鑰標頭、已知 provider key prefix、可解析 JWT）必須硬阻擋。僅由 entropy 或弱 regex 命中的內容必須顯示警告，讓使用者選擇「確認為非機密資料」後送出；該覆寫只保留非敏感 audit event，不記錄原文字串，也不適用於高確定性 secret。
 
 Regex 與 entropy 偵測並非完美 DLP；它是降低意外外洩的防線，不可作為傳送或儲存 secret 的正當理由。被遮罩的內容也不得寫進 analytics、chat history 或 debug logs。
 
@@ -236,6 +265,8 @@ Regex 與 entropy 偵測並非完美 DLP；它是降低意外外洩的防線，�
 
 此契約目前已有可測函式與單元測試；尚未接上 production chat UI 與 n8n credential API。
 
+當某個 configuration 依賴使用者已授權服務中的遠端資源時，item 必須使用 `kind: "dynamic_resource"`，而非要求使用者在聊天貼上內部 ID。例如 Google Drive folder、Slack channel、Notion database。它必須記錄 service、resource type、選取狀態與 native n8n selector 的交接資訊；資源清單只能由使用者已授權的 n8n credential 或隔離 metadata proxy 取得，不能由 planner 存取。
+
 ## 8. 現在實作到哪裡
 
 | 層次 | 狀態 | 位置或證據 |
@@ -277,6 +308,7 @@ Regex 與 entropy 偵測並非完美 DLP；它是降低意外外洩的防線，�
 8. 系統遇到不支援的影片生成 + 輪詢 + Drive 上傳需求時，是否應產生假 workflow？答案必須是「不可以；要列 capability gaps，或只在使用者明確同意下建立可辨識的未完成 draft」。
 9. 上游輸出 20 個 items、下游只接受一個 object 時，compiler 可否自行猜測？答案必須是「不可以；IR 必須聲明 aggregate/select/split 策略」。
 10. 使用者手動修改 n8n 畫布後，聊天 session 可否繼續假裝它仍掌握 workflow？答案必須是「不可以；在 readback/diff 實作前，必須標示 session state 已過期」。
+11. DLP 把 UUID 或 Base64 誤判為 secret 時，能否讓使用者覆寫？答案必須是「僅低確定性警告可覆寫；已知 key prefix、私鑰與 JWT 不可覆寫」。
 
 ## 11. 使用者角色測試腳本
 
@@ -322,3 +354,8 @@ Regex 與 entropy 偵測並非完美 DLP；它是降低意外外洩的防線，�
 | Chat Form Cards | 接受 | 只處理非敏感 configuration；敏感值仍不進 planner |
 | Pre-LLM DLP | 接受為高優先實作項目 | 規格上的 secret 禁令沒有輸入端防線就不完整 |
 | 自動錯誤修復 | 有條件接受 | 先脫敏、分類；只對 compiler 已知的 deterministic repair 自動提出修復，語意與外部寫入仍需重新核准 |
+| IR 線性陣列無法描述分支 | 接受，升為 P0 | 以 `dependsOn`、branch 與 `mergePolicy` 使 DAG 拓樸可編譯、可靜態驗證 |
+| dynamic `loadOptions` 資源 | 接受 | Setup Manifest 新增 `dynamic_resource`；使用者在原生 selector 或隔離 metadata proxy 選取 |
+| DLP 誤判 | 接受 | 高確定性 secret 強制阻擋；弱命中允許不記錄原文的使用者覆寫 |
+| Plan Diff 技術化 | 接受 | UI 必須顯示 Semantic Delta，不向一般使用者顯示 JSON diff |
+| 降級草稿不易交接 | 接受 | placeholder 必須配固定格式 Sticky Note，說明缺失能力、輸入/輸出形狀及手動接力步驟 |
