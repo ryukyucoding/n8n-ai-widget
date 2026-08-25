@@ -5,8 +5,8 @@
 1. The user describes an automation in ordinary language.
 2. The system replies with one of three useful outcomes: questions, a capability boundary, or a compact plan.
 3. The user approves the plan, asks for a revision in chat, or cancels. Revision returns to planning; no JSON is compiled before approval.
-4. The system looks up credential names after compilation and static validation pass, without reading any secret values.
-5. Existing credentials are bound directly. Missing credentials do not block creation: the system creates an inactive draft and returns a setup checklist.
+4. The system creates a non-secret Setup Manifest for the approved plan. It records only credential identities and required configuration fields, never credential values.
+5. Existing credentials are bound directly. Missing credentials do not block creation: the system creates an inactive draft and returns a setup checklist. Setup values are collected by native n8n UI or a separate setup form, never by the planner.
 6. The user executes the draft and sees output-contract evidence.
 
 ## Interaction principles
