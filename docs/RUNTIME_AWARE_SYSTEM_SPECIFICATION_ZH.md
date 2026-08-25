@@ -1,6 +1,6 @@
 # Runtime-Aware n8n Workflow 系統規格
 
-**版本：** 0.1  
+**版本：** 0.2
 **適用分支：** `codex/autoresearch-a2a`  
 **最後更新：** 2026-08-25
 
@@ -34,15 +34,17 @@
 
 ## 3. 共同事實與責任分界
 
-整套流程必須共用同一份 canonical workflow representation：一份由 compiler 產生、含 runtime schema revision 的標準 workflow。生成、靜態驗證、credential binding、建立 draft 與執行證據都必須引用它，而不是各自重建不同 JSON。
+整套流程必須共用兩份相連但不同層級的共同事實。第一份是 **Declarative Pipeline IR**：planner 產生的、與 n8n 節點無關的語意中介表示，描述 source、transform、filter、branch、sink、資料形狀與外部副作用；不含 node type、credential value、n8n expression 或 JSON。第二份是 **Canonical Workflow**：compiler 依 IR、已核准 plan 與目前 runtime schema 產生的標準 n8n workflow JSON。靜態驗證、credential binding、建立 draft 與執行證據都必須引用 canonical workflow，而不是各自重建不同 JSON。
+
+這個分層避免 planner 被舊版 n8n schema 綁死，也避免 skill 同時混充巨集 template 和微型 node 指令。巨集 workflow 只能是多個原子 skill 組成的已驗證 recipe；真正可重用的單位是具有明確輸入、輸出、資料形狀與風險的 skill。
 
 | 元件 | 負責什麼 | 明確禁止什麼 |
 | --- | --- | --- |
-| Planner | 理解目標、提出澄清問題、產生人可讀 plan、選擇宣告式 capability | 產生 raw n8n JSON、讀取 secret、任意 JavaScript |
+| Planner | 理解目標、提出澄清問題、產生人可讀 plan 與 Declarative Pipeline IR | 產生 raw n8n JSON、讀取 secret、任意 JavaScript |
 | Plan Review Gate | 建立 plan fingerprint、保證只有使用者核准的同一版計畫可編譯 | 讓舊核准通過新版計畫 |
 | Skill Registry | 宣告 compiler 真正擁有的 capability、風險、credential/configuration 要求 | 把「n8n 裝了某節點」誤記為系統已支援 |
-| Compiler | 使用當前 runtime schema、組裝節點/參數/連線與受控程式碼模板 | 猜測未宣告的商業語意或任意修補 |
-| Static Verifier | 檢查節點型別、版本、參數、連線、policy 與宣告的輸出契約 | 宣稱 workflow 已在真實服務成功執行 |
+| Compiler | 使用當前 runtime schema，將 IR 組裝為節點/參數/連線與受控程式碼模板 | 猜測未宣告的商業語意或任意修補 |
+| Static Verifier | 檢查節點型別、版本、條件參數、連線、資料形狀、policy 與輸出契約 | 宣稱 workflow 已在真實服務成功執行 |
 | Setup Manifest | 列出 credential 身分與使用者要填的 configuration；決定草稿是否 inactive | 保存 API key、token、密碼或把它們送給模型 |
 | n8n Setup UI | 選擇/建立 credential、填寫 private configuration、執行 workflow | 透過聊天把 secret 回傳模型 |
 | Execution Verifier | 根據明確 output contract 蒐集執行證據 | 無證據地標示 success |
@@ -60,7 +62,7 @@ flowchart TD
   R --> D{使用者決定}
   D -- 修正 --> P
   D -- 取消 --> X[不建立 workflow]
-  D -- 核准 --> S[Typed step specification]
+  D -- 核准 --> S[Declarative Pipeline IR]
   S --> K[Skill registry + runtime schema]
   K --> C[Compiler: canonical workflow]
   C --> V{Static verification}
@@ -84,16 +86,18 @@ flowchart TD
 | --- | --- | --- | --- |
 | `intake` | 收到需求 | 描述或補充目標 | 直接編譯 |
 | `clarification_required` | 關鍵語意不足 | 回答具體問題 | 猜測會改變流程的資訊 |
-| `capability_gap` | 需要的 skill 不存在 | 儲存需求、換模式、等待新 skill | 偽造骨架為完成結果 |
+| `capability_gap` | 需要的 skill 不存在 | 儲存需求、換模式，或明確要求降級草稿 | 偽造骨架為完成結果 |
 | `plan_review_required` | planner 可提出可讀計畫 | 核准、修正、取消 | 尚未核准就輸出 JSON |
 | `plan_revision_requested` | 使用者提出修正 | 等待新版 plan | 以舊 plan 的核准編譯新版 |
 | `plan_approved` | fingerprint 對應的 plan 被核准 | 進入編譯 | 改動 plan 而不重新核准 |
+| `degraded_draft_approved` | 使用者接受明確 placeholder | 建立標示不完整的 inactive draft | 標示為可執行或自動啟用 |
 | `static_validation_failed` | canonical workflow 不相容 runtime | 看 findings、修正計畫 | 建立為 ready workflow |
 | `ready_to_create_draft` | 靜態通過但 setup 尚缺 | 建立 inactive draft | 自動執行 |
 | `setup_required` | draft 已建立且仍缺 credential/config | 到 n8n 完成 setup | 在聊天索取 secret |
 | `confirm_external_write` | workflow 會寄信、上傳、刪除或寫外部系統 | 確認或取消 | 默默執行外部寫入 |
 | `ready_to_run` | setup 完整、必要確認已完成 | 在 n8n 執行 | 宣稱已有結果 |
 | `execution_passed/failed` | 有輸出契約與執行證據 | 啟用、保存、修改或除錯 | 用靜態結果取代執行證據 |
+| `auto_repair_requested` | 執行錯誤完成脫敏且在允許修復範圍 | 閱讀修復 plan 或取消 | 直接改寫有外部副作用的 workflow |
 
 ## 5. 使用者體驗規則
 
@@ -110,14 +114,15 @@ flowchart TD
 [核准建立草稿] [修改計畫] [取消]
 ```
 
-使用者若說「改成只保留 12 小時內的文章」，系統必須把整份 plan 作為新版，產生新 fingerprint，再次要求核准。
+使用者若說「改成只保留 12 小時內的文章」，系統必須把整份 plan 作為新版，產生新 fingerprint。系統會顯示 **Plan Diff**：變更若涉及拓樸、credential、外部寫入、資料目的地或權限，使用者必須完整重審；若只改不改變風險的常數或格式，仍需明確核准新版，但只需對差異快速核准。fingerprint 永遠不重用，差異式審核只降低閱讀摩擦，不降低一致性要求。
 
 ### 5.2 何時詢問 configuration
 
 採混合策略：
 
 - **會改變 workflow 拓樸或語意**的值在 planning 前或 review 時詢問。例如：要寄 Email 還是 Slack、每 30 秒還是每日、成功後上傳還是刪除。
-- **不會改變拓樸、但執行前必填**的值可在 draft 後由 Setup Manifest 收集。例如：寄件人、收件人、特定 folder ID。
+- **不會改變拓樸、且不敏感**的值應在 review 階段以結構化 Form Card 收集，直接寫入 draft。例如：RSS URL、篩選關鍵字、每日執行時間、最多處理筆數。
+- **不會改變拓樸、但屬敏感資料**的值可在 draft 後由 Setup Manifest 收集。例如：寄件人、收件人、特定 private folder ID；它們不得放入 planner context。
 - **secret 或高度敏感資料**不進聊天。使用者只在 n8n credential UI 或受隔離的 setup form 設定。
 
 ### 5.3 Credential 行為
@@ -129,7 +134,28 @@ flowchart TD
 
 ## 6. Skill 與 compiler
 
-Skill 不是單純 prompt，也不是任意的 rule-based function。它是一份明確能力契約：說明可接受什麼語意輸入、需要什麼 setup、允許 compiler 組裝什麼 runtime node、可能的風險、驗證方式與拒絕條件。模型可選擇與排列 skill；compiler 則必須照 skill 合約產生 runtime JSON。
+Skill 不是單純 prompt，也不是任意的 rule-based function。它是一份明確能力契約：說明可接受什麼語意輸入、需要什麼 setup、允許 compiler 組裝什麼 runtime node、資料形狀、可能的風險、驗證方式與拒絕條件。模型可選擇與排列 skill；compiler 則必須照 skill 合約產生 runtime JSON。
+
+每個原子 skill 必須宣告 `inputShape`、`outputShape`、欄位 schema、credential/configuration 要求、side effect、runtime mapping 與 verification contract。資料形狀至少區分 `SingleItem<T>`、`ItemList<T>`、`Binary<T>`、`NoOutput`。如果上游與下游資料形狀不相容，IR 必須明示 aggregate、select-first、split 或 batch 策略；compiler 不得猜測 n8n 隱式迴圈是否合理。
+
+### 6.0 Declarative Pipeline IR v1
+
+IR 是 planner 與 compiler 的唯一協議，不是 n8n JSON 的縮寫。最小例子：
+
+```json
+{
+  "version": "1.0",
+  "goal": "取得 user 2 的 todos 並輸出統計",
+  "steps": [
+    {"id": "start", "kind": "trigger.manual", "outputShape": "SingleItem<Empty>"},
+    {"id": "todos", "kind": "source.http_get", "urlRef": "public:jsonplaceholder/todos?userId=2", "outputShape": "ItemList<Todo>"},
+    {"id": "summary", "kind": "transform.count_false_boolean", "input": "todos", "field": "completed", "outputShape": "SingleItem<TodoSummary>"}
+  ],
+  "expectedOutput": {"shape": "SingleItem<TodoSummary>", "fields": ["totalTodos", "incompleteTodos"]}
+}
+```
+
+IR v1 不含任意 expression 或 code。日期、字串、數學與欄位引用未來應採受限且型別化的 expression AST，再由 compiler 映射為 n8n expression；禁止將使用者文字直接串進 JavaScript。這個 AST compiler 是第二階段，在完成前只能用既有 transform skill 或回報 capability gap。
 
 ### 6.1 目前 registry 中的能力
 
@@ -158,20 +184,26 @@ Skill 不是單純 prompt，也不是任意的 rule-based function。它是一�
 
 ## 7. 資料與隱私模型
 
-### 7.1 可進 planner 的資料
+### 7.1 Pre-LLM 防線
+
+聊天 UI 與 gateway 都必須在任何 planner 呼叫前執行 DLP/redaction。UI 先以 API key/token/password 常見格式、JWT、私鑰區塊與 entropy heuristic 偵測，命中時阻止送出或替換為 `{{SECRET_PLACEHOLDER}}`；gateway 再執行一次以防繞過 UI。系統要引導使用者到 n8n Credentials 或隔離 setup form 輸入 secret。
+
+Regex 與 entropy 偵測並非完美 DLP；它是降低意外外洩的防線，不可作為傳送或儲存 secret 的正當理由。被遮罩的內容也不得寫進 analytics、chat history 或 debug logs。
+
+### 7.2 可進 planner 的資料
 
 - 使用者的非敏感目標、限制、期望輸出。
 - 抽象 capability，例如「需要 Google Drive 上傳」。
 - runtime skill ID、schema revision、是否存在符合服務類型的 credential。
 - placeholder，例如 `{{recipient_email}}`；不可使用真正 email。
 
-### 7.2 不可進 planner/compiler/log 的資料
+### 7.3 不可進 planner/compiler/log 的資料
 
 - API key、token、password、OAuth client secret、authorization header。
 - 真實 credential value。
 - 未經遮罩的私人地址、個資或使用者上傳的敏感內容。
 
-### 7.3 Setup Manifest v1
+### 7.4 Setup Manifest v1
 
 此 manifest 是 planning/compile 後、n8n setup 前的交接契約。範例：
 
@@ -215,18 +247,21 @@ Skill 不是單純 prompt，也不是任意的 rule-based function。它是一�
 | Plan review fingerprint gate | 已有程式與測試 | `chatbot/src/planReviewGate.js` |
 | Setup Manifest | 已有程式與測試 | `chatbot/src/setupManifest.js` |
 | Planner model 選型 | 研究中 | Sol 表現較強；尚無正式 API integration |
-| 通用 planner session/chat UI | 尚未接線 | 必須建立 session persistence 與 review controls |
+| Declarative Pipeline IR | 規格已定義，尚未接線 | 必須取代 planner 直接輸出 nodewise step spec |
+| 通用 planner session/chat UI | 尚未接線 | 必須建立 session persistence、Plan Diff 與 review controls |
 | 真實 credential lookup/binding | 尚未接線 | 只完成 privacy/data contract |
 | 高風險 workflow compilation | 尚未實作 | authenticated HTTP、Wait/IF/Retry、Drive、通知等 |
-| 自動執行驗證 | 尚未通用實作 | 已有手動 n8n execution evidence |
+| 畫布回同步 | 尚未實作 | Phase 2 先做 readback/diff，不承諾完整 decompiler |
+| 自動執行驗證與錯誤回饋 | 尚未通用實作 | 已有手動 n8n execution evidence |
 
 ## 9. 下一個實作順序
 
-1. **Planner Session v1**：將 plan review gate 接到聊天 endpoint/UI，保存 `planFingerprint`、revision 與使用者決定。
-2. **Draft handoff v1**：將 approved typed spec -> compiler -> static verifier -> Setup Manifest -> inactive draft 串成單一路徑。
-3. **Credential binding adapter**：讀取 n8n credential metadata，讓使用者在 native UI 選擇，不暴露 value。
-4. **擴充高覆蓋 skill**：優先 authenticated HTTP、資料映射、IF/Wait/Retry，並為每個 skill 加上可執行 fixture。
-5. **Execution evidence**：定義每個 skill 的 output contract，將實際 execution ID、輸出與錯誤分類寫入非敏感研究紀錄。
+1. **Planner Session + IR v1**：將 review gate 接到聊天 endpoint/UI，保存 `planFingerprint`、revision、Plan Diff 與使用者決定；核准後只產生 IR。
+2. **Draft handoff v1**：將 approved IR -> compiler -> static verifier -> Setup Manifest -> inactive draft 串成單一路徑。
+3. **Credential binding + configuration adapter**：讀取 n8n credential metadata，讓使用者在 native UI 選擇；non-secret Form Cards 在 review 期收集，敏感值走隔離 setup。
+4. **擴充高覆蓋 skill**：優先 authenticated HTTP、資料映射、IF/Wait/Retry，並為每個 skill 加上資料形狀、條件參數與可執行 fixture。
+5. **Execution evidence + sanitized repair loop**：將執行錯誤脫敏、分類為 deterministic repair 或 semantic replan；任何會新增外部副作用的修復都須重新 plan review。
+6. **Phase 2 canvas resync**：先從 n8n workflow readback 建立差異報告；只有在 IR 覆蓋足夠時才做受限 decompiler。
 
 ## 10. 對抗式審查清單
 
@@ -234,12 +269,14 @@ Skill 不是單純 prompt，也不是任意的 rule-based function。它是一�
 
 1. 使用者未核准 plan，系統是否仍可能生成 workflow JSON？答案必須是「不可以」。
 2. 使用者要求新版 plan，但按了舊版的核准按鈕，是否能編譯？答案必須是「不可以」。
-3. 使用者把 API key 打進聊天，系統能否保證它不進 planner history？目前尚未完成端到端 UI redaction，因此正確回答是「設計要求如此，但 UI 尚未實作，不應宣稱已保證」。
+3. 使用者把 API key 打進聊天，系統能否保證它不進 planner history？正確回答是「v0.2 已規定 UI/gateway 雙層防線，但尚未實作，不應宣稱已保證」。
 4. 找不到 Google Drive credential 時，系統是否拒絕建立全部 workflow？答案必須是「不應拒絕；應建立 inactive draft 與 setup checklist」，前提是該 Google Drive skill 已被實作。
 5. 一個 n8n 節點存在，是否代表 compiler 支援它？答案必須是「不代表」。
 6. 靜態驗證通過是否代表寄信成功？答案必須是「不代表；需 execution evidence」。
 7. Planner 能否任意輸出 JavaScript 或 node type？答案必須是「不可以；只可輸出 typed specification，compiler 擁有 JSON」。
 8. 系統遇到不支援的影片生成 + 輪詢 + Drive 上傳需求時，是否應產生假 workflow？答案必須是「不可以；要列 capability gaps，或只在使用者明確同意下建立可辨識的未完成 draft」。
+9. 上游輸出 20 個 items、下游只接受一個 object 時，compiler 可否自行猜測？答案必須是「不可以；IR 必須聲明 aggregate/select/split 策略」。
+10. 使用者手動修改 n8n 畫布後，聊天 session 可否繼續假裝它仍掌握 workflow？答案必須是「不可以；在 readback/diff 實作前，必須標示 session state 已過期」。
 
 ## 11. 使用者角色測試腳本
 
@@ -270,3 +307,18 @@ Skill 不是單純 prompt，也不是任意的 rule-based function。它是一�
 3. 每個支援 skill 有 runtime schema、靜態檢查與至少一個真實 n8n execution fixture。
 4. 每個不支援需求回傳的是明確 capability gap，不是看似完整卻無法執行的 JSON。
 5. 研究記錄可區分：planner 問題、compiler 問題、setup 缺失、runtime 不相容與 execution failure。
+
+## 13. v0.2 審查回饋處置紀錄
+
+| 審查議題 | 處置 | 理由 |
+| --- | --- | --- |
+| 巨集/原子 skill 混雜 | 接受，納入 IR 與 recipe/skill 分層 | 沒有 IR 時，擴充會退化成 template selector 或不可控 DAG 猜測 |
+| Item Array / Paired Items | 接受，資料形狀列為 skill 與 verifier 必填契約 | 這是 n8n 實際執行錯誤的重要來源 |
+| Safe expression AST | 接受為 Phase 2 | 必要但不可草率把任意 JS 重新放回系統 |
+| Canvas round-tripping | 接受為 Phase 2，先做 readback/diff | 完整 decompiler 風險與範圍太大；先停止狀態漂移更務實 |
+| `displayOptions` 條件參數 | 接受 | verifier 必須讀 runtime schema 的條件依賴；未完全對齊 n8n UI 前，不得宣稱等價 |
+| Degraded Draft Mode | 有條件接受 | 僅能建立 inactive、清楚標示 placeholder 的草稿，且使用者明確選擇；高風險寫入不可自動補假節點 |
+| Diff-based review | 接受 | 保留新版 fingerprint 與明確同意，只縮短使用者閱讀範圍 |
+| Chat Form Cards | 接受 | 只處理非敏感 configuration；敏感值仍不進 planner |
+| Pre-LLM DLP | 接受為高優先實作項目 | 規格上的 secret 禁令沒有輸入端防線就不完整 |
+| 自動錯誤修復 | 有條件接受 | 先脫敏、分類；只對 compiler 已知的 deterministic repair 自動提出修復，語意與外部寫入仍需重新核准 |
