@@ -18,7 +18,10 @@ User request
   -> Planner result
        -> clarification_required
        -> capability_gap
-       -> ready_to_compile
+       -> proposed plan summary
+  -> User reviews plan
+       -> request revision -> planner result
+       -> approve -> typed step specification
   -> Typed step specification
   -> Runtime skill resolution
   -> Compiler with installed n8n schema
@@ -35,7 +38,7 @@ User request
 
 | Component | Owns | Must not own |
 | --- | --- | --- |
-| Planner | User intent, missing information, required capabilities | Raw n8n JSON, credentials, arbitrary code |
+| Planner | User intent, missing information, required capabilities, reviewable plan summary | Raw n8n JSON, credentials, arbitrary code |
 | Skill registry | Supported capability inventory, setup and risk requirements | Secret values, model reasoning |
 | Compiler | Runtime node versions, parameters, ports, generated code templates, deterministic connections | Semantic guessing beyond a typed specification |
 | Static verifier | Schema, connection, value and policy findings | Claiming real execution success |
@@ -48,7 +51,8 @@ User request
 | --- | --- | --- |
 | Clarification required | Specific unanswered questions | Answer in chat |
 | Capability gap | Which ability is not implemented, without pretending a workflow was made | Save request or choose another mode |
-| Plan ready | Short step list, required setup, and expected output | Review plan |
+| Plan review required | Short step list, assumptions, required setup, and expected output | Approve, request revision, or cancel |
+| Plan revision requested | User's correction is sent back with the prior semantic plan | Review the revised plan |
 | Static validation failed | Concrete validation findings | Review; do not create |
 | Ready to create draft | Credential gaps listed by service and node; workflow structure is still complete | Create inactive draft |
 | Setup required | Created draft plus credential/configuration checklist, never secret fields in chat | Open n8n setup |
@@ -59,7 +63,7 @@ User request
 ## Four-day implementation order
 
 1. Stabilize this state contract and skill registry.
-2. Make Planner output one typed plan envelope, including `draft_requires_setup`.
+2. Make Planner output a reviewable semantic plan, then emit a typed specification only after explicit approval.
 3. Implement reusable high-coverage skills: authenticated HTTP, branch/control flow, and generalized mapping.
 4. Resolve and bind existing n8n credentials; otherwise create an inactive draft with setup guidance, then add controlled execution evidence.
 

@@ -9,6 +9,11 @@ test('surfaces missing information before any compiler action', () => {
   assert.equal(userActionForState(STATES.CLARIFICATION_REQUIRED), 'answer_questions');
 });
 
+test('requires the user to review a planner result before compiling it', () => {
+  assert.equal(stateForPlannerResult({ outcome: 'ready_to_compile' }), STATES.PLAN_REVIEW_REQUIRED);
+  assert.equal(userActionForState(STATES.PLAN_REVIEW_REQUIRED), 'approve_or_request_revision');
+});
+
 test('creates a credential-bound draft before asking the user to complete setup', () => {
   assert.equal(nextStateAfterStaticValidation({ passed: true, credentialDisposition: 'create_inactive_draft' }), STATES.READY_TO_CREATE_DRAFT);
   assert.equal(userActionForState(STATES.READY_TO_CREATE_DRAFT), 'create_inactive_draft');
