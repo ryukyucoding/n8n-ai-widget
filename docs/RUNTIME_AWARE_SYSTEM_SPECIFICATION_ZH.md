@@ -278,7 +278,7 @@ Regex 與 entropy 偵測並非完美 DLP；它是降低意外外洩的防線，�
 | Plan review fingerprint gate | 已有程式與測試 | `chatbot/src/planReviewGate.js` |
 | Setup Manifest | 已有程式與測試 | `chatbot/src/setupManifest.js` |
 | Planner model 選型 | 研究中 | Sol 表現較強；尚無正式 API integration |
-| Declarative Pipeline IR | 規格已定義，尚未接線 | 必須取代 planner 直接輸出 nodewise step spec |
+| Declarative Pipeline IR | validator 已實作並測試；尚未接線 compiler | `chatbot/src/pipelineIr.js` 驗證 DAG、資料形狀與 merge policy |
 | 通用 planner session/chat UI | 尚未接線 | 必須建立 session persistence、Plan Diff 與 review controls |
 | 真實 credential lookup/binding | 尚未接線 | 只完成 privacy/data contract |
 | 高風險 workflow compilation | 尚未實作 | authenticated HTTP、Wait/IF/Retry、Drive、通知等 |
@@ -287,8 +287,8 @@ Regex 與 entropy 偵測並非完美 DLP；它是降低意外外洩的防線，�
 
 ## 9. 下一個實作順序
 
-1. **Planner Session + IR v1**：將 review gate 接到聊天 endpoint/UI，保存 `planFingerprint`、revision、Plan Diff 與使用者決定；核准後只產生 IR。
-2. **Draft handoff v1**：將 approved IR -> compiler -> static verifier -> Setup Manifest -> inactive draft 串成單一路徑。
+1. **Planner Session + IR v1**：將 review gate 接到聊天 endpoint/UI，保存 `planFingerprint`、revision、Plan Diff 與使用者決定；核准後只產生 IR，並以 validator 阻擋非法 DAG。
+2. **Draft handoff v1**：將 approved IR -> compiler -> static verifier -> Setup Manifest -> inactive draft 串成單一路徑；目前 IR 尚未取代 nodewise compiler 的既有 step specification。
 3. **Credential binding + configuration adapter**：讀取 n8n credential metadata，讓使用者在 native UI 選擇；non-secret Form Cards 在 review 期收集，敏感值走隔離 setup。
 4. **擴充高覆蓋 skill**：優先 authenticated HTTP、資料映射、IF/Wait/Retry，並為每個 skill 加上資料形狀、條件參數與可執行 fixture。
 5. **Execution evidence + sanitized repair loop**：將執行錯誤脫敏、分類為 deterministic repair 或 semantic replan；任何會新增外部副作用的修復都須重新 plan review。
