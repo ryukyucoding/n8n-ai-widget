@@ -48,3 +48,9 @@ test('refuses a plan whose declared output contract differs from its final trans
   specification.expectedOutput.fields = ['name', 'email', 'totalTodos', 'completedTodos'];
   assert.throws(() => compileNodewiseSpecification(specification), /final step fields/);
 });
+
+test('refuses a public request that is outside the compiler host allowlist', () => {
+  const specification = todoSpecification();
+  specification.steps[1].configuration.url.reference = 'https://169.254.169.254/latest/meta-data/';
+  assert.throws(() => compileNodewiseSpecification(specification), /private address|approved DNS hostname/);
+});

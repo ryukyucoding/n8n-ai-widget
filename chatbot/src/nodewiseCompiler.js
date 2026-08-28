@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const runtimeSchemas = require('../schemas/runtime_node_schemas.json');
+const { validatePublicHttpsUrl } = require('./publicUrlPolicy');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
 const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean']);
@@ -31,8 +32,7 @@ function source(value, field, previousSteps) {
   assert(CARDINALITIES.has(value.cardinality), `${field}.cardinality is unsupported`);
   assert(typeof value.reference === 'string' && value.reference.trim(), `${field}.reference is required`);
   if (value.kind === 'public_literal') {
-    const url = new URL(value.reference);
-    assert(url.protocol === 'https:', `${field}.reference must use HTTPS`);
+    validatePublicHttpsUrl(value.reference);
   } else {
     const stepId = value.reference.split('.', 1)[0];
     assert(previousSteps.has(stepId), `${field}.reference must reference an earlier step`);

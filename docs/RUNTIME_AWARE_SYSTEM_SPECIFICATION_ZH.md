@@ -189,7 +189,7 @@ Compiler 必須拒絕未宣告依賴、未定義 branch、循環依賴，以及�
 | Skill | 狀態 | 風險 | 說明 |
 | --- | --- | --- | --- |
 | `trigger.manual` | 已實作 | read only | 手動觸發 |
-| `http.public_get` | 已實作 | read only | 固定公開 HTTPS GET |
+| `http.public_get` | 已實作（受限 Beta） | read only | 固定公開 HTTPS GET；目前只接受 `jsonplaceholder.typicode.com`，不支援任意使用者網址 |
 | `transform.select_fields` | 已實作 | read only | 單一物件選欄位 |
 | `transform.count_false_boolean` | 已實作 | read only | 統計布林 false |
 | `transform.join_object_and_count` | 已實作 | read only | 合併物件與 items 統計 |
@@ -208,6 +208,14 @@ Compiler 必須拒絕未宣告依賴、未定義 branch、循環依賴，以及�
 - RSS email draft：workflow 建立與 readback 成功；尚未以 SMTP credential 進行真實寄送驗證。
 
 這些是受限 pattern 的 evidence，不可外推為「能生成任意 n8n workflow」。
+
+### 6.3 Runtime schema 的來源、revision 與失效
+
+runtime schema 快照由 `chatbot/tools/export_runtime_node_schemas.js` 在 n8n container 內讀取已安裝 node descriptions 後匯出；它不是由模型記憶或手動 node 清單產生。這是 compiler、verifier 與 skill runtime mapping 的共同來源。
+
+目前尚未具備自動刷新機制，且 repo 內快照的 `generatedAt` 為 2026-07-22。因此「快照可由真實 runtime 匯出」已成立，但「每一次編譯時快照都與 runtime 同步」尚未成立。每一份可核准的 IR 最終必須綁定 `runtimeSchemaRevision`，其最小組成為 n8n version 與 schema JSON 的 SHA-256。未來在部署或編譯前必須執行受控 refresh 或 freshness check；若 revision 已改變，既有核准必須失效並要求重新 review。
+
+`http.public_get` 的目前 allowlist 是 compile-time 防線，只允許已驗證的 JSONPlaceholder host，並拒絕 IP literal、localhost、內網名稱、userinfo 與非標準 port。任意使用者網址、DNS rebinding 與執行期出口網路控制尚未實作；在 n8n 端沒有可驗證的執行期防線前，這些需求必須拒絕或明列為 residual risk，不得標為 public read-only。
 
 ## 7. 資料與隱私模型
 
@@ -359,3 +367,17 @@ Regex 與 entropy 偵測並非完美 DLP；它是降低意外外洩的防線，�
 | DLP 誤判 | 接受 | 高確定性 secret 強制阻擋；弱命中允許不記錄原文的使用者覆寫 |
 | Plan Diff 技術化 | 接受 | UI 必須顯示 Semantic Delta，不向一般使用者顯示 JSON diff |
 | 降級草稿不易交接 | 接受 | placeholder 必須配固定格式 Sticky Note，說明缺失能力、輸入/輸出形狀及手動接力步驟 |
+
+## 14. 評估設計
+
+舊有 Node F1、Connection F1 與 Parameter Accuracy 仍保留作為 fine-tuned Create baseline 的可比指標，但它們只回答「輸出像不像歷史 ground truth」，不足以衡量 runtime-aware 系統是否誠實地控制風險。新的實驗必須同時記錄以下指標：
+
+| 指標 | 定義 | 解讀 |
+| --- | --- | --- |
+| False Ready Rate | 系統標示為 `ready_to_run`，但受控 execution 實際失敗的比例 | 越低越好；不可用靜態通過替代 execution evidence |
+| Honest Gap Rate | 需求超出已支援 capability 時，系統正確回傳明確 capability gap 的比例 | 越高越好 |
+| Over-refusal Rate | 需求其實由已驗證 skill 覆蓋，卻被回覆為 capability gap 的比例 | 越低越好；避免系統只會保守拒絕 |
+| 狀態分佈 | 各終端狀態（例如可建立草稿、需要 setup、靜態阻擋、execution passed）的比例 | 呈現失敗發生在哪個責任層 |
+| End-to-end Success | 從自然語言到符合 output contract 的 execution evidence 的比例 | 最接近使用者真正完成任務的結果 |
+
+比較實驗須固定任務集、runtime schema revision 與 execution policy，並區分：fine-tuned Create baseline、受限 runtime-aware compiler、以及未支援需求的 capability-gap 行為。任何尚未跑出的結果都只能寫為研究假設，不能預先宣稱 compiler 的 False Ready Rate 較低。
