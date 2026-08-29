@@ -8,6 +8,9 @@ WORKTREE="${RUNTIME_COMPILER_WORKTREE:-/data/$USER/n8n-worktrees/runtime-compile
 SOURCE_CHATBOT="${SOURCE_CHATBOT_CONTAINER:-n8n-chatbot-1}"
 FORMAL_PORT="${FORMAL_CHATBOT_PORT:-3001}"
 PUBLIC_N8N_URL="${N8N_PUBLIC_URL:-https://widm-n8n.csie.ncu.edu.tw}"
+PLAN_FIRST_ENABLED="${PLAN_FIRST_COMPILER_ENABLED:-false}"
+PLAN_FIRST_PLANNER_MODEL="${PLAN_FIRST_PLANNER_MODEL:-qwen3.8:27b}"
+PLAN_FIRST_SECRET="${PLANNER_APPROVAL_HMAC_SECRET:-}"
 REVISION="$(git -C "$WORKTREE" rev-parse --short HEAD)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 CANDIDATE_IMAGE="n8n-chatbot-runtime-compiler:${REVISION}"
@@ -68,11 +71,29 @@ docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$SOURCE_CHATBOT" 
 grep -q '^N8N_API_KEY=' "$ENVFILE"
 grep -q '^N8N_BASE_URL=' "$ENVFILE"
 
+# The plan-first gate is intentionally independent of the legacy compiler
+# flag. Keep the secret only in this temporary env-file, never in a docker
+# command argument or deployment log.
+if [ "$PLAN_FIRST_ENABLED" = true ]; then
+  test "${#PLAN_FIRST_SECRET}" -ge 32 || {
+    echo 'PLAN_FIRST_COMPILER_ENABLED=true requires PLANNER_APPROVAL_HMAC_SECRET of at least 32 characters' >&2
+    exit 2
+  }
+fi
+sed -i '/^PLAN_FIRST_COMPILER_ENABLED=/d; /^PLAN_FIRST_PLANNER_MODEL=/d; /^PLANNER_APPROVAL_HMAC_SECRET=/d' "$ENVFILE"
+printf 'PLAN_FIRST_COMPILER_ENABLED=%s\n' "$PLAN_FIRST_ENABLED" >> "$ENVFILE"
+printf 'PLAN_FIRST_PLANNER_MODEL=%s\n' "$PLAN_FIRST_PLANNER_MODEL" >> "$ENVFILE"
+printf 'PLANNER_APPROVAL_HMAC_SECRET=%s\n' "$PLAN_FIRST_SECRET" >> "$ENVFILE"
+
 docker build --label "org.opencontainers.image.revision=${REVISION}" --tag "$CANDIDATE_IMAGE" "$WORKTREE/chatbot"
 docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   --entrypoint node "$CANDIDATE_IMAGE" --test \
   /app/src/runtimeCompilerBeta.test.js \
   /app/src/chatProgress.test.js \
+  /app/src/nodewisePlanner.test.js \
+  /app/src/nodewisePlannerPrompt.test.js \
+  /app/src/approvedNodewiseCompiler.test.js \
+  /app/src/planFirstAvailability.test.js \
   /app/src/workflowCreatePayload.test.js
 
 OLD_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$SOURCE_CHATBOT")"
@@ -110,6 +131,9 @@ for _ in $(seq 1 10); do
 done
 curl --fail --silent --show-error "http://127.0.0.1:${FORMAL_PORT}/health"
 curl --fail --silent --show-error "http://127.0.0.1:${FORMAL_PORT}/models" | grep -q '"compilerBeta":{"enabled":true,"standalone":false'
+if [ "$PLAN_FIRST_ENABLED" = true ]; then
+  curl --fail --silent --show-error "http://127.0.0.1:${FORMAL_PORT}/models" | grep -q '"planFirst":{"enabled":true'
+fi
 curl --fail --silent --show-error "${PUBLIC_N8N_URL%/}/widget.js" | grep -q 'n8n-ai-widget'
 
 echo "revision=${REVISION}"
