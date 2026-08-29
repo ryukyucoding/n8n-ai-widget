@@ -48,6 +48,10 @@ For unsupported_capability, omit specification completely:
   "capabilityGaps": ["a capability the compiler does not provide"]
 }
 
-For ready_to_compile, every step must have id, capability, requiredUserSetup, and configuration. Use only these capabilities: manual_trigger, http_request, data_transform, set_output. Use only GET public_literal URLs and prior_step references such as user.response. Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
+For ready_to_compile, every step must have id, capability, requiredUserSetup, and configuration. Use only these capabilities: manual_trigger, http_request, data_transform, set_output. Use only GET public_literal URLs and prior_step references such as user.response.
+
+Important output invariant: join_object_and_count_false_boolean always produces every objectMapping field plus totalField and falseCountField. The final step must produce exactly expectedOutput.fields, in the same order. If the requested final output needs only a subset of a join result, append a final set_output step. Its input must reference the aggregate step as aggregate.response with cardinality one_object, and its mappings must select only the requested fields. For example, after a join named summary, selecting just name and incompleteTodos requires a final set_output mapping those two fields from summary.response.
+
+Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
 
 module.exports = { NODEWISE_PLANNER_RESULT_PROMPT };
