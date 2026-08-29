@@ -65,7 +65,7 @@ nodeTest('malformed NDJSON rejects and the existing error path removes typing', 
 });
 
 nodeTest('Edit stays on the JSON agent request and draft handoff is absent', () => {
-  assert.ok(source.includes('} else {\n          res = await fetch(AGENT_URL, {'));
+  assert.match(source, /\} else \{\r?\n\s*res = await fetch\(AGENT_URL, \{/);
   assert.doesNotMatch(source, /DRAFT_WORKFLOW_KEY|draft_needs_setup|draft_needs_repair|editHandoff|createDraftHandoff/);
 });
 
