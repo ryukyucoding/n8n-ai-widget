@@ -245,6 +245,7 @@
   </div>
 
   <script>
+    /* __N8N_WIDGET_MODEL_CONFIG__ */
     var AGENT_URL = window.location.origin + '/agent/run';
     var GENERATE_URL = window.location.origin + '/generate';
     var PLAN_REQUEST_URL = window.location.origin + '/beta/plan-from-request';
@@ -254,7 +255,6 @@
     var SESSION_KEY = 'n8n-widget-agent-session';
     var MODE_KEY = 'n8n-widget-active-mode';
     var WIDGET_MSG_TYPE = 'n8n-ai-widget';
-    var MODELS_URL = window.location.origin + '/widget-models';
     // Edit sessions can span iframe reloads. Restore their mode so a pending
     // clarification is never accidentally sent to the Create endpoint.
     var activeMode = (function () {
@@ -266,10 +266,9 @@
         return 'create';
       }
     })();
-    // The fallback prevents an empty selector when a reverse proxy exposes
-    // /chat but has not yet exposed /widget-models. The server still validates every
-    // submitted model against its configured allow-list.
-    var modelConfig = {
+    // The server injects the runtime configuration into /chat because n8n owns
+    // the same-origin /models path used by the iframe.
+    var modelConfig = window.__N8N_WIDGET_MODEL_CONFIG__ || {
       create: { models: ['qwen2.5-coder-32b-ft-original:latest'], defaultModel: 'qwen2.5-coder-32b-ft-original:latest' },
       edit: { models: ['gpt-4o', 'gpt-oss:120b'], defaultModel: 'gpt-4o' },
       compiler: { models: [], defaultModel: '' },
@@ -327,9 +326,7 @@
       renderModelOptions();
     }
 
-    document.querySelectorAll('.mode-btn').forEach(function (button) { button.addEventListener('click', function () { switchMode(button.dataset.mode); }); });
-    switchMode(activeMode);
-    fetch(MODELS_URL).then(function (res) { return res.ok ? res.json() : null; }).then(function (config) {
+    function applyModelConfig(config) {
       if (!config) return;
       modelConfig = config;
       if (config.compilerBeta && config.compilerBeta.standalone) {
@@ -349,7 +346,11 @@
         'four-mode', !!(config.planFirst && config.planFirst.enabled && !(config.compilerBeta && config.compilerBeta.standalone)),
       );
       renderModelOptions();
-    }).catch(function () { renderModelOptions(); });
+    }
+
+    document.querySelectorAll('.mode-btn').forEach(function (button) { button.addEventListener('click', function () { switchMode(button.dataset.mode); }); });
+    switchMode(activeMode);
+    applyModelConfig(modelConfig);
 
     function currentWorkflowId() {
       var q = new URLSearchParams(window.location.search || '');

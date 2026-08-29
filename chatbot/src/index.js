@@ -13,6 +13,7 @@ try {
 
 const express = require('express');
 const cors = require('cors');
+const fs = require('node:fs');
 const path = require('path');
 const { Agent } = require('undici');
 
@@ -228,9 +229,29 @@ app.get('/widget.js', (req, res) => {
 });
 
 // Serve the chat UI inside the iframe
+const CHAT_HTML_TEMPLATE = fs.readFileSync(path.join(__dirname, 'chat.html'), 'utf8');
+
+function modelConfig() {
+  return {
+    create: { models: CREATE_MODELS, defaultModel: DEFAULT_CREATE_MODEL },
+    edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
+    compiler: { models: [], defaultModel: '' },
+    compilerBeta: { enabled: RUNTIME_COMPILER_BETA_ENABLED, standalone: BETA_CHAT_STANDALONE, supportedPatterns: SUPPORTED_PATTERNS },
+    planFirst: { enabled: planReviewEnabled(), plannerModel: PLAN_FIRST_PLANNER_MODEL },
+  };
+}
+
+function renderChatHtml() {
+  const config = JSON.stringify(modelConfig()).replace(/</g, '\\u003c');
+  return CHAT_HTML_TEMPLATE.replace(
+    '/* __N8N_WIDGET_MODEL_CONFIG__ */',
+    `window.__N8N_WIDGET_MODEL_CONFIG__ = ${config};`,
+  );
+}
+
 app.get('/chat', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, 'chat.html'));
+  res.type('html').send(renderChatHtml());
 });
 
 // Health check
@@ -239,19 +260,10 @@ app.get('/health', (req, res) => {
 });
 
 function sendModelConfig(req, res) {
-  res.json({
-    create: { models: CREATE_MODELS, defaultModel: DEFAULT_CREATE_MODEL },
-    edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
-    compiler: { models: [], defaultModel: '' },
-    compilerBeta: { enabled: RUNTIME_COMPILER_BETA_ENABLED, standalone: BETA_CHAT_STANDALONE, supportedPatterns: SUPPORTED_PATTERNS },
-    planFirst: { enabled: planReviewEnabled(), plannerModel: PLAN_FIRST_PLANNER_MODEL },
-  });
+  res.json(modelConfig());
 }
 
 app.get('/models', sendModelConfig);
-// n8n reserves /models for its own SPA. The external hook can forward /chat,
-// but the embedded UI must use a distinct path to read chatbot configuration.
-app.get('/widget-models', sendModelConfig);
 
 async function createVerifiedCompilerWorkflow({ userRequest, candidateWorkflow, metadata = {} }) {
   try {
