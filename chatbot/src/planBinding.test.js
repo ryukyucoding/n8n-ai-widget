@@ -7,7 +7,7 @@ const {
   issueApprovalToken, verifyApprovalToken, assertApprovedForCompilation,
 } = require('./planBinding');
 
-const SECRET = 'test-secret-at-least-16-chars';
+const SECRET = 'test-approval-secret-32-chars-ok';
 const CTX = { runtimeSchemaRevision: '2.18.7+abc123', skillRegistryRevision: 'reg-1' };
 const OPTS = { secret: SECRET, sessionId: 'sess-1' };
 
@@ -109,7 +109,7 @@ test('token 無法偽造：不知道 secret 就簽不出來', () => {
 });
 
 test('別的 secret 簽出來的 token 無效', () => {
-  const token = issueApprovalToken(ir(), CTX, { ...OPTS, secret: 'another-secret-16-chars!' });
+  const token = issueApprovalToken(ir(), CTX, { ...OPTS, secret: 'another-approval-secret-32-chars' });
   assert.equal(verifyApprovalToken(token, ir(), CTX, OPTS).valid, false);
 });
 
@@ -169,4 +169,19 @@ test('plan 與 IR 綁在一起：改 IR 則 plan 與 fingerprint 同步改變', 
 test('canonicalizeIr 與 stableStringify 對相同內容穩定', () => {
   assert.equal(canonicalizeIr(ir()), canonicalizeIr(ir()));
   assert.equal(stableStringify({ b: 1, a: 2 }), stableStringify({ a: 2, b: 1 }));
+});
+
+test('secret 邊界：31 字元必須被拒絕，32 字元可通過（C0-3 政策 >= 32）', () => {
+  const short = 'a'.repeat(31);
+  const ok = 'a'.repeat(32);
+  assert.throws(() => issueApprovalToken(ir(), CTX, { ...OPTS, secret: short }), /at least 32/);
+  assert.doesNotThrow(() => issueApprovalToken(ir(), CTX, { ...OPTS, secret: ok }));
+});
+
+test('verifyApprovalToken 也自我強制 secret 長度，不依賴呼叫端 gate', () => {
+  const token = issueApprovalToken(ir(), CTX, OPTS);
+  assert.throws(
+    () => verifyApprovalToken(token, ir(), CTX, { secret: 'a'.repeat(31), sessionId: 'sess-1' }),
+    /at least 32/,
+  );
 });

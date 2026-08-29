@@ -99,19 +99,45 @@ function buildCapabilityGapResponse({ userRequest, requestedSkillIds, registry }
   assert(Array.isArray(registry), 'registry must be an array');
 
   const byId = new Map(registry.map((s) => [s.id, s]));
-  const implemented = registry.filter((s) => s.maturity !== 'planned').map((s) => s.id);
+  // 只有「完全實作、且不需要使用者先補資料」的 skill 才算現在做得到。
+  // 原型階段（implemented_prototype）不算——它的 compiler 未必接在這條產生路徑上。
+  const implemented = registry
+    .filter((s) => s.maturity === 'implemented' && !s.requiresUserSetup)
+    .map((s) => s.id);
 
   const gaps = [];
   const canDoNow = [];
+  const needsUserSetup = [];
   for (const id of requestedSkillIds) {
     const skill = byId.get(id);
     if (!skill) {
       gaps.push({ capability: id, reason: '這個能力不在系統的支援清單中' });
-    } else if (skill.maturity === 'planned') {
-      gaps.push({ capability: id, label: skill.label, reason: '已規劃但尚未實作' });
-    } else {
-      canDoNow.push({ capability: id, label: skill.label });
+      continue;
     }
+    if (skill.maturity === 'planned') {
+      gaps.push({ capability: id, label: skill.label, reason: '已規劃但尚未實作' });
+      continue;
+    }
+    // 原型階段不得宣告為「現在就能做」。它可能有 compiler，但那個 compiler
+    // 未必接在呼叫端這條產生路徑上——宣稱做得到卻編不出來，正是本專案要消除的失敗模式。
+    if (skill.maturity !== 'implemented') {
+      gaps.push({
+        capability: id, label: skill.label,
+        reason: `原型階段（${skill.maturity}），尚未接進這條產生路徑`,
+      });
+      continue;
+    }
+    // 需要使用者先提供憑證或設定的，不是 gap，但也不是「現在就能做」。
+    // 這一類正是要回頭問使用者「請補齊這些資訊」的來源。
+    if (skill.requiresUserSetup) {
+      needsUserSetup.push({
+        capability: id, label: skill.label,
+        credentialRequirements: skill.credentialRequirements || [],
+        configurationRequirements: skill.configurationRequirements || [],
+      });
+      continue;
+    }
+    canDoNow.push({ capability: id, label: skill.label });
   }
 
   const missingIds = gaps.map((g) => g.capability);
@@ -121,6 +147,7 @@ function buildCapabilityGapResponse({ userRequest, requestedSkillIds, registry }
   const partial = {
     available: canDoNow.length > 0,
     canDoNow,
+    needsUserSetup,
     needsManual: gaps.map((g) => ({
       capability: g.capability,
       label: g.label || g.capability,
@@ -139,14 +166,20 @@ function buildCapabilityGapResponse({ userRequest, requestedSkillIds, registry }
   };
 
   return {
-    state: gaps.length === 0 ? 'supported' : 'capability_gap',
+    state: gaps.length === 0 && needsUserSetup.length === 0 ? 'supported' : 'capability_gap',
     gaps,
     alternatives,
     partial,
     backlog,
     // 給 UI 的三段式提示。刻意不含 skill id 或節點名稱——使用者不需要知道那些
-    presentation: gaps.length === 0 ? null : {
+    presentation: gaps.length === 0 && needsUserSetup.length === 0 ? null : {
       whatIsMissing: gaps.map((g) => g.label || g.capability),
+      // 「請你補齊這些資訊」——與 whatIsMissing 分開，因為這一類是使用者補得齊的
+      whatYouMustProvide: needsUserSetup.map((s2) => ({
+        forCapability: s2.label,
+        credentials: s2.credentialRequirements,
+        settings: s2.configurationRequirements,
+      })),
       nearestAlternative: alternatives.filter((a) => a.usableNow).map((a) => ({
         suggestion: a.suggestion, tradeoff: a.tradeoff,
       })),

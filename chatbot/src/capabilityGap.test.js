@@ -114,3 +114,41 @@ test('只缺一個能力時，仍要指出其餘可做的部分', () => {
   assert.equal(r.partial.canDoNow.length, 2);
   assert.match(r.presentation.partialOffer, /2 個步驟/);
 });
+
+// --- 迴歸：原型階段與待補設定，都不得被宣告為「現在就能做」 ---
+// 這個 bug 是真的發生過的：delivery.smtp_email_draft 與 workflow.daily_rss_digest
+// 都是 implemented_prototype，舊邏輯只看 maturity !== 'planned'，因此回報
+// state='supported'、canDoNow 含這兩者——但它們的 compiler 並沒有接在
+// plan-first 路徑上，使用者會被告知「做得到」然後拿不到東西。
+// 那正是本專案要消除的失敗模式（自信地宣稱做得到）。
+
+test('原型階段的 skill 不得被宣告為現在就能做', () => {
+  const r = buildCapabilityGapResponse({
+    userRequest: '每天把 RSS 摘要寄到我的信箱',
+    requestedSkillIds: ['delivery.smtp_email_draft', 'workflow.daily_rss_digest'],
+    registry: R,
+  });
+  assert.equal(r.state, 'capability_gap');
+  assert.deepEqual(r.partial.canDoNow, []);
+  assert.equal(r.partial.available, false);
+  assert.equal(r.gaps.length, 2);
+  for (const g of r.gaps) assert.match(g.reason, /原型階段/);
+});
+
+test('已實作但需要使用者先補設定的 skill：不是 gap，也不是現在就能做', () => {
+  const registry = R.map((s) => (s.id === 'delivery.smtp_email_draft'
+    ? { ...s, maturity: 'implemented' } : s));
+  const r = buildCapabilityGapResponse({
+    userRequest: '寄一封信給我',
+    requestedSkillIds: ['delivery.smtp_email_draft'],
+    registry,
+  });
+  assert.deepEqual(r.partial.canDoNow, [], '需要使用者補設定就不算現在就能做');
+  assert.equal(r.partial.needsUserSetup.length, 1);
+  assert.notEqual(r.state, 'supported', '還有東西要使用者補時不得回 supported');
+  const ask = r.presentation.whatYouMustProvide;
+  assert.equal(ask.length, 1);
+  assert.ok(ask[0].credentials.includes('SMTP credential'));
+  assert.ok(ask[0].settings.includes('sender email'));
+  assert.ok(ask[0].settings.includes('recipient email'));
+});

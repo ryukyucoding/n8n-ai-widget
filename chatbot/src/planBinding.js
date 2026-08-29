@@ -104,13 +104,24 @@ function renderPlan(ir, { skillRegistry = null } = {}) {
   };
 }
 
+// C0-3：政策要求 >= 32。issue 與 verify 都檢查，讓模組自我強制，
+// 而不是依賴呼叫端（index.js）的 gate 是唯一防線。
+const MIN_SECRET_LENGTH = 32;
+
+function assertSecret(secret) {
+  assert(
+    typeof secret === 'string' && secret.length >= MIN_SECRET_LENGTH,
+    `secret must be at least ${MIN_SECRET_LENGTH} characters`,
+  );
+}
+
 function sign(payload, secret) {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }
 
 // 由 review gate 在使用者核准當下簽發。secret 不得進入 planner context 或日誌。
 function issueApprovalToken(ir, context, { secret, sessionId, now = Date.now(), ttlSeconds = DEFAULT_TTL_SECONDS }) {
-  assert(typeof secret === 'string' && secret.length >= 16, 'secret must be at least 16 characters');
+  assertSecret(secret);
   assert(typeof sessionId === 'string' && sessionId, 'sessionId is required');
   const fingerprint = computeFingerprint(ir, context);
   const body = { v: 1, fingerprint, sessionId, expiresAt: now + ttlSeconds * 1000 };
@@ -119,6 +130,7 @@ function issueApprovalToken(ir, context, { secret, sessionId, now = Date.now(), 
 
 // compiler 的唯一入口條件。回傳 reason 而非只是 false——使用者要知道為什麼要重新核准。
 function verifyApprovalToken(token, ir, context, { secret, sessionId, now = Date.now() }) {
+  assertSecret(secret);
   if (!token || typeof token !== 'object') return { valid: false, reason: 'approval token 缺失' };
   const { signature, ...body } = token;
   if (typeof signature !== 'string') return { valid: false, reason: 'approval token 沒有簽章' };
@@ -155,6 +167,7 @@ function assertApprovedForCompilation(token, ir, context, options) {
 }
 
 module.exports = {
+  MIN_SECRET_LENGTH,
   DEFAULT_TTL_SECONDS, stableStringify, canonicalizeIr, computeFingerprint,
   renderPlan, issueApprovalToken, verifyApprovalToken, assertApprovedForCompilation,
 };
