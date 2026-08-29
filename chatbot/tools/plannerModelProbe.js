@@ -26,12 +26,13 @@ const OPENAI = process.env.OPENAI_API_KEY ? (process.env.OPENAI_BASE_URL || 'htt
 const OLLAMA_OPENAI_COMPAT = /\/v1\/?$/.test(OLLAMA);
 const SECRET = 'planner-probe-secret-value-32chr';
 const TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 120000);
+const DEFAULT_READY_REQUEST = '幫我做一個流程：抓 jsonplaceholder 使用者 1 的基本資料，再抓他的 todo 清單，'
+  + '最後輸出他的姓名、email、todo 總數，以及還沒完成的件數。';
 
 const CASES = [
   {
     name: 'A 命中 skill library',
-    request: '幫我做一個流程：抓 jsonplaceholder 使用者 1 的基本資料，再抓他的 todo 清單，'
-           + '最後輸出他的姓名、email、todo 總數，以及還沒完成的件數。',
+    request: process.env.PROBE_A_REQUEST || DEFAULT_READY_REQUEST,
     expect: 'ready_to_compile',
   },
   {
