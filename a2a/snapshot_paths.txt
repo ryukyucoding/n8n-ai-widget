@@ -1,0 +1,34 @@
+# 每行一個 repo 相對路徑，--snapshot 會備份它們。
+# a2a/ 目錄一律自動納入，不必列在這裡。
+# 規則：任何「還沒進 git 的工作成果」都應該列在這裡。
+chatbot/src/publicUrlPolicy.js
+chatbot/src/publicUrlPolicy.test.js
+chatbot/src/nodewiseCompiler.js
+chatbot/src/nodewiseCompiler.test.js
+docs/SPEC_REVIEW_v0.3_CLAUDE.md
+docs/HANDOFF_CLAUDE_CODEX.md
+AGENTS.md
+chatbot/src/rssDigestCompiler.js
+chatbot/src/rssDigestCompiler.test.js
+a2a/RELEASE_PLAN.md
+chatbot/src/runtimeSchemaRevision.js
+chatbot/src/runtimeSchemaRevision.test.js
+chatbot/tools/export_runtime_node_schemas.js
+a2a/RELEASE_MANIFEST_R3.md
+a2a/TASKS_FOR_CODEX_44.md
+chatbot/src/planBinding.js
+chatbot/src/planBinding.test.js
+chatbot/src/planDiff.js
+chatbot/src/planDiff.test.js
+a2a/TASKS_FOR_CODEX.md
+chatbot/src/approvedNodewiseCompiler.js
+chatbot/src/approvedNodewiseCompiler.test.js
+chatbot/src/index.js
+docs/PLANNER_COMPILER_WIRING_DESIGN_ZH.md
+a2a/tasks44/
+chatbot/src/capabilityGap.js
+chatbot/src/capabilityGap.test.js
+docs/SPEC_AMENDMENTS_v0.4_PROPOSAL.md
+a2a/RELEASE_A_B_PLAN.md
+a2a/A4_REAL_RUNTIME_VERIFICATION.md
+a2a/RELEASE_C_INTEGRATED_PLAN.md

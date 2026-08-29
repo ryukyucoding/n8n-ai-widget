@@ -5,3 +5,6 @@ chatbot/node_modules/
 **/__pycache__/
 *.pyc
 autoresearch/experiments/easy100/results/
+a2a/snapshots/
+a2a/*.state.json
+a2a/dashboard.html
