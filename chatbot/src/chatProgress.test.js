@@ -78,6 +78,7 @@ nodeTest('Compiler Beta uses the established Create transport with an explicit m
 });
 
 nodeTest('Plan-first Beta shows planning progress and keeps creation behind explicit approval', () => {
+  assert.match(source, /MODELS_URL = window\.location\.origin \+ '\/widget-models'/);
   assert.match(source, /PLAN_REQUEST_URL.*\/beta\/plan-from-request/);
   assert.match(source, /正在依 runtime skill 規劃 workflow/);
   assert.match(source, /data-plan-approve/);
@@ -85,4 +86,5 @@ nodeTest('Plan-first Beta shows planning progress and keeps creation behind expl
   assert.match(source, /PLAN_COMPILE_URL/);
   assert.match(serverSource, /app\.post\('\/beta\/plan-from-request'/);
   assert.match(serverSource, /requestNodewisePlannerResult/);
+  assert.match(serverSource, /app\.get\('\/widget-models', sendModelConfig\)/);
 });

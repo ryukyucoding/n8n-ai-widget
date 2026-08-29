@@ -238,7 +238,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get('/models', (req, res) => {
+function sendModelConfig(req, res) {
   res.json({
     create: { models: CREATE_MODELS, defaultModel: DEFAULT_CREATE_MODEL },
     edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
@@ -246,7 +246,12 @@ app.get('/models', (req, res) => {
     compilerBeta: { enabled: RUNTIME_COMPILER_BETA_ENABLED, standalone: BETA_CHAT_STANDALONE, supportedPatterns: SUPPORTED_PATTERNS },
     planFirst: { enabled: planReviewEnabled(), plannerModel: PLAN_FIRST_PLANNER_MODEL },
   });
-});
+}
+
+app.get('/models', sendModelConfig);
+// n8n reserves /models for its own SPA. The external hook can forward /chat,
+// but the embedded UI must use a distinct path to read chatbot configuration.
+app.get('/widget-models', sendModelConfig);
 
 async function createVerifiedCompilerWorkflow({ userRequest, candidateWorkflow, metadata = {} }) {
   try {
