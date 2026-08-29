@@ -33,6 +33,12 @@ const { evaluateShadowRepair } = require('./shadowRepairOrchestrator');
 const { observeShadowRepair, shadowRepairEnabled } = require('./shadowObservation');
 const { SUPPORTED_PATTERNS, compileBetaRequest } = require('./runtimeCompilerBeta');
 const {
+  proposeNodewisePlan,
+  approveNodewisePlan,
+  compileApprovedNodewisePlan,
+  reviewNodewisePlannerResult,
+} = require('./approvedNodewiseCompiler');
+const {
   createCandidateLimit,
   evaluateCorrectnessFirstRepair,
   repairControllerLogPayload,
@@ -45,7 +51,9 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  // Defer a missing cloud-key failure until a cloud route is actually used.
+  // This also lets the route module load in offline test environments.
+  apiKey: process.env.OPENAI_API_KEY || 'not-configured',
   baseURL: process.env.OPENAI_BASE_URL || undefined,
   defaultHeaders: (process.env.OPENAI_BASE_URL && process.env.OLLAMA_BASIC_AUTH) ? {
     'Authorization': process.env.OLLAMA_BASIC_AUTH
@@ -98,6 +106,7 @@ const RUNTIME_COMPILER_BETA_ENABLED = ['1', 'true', 'yes'].includes(
 const BETA_CHAT_STANDALONE = ['1', 'true', 'yes'].includes(
   String(process.env.BETA_CHAT_STANDALONE || 'false').toLowerCase()
 );
+const PLANNER_APPROVAL_HMAC_SECRET = process.env.PLANNER_APPROVAL_HMAC_SECRET || '';
 
 function timeoutMs(name, fallback) {
   const value = Number.parseInt(process.env[name] || String(fallback), 10);
@@ -235,9 +244,39 @@ app.get('/models', (req, res) => {
   });
 });
 
-// The compiler beta is deliberately separate from free-form model generation.
-// It accepts only named public-data patterns whose exact runtime JSON has been
-// tested. Unsupported requests are rejected rather than silently falling back.
+async function createVerifiedCompilerWorkflow({ userRequest, candidateWorkflow, metadata = {} }) {
+  try {
+    const verification = await verifyCandidateWorkflow({
+      operation: 'create', userRequest, candidateWorkflow,
+    }, { n8nBaseUrl: N8N_BASE_URL, n8nApiKey: N8N_API_KEY });
+    if (!['pass', 'warning'].includes(verification.status)) {
+      return { status: 422, payload: { error: 'Runtime Compiler Beta workflow verification failed.', code: 'beta_static_verification_failed' } };
+    }
+    const n8nRes = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-N8N-API-KEY': N8N_API_KEY, Connection: 'close' },
+      body: JSON.stringify(sanitizeCreateWorkflowPayload(verification.workflow)), dispatcher: DIRECT_FETCH,
+    }, 2);
+    if (!n8nRes.ok) throw new Error(`n8n_create_failed_${n8nRes.status}`);
+    const created = await n8nRes.json();
+    const postActionVerification = await verifyCreatedWorkflow(created);
+    return {
+      status: 200,
+      payload: {
+        message: `Runtime Compiler Beta 已建立 workflow「${created.name}」。請在 n8n 手動執行並確認輸出。`,
+        workflowId: created.id, workflowName: created.name,
+        workflowUrl: `${process.env.N8N_PUBLIC_URL || 'http://localhost:5678'}/workflow/${created.id}`,
+        workflow: created, postActionVerification, ...metadata,
+      },
+    };
+  } catch (error) {
+    console.error('[chatbot] runtime compiler beta failed:', error.message || error);
+    return { status: 500, payload: { error: 'Runtime Compiler Beta could not create the workflow.', code: 'beta_create_failed' } };
+  }
+}
+
+// The legacy beta accepts only named public-data patterns whose exact runtime
+// JSON has been tested. The plan-first routes below use the same create adapter.
 async function compileRuntimeBeta(message) {
   if (!RUNTIME_COMPILER_BETA_ENABLED) {
     return { status: 404, payload: { error: 'Runtime Compiler Beta is disabled.' } };
@@ -257,41 +296,98 @@ async function compileRuntimeBeta(message) {
       },
     };
   }
-
-  try {
-    const verification = await verifyCandidateWorkflow({
-      operation: 'create', userRequest: message, candidateWorkflow: compiled.workflow,
-    }, { n8nBaseUrl: N8N_BASE_URL, n8nApiKey: N8N_API_KEY });
-    if (!['pass', 'warning'].includes(verification.status)) {
-      return { status: 422, payload: { error: 'Runtime Compiler Beta workflow verification failed.', code: 'beta_static_verification_failed' } };
-    }
-    const n8nRes = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-N8N-API-KEY': N8N_API_KEY, Connection: 'close' },
-      body: JSON.stringify(sanitizeCreateWorkflowPayload(verification.workflow)), dispatcher: DIRECT_FETCH,
-    }, 2);
-    if (!n8nRes.ok) throw new Error(`n8n_create_failed_${n8nRes.status}`);
-    const created = await n8nRes.json();
-    const postActionVerification = await verifyCreatedWorkflow(created);
-    return {
-      status: 200,
-      payload: {
-        message: `Runtime Compiler Beta 已建立 workflow「${created.name}」。請在 n8n 手動執行並確認輸出。`,
-        workflowId: created.id, workflowName: created.name,
-        workflowUrl: `${process.env.N8N_PUBLIC_URL || 'http://localhost:5678'}/workflow/${created.id}`,
-        workflow: created, postActionVerification, compilerPattern: compiled.pattern,
-      },
-    };
-  } catch (error) {
-    console.error('[chatbot] runtime compiler beta failed:', error.message || error);
-    return { status: 500, payload: { error: 'Runtime Compiler Beta could not create the workflow.', code: 'beta_create_failed' } };
-  }
+  return createVerifiedCompilerWorkflow({
+    userRequest: message,
+    candidateWorkflow: compiled.workflow,
+    metadata: { compilerPattern: compiled.pattern },
+  });
 }
 
 app.post('/beta/compile', async (req, res) => {
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   const result = await compileRuntimeBeta(message);
   return res.status(result.status).json(result.payload);
+});
+
+function planReviewEnabled() {
+  return RUNTIME_COMPILER_BETA_ENABLED && PLANNER_APPROVAL_HMAC_SECRET.length >= 16;
+}
+
+function planReviewUnavailable(res) {
+  if (!RUNTIME_COMPILER_BETA_ENABLED) {
+    res.status(404).json({ error: 'Runtime Compiler Beta is disabled.' });
+    return true;
+  }
+  if (PLANNER_APPROVAL_HMAC_SECRET.length < 16) {
+    res.status(503).json({ error: 'Plan review is not configured: PLANNER_APPROVAL_HMAC_SECRET is required.' });
+    return true;
+  }
+  return false;
+}
+
+// Plan-first entrypoints. The client must explicitly call approve before it can
+// call compile-approved; the approval token is bound to this exact specification,
+// session, runtime schema revision, and skill registry revision.
+app.post('/beta/plan-review', (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  try {
+    if (req.body?.plannerResult) {
+      const review = reviewNodewisePlannerResult(req.body.plannerResult, {
+        previousSpecification: req.body?.previousSpecification,
+      });
+      if (review.outcome === 'clarification_required') {
+        return res.json({ status: 'clarification_required', ...review });
+      }
+      if (review.outcome === 'unsupported_capability') {
+        return res.json({ status: 'capability_gap', ...review });
+      }
+      return res.json({ status: 'review_required', ...review });
+    }
+    const review = proposeNodewisePlan(req.body?.specification);
+    return res.json({ status: 'review_required', ...review, planDiff: null });
+  } catch (error) {
+    return res.status(422).json({ error: error.message || 'Plan review failed.', code: 'plan_review_invalid' });
+  }
+});
+
+app.post('/beta/plan-approve', (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
+  if (req.body?.approved !== true) return res.status(400).json({ error: 'Explicit approved:true is required.' });
+  try {
+    const approved = approveNodewisePlan(req.body?.specification, {
+      secret: PLANNER_APPROVAL_HMAC_SECRET,
+      sessionId,
+    });
+    return res.json({ status: 'approved', ...approved });
+  } catch (error) {
+    return res.status(422).json({ error: error.message || 'Plan approval failed.', code: 'plan_approval_invalid' });
+  }
+});
+
+app.post('/beta/compile-approved', async (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  if (!N8N_API_KEY) return res.status(503).json({ error: 'Runtime Compiler Beta requires an n8n API key.' });
+  const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
+  try {
+    const compiled = compileApprovedNodewisePlan(req.body?.specification, req.body?.approvalToken, {
+      secret: PLANNER_APPROVAL_HMAC_SECRET,
+      sessionId,
+    });
+    const result = await createVerifiedCompilerWorkflow({
+      userRequest: compiled.workflow.name,
+      candidateWorkflow: compiled.workflow,
+      metadata: {
+        compilerMode: 'plan_first_nodewise',
+        planFingerprint: compiled.planFingerprint,
+        runtimeSchemaRevision: compiled.runtimeSchemaRevision,
+        skillRegistryRevision: compiled.skillRegistryRevision,
+      },
+    });
+    return res.status(result.status).json(result.payload);
+  } catch (error) {
+    return res.status(422).json({ error: error.message || 'Approved plan compilation failed.', code: 'approved_plan_rejected' });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -1016,7 +1112,8 @@ app.post('/generate', async (req, res) => {
 // Start
 // ---------------------------------------------------------------------------
 
-app.listen(port, () => {
+function startServer() {
+  return app.listen(port, () => {
   console.log(`n8n AI widget server running on http://localhost:${port}`);
   console.log(`n8n API base: ${N8N_BASE_URL}`);
   void verifyN8nApiKey(N8N_BASE_URL, N8N_API_KEY).then((check) => {
@@ -1037,4 +1134,11 @@ app.listen(port, () => {
     }
     console.warn('[chatbot] N8N_API_KEY check failed:', check);
   });
-});
+  });
+}
+
+// Node's test runner executes source files supplied via `node --test src` as
+// child test workers. They must be importable without binding an HTTP port.
+if (require.main === module && !process.env.NODE_TEST_CONTEXT) startServer();
+
+module.exports = { app, startServer };
