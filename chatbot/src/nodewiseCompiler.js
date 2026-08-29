@@ -2,7 +2,7 @@
 
 const crypto = require('node:crypto');
 const runtimeSchemas = require('../schemas/runtime_node_schemas.json');
-const { validatePublicHttpsUrl } = require('./publicUrlPolicy');
+const { validatePublicHttpsUrl, VERIFIED_PATTERN_HOSTS } = require('./publicUrlPolicy');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
 const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean']);
@@ -32,7 +32,9 @@ function source(value, field, previousSteps) {
   assert(CARDINALITIES.has(value.cardinality), `${field}.cardinality is unsupported`);
   assert(typeof value.reference === 'string' && value.reference.trim(), `${field}.reference is required`);
   if (value.kind === 'public_literal') {
-    validatePublicHttpsUrl(value.reference);
+    // beta 只跑受驗證 pattern，因此顯式帶入該邊界；denylist 同時作為第二道防線。
+    validatePublicHttpsUrl(value.reference, `${field}.reference`,
+      { allowedHosts: VERIFIED_PATTERN_HOSTS });
   } else {
     const stepId = value.reference.split('.', 1)[0];
     assert(previousSteps.has(stepId), `${field}.reference must reference an earlier step`);
@@ -103,7 +105,12 @@ function validateSpecification(value) {
       assert(configuration.input.cardinality === 'one_object', 'set_output requires one_object input');
     }
     seen.add(step.id);
-    return { id: step.id, capability: step.capability, configuration };
+    return {
+      id: step.id,
+      capability: step.capability,
+      requiredUserSetup: [],
+      configuration,
+    };
   });
   const finalStep = steps.at(-1);
   const finalFields = finalStep.capability === 'data_transform' && finalStep.configuration.operation === 'join_object_and_count_false_boolean'
@@ -114,7 +121,17 @@ function validateSpecification(value) {
   assert(finalFields.length > 0, 'final step must produce declared output fields');
   assert(finalFields.length === expectedOutputFields.length && finalFields.every((field, index) => field === expectedOutputFields[index]), 'final step fields must match expectedOutput.fields');
 
-  return { goal: value.goal.trim(), steps };
+  // Return the complete canonical IR. Callers use this value for review,
+  // approval binding, and compilation, so dropping envelope fields here would
+  // make a validated planner result impossible to validate a second time.
+  return {
+    schemaVersion: '1.0',
+    kind: 'nodewise_step_specification',
+    goal: value.goal.trim(),
+    requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: expectedOutputFields },
+    steps,
+  };
 }
 
 function nodeId(stepId) {

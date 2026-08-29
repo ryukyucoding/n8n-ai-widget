@@ -1,5 +1,7 @@
 'use strict';
 
+const { checkPublicHttpsUrl } = require('./publicUrlPolicy');
+
 const crypto = require('node:crypto');
 const runtimeSchemas = require('../schemas/runtime_node_schemas.json');
 
@@ -29,8 +31,16 @@ function validateDailyRssDigestSpecification(value) {
   assert(value.schedule && Number.isInteger(value.schedule.hour) && value.schedule.hour >= 0 && value.schedule.hour <= 23, 'schedule.hour must be 0 to 23');
   assert(value.schedule && Number.isInteger(value.schedule.minute) && value.schedule.minute >= 0 && value.schedule.minute <= 59, 'schedule.minute must be 0 to 59');
   assert(typeof value.feedUrl === 'string' && value.feedUrl.trim(), 'feedUrl is required');
+  // R3（第二處）：原本與 nodewiseCompiler 同樣只檢查 protocol，因此
+  // feedUrl 可以是 https://169.254.169.254/ 或任何內網位址。
+  //
+  // 與 http.public_get 的差別：RSS 的 feed URL 由使用者自己指定，
+  // 不可能維護一份固定 allowlist。因此這裡**只套用 denylist**（allowedHosts 不傳），
+  // 靠私有網段與內部名稱的封鎖來擋 SSRF。
+  //
+  const feedCheck = checkPublicHttpsUrl(value.feedUrl);
+  assert(feedCheck.ok, `feedUrl 未通過 public URL 政策：${feedCheck.findings.join('；')}`);
   const feedUrl = new URL(value.feedUrl);
-  assert(feedUrl.protocol === 'https:', 'feedUrl must use HTTPS');
   assert(Number.isInteger(value.lookbackHours) && value.lookbackHours >= 1 && value.lookbackHours <= 168, 'lookbackHours must be 1 to 168');
   assert(Number.isInteger(value.maxItems) && value.maxItems >= 1 && value.maxItems <= 25, 'maxItems must be 1 to 25');
   assert(value.expectedOutput?.deliveryShape === 'one_object', 'only one_object output is supported');

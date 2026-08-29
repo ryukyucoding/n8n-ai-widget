@@ -33,3 +33,31 @@ test('refuses an output contract that does not match the compiler-owned result',
   spec.expectedOutput.fields = ['markdown'];
   assert.throws(() => compileDailyRssDigestSpecification(spec), /expected output/);
 });
+
+// --- R3（第二處）：feedUrl 的 SSRF 防線 ---
+// 沿用既有 fixture 當基底，只覆寫 feedUrl，避免與原測試的 spec 結構脫節。
+
+for (const [bad, label] of [
+  ['https://169.254.169.254/feed.xml', '雲端 metadata'],
+  ['https://127.0.0.1:5678/feed.xml', 'n8n 自己的 API'],
+  ['https://10.0.0.5/feed.xml', 'RFC1918'],
+  ['https://[::ffff:127.0.0.1]/feed.xml', 'IPv4-mapped 繞過'],
+  ['https://intranet/feed.xml', '單標籤主機名'],
+  ['https://news.local/feed.xml', '內部網域後綴'],
+  ['https://export.arxiv.org:8443/rss/cs.AI', '非標準 port'],
+]) {
+  test(`feedUrl 阻擋：${label}`, () => {
+    const spec = specification();
+    spec.feedUrl = bad;
+    assert.throws(() => compileDailyRssDigestSpecification(spec),
+      /feedUrl 未通過 public URL 政策/, `${bad} 應被擋下`);
+  });
+}
+
+test('feedUrl 放行任意公開 feed（使用者自訂，不套 allowlist）', () => {
+  for (const url of ['https://example.com/feed.xml', 'https://news.ycombinator.com/rss']) {
+    const spec = specification();
+    spec.feedUrl = url;
+    assert.doesNotThrow(() => compileDailyRssDigestSpecification(spec));
+  }
+});
