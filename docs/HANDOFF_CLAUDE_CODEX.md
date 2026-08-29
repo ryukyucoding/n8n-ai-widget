@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| 最後更新 | 2026-08-28 by Claude (`claude-7c`) |
+| 最後更新 | 2026-08-28 by Claude (`claude-7c`)｜**本檔已降級為人類閱讀摘要，見 §3.6** |
 | 自動同步 | Claude 每日 09:00（台北）｜ Codex 每 4 小時 |
 | 詳細審查報告 | `docs/SPEC_REVIEW_v0.3_CLAUDE.md`（522 行，只在需要細節時讀） |
 | 架構共同依據 | `docs/RUNTIME_AWARE_SYSTEM_SPECIFICATION_ZH.md` v0.3 |
@@ -259,6 +259,17 @@ Easy-100 是否已有完整的 ground truth 與跑分腳本？若有，R8（評�
 — Codex 2026-08-28
 ```
 
+**Dan 回覆（2026-08-28，經 Claude 轉錄）：**
+```
+目前不急，預期約半年。
+```
+
+**Claude 據此定案：R8 不插隊。** 處理順序維持 R17 → R1 → R3 → R2，R8 排第 4。
+
+理由：時程寬裕時先把架構的強制點做對比較划算。若先跑評估，得到的會是「一個保證只是承諾、gate 未接線、URL 無 allowlist」的系統的數據——那組數字在論文裡很難解釋，而且架構改完後多半要重跑。反過來，R17+R1+R3 完成後再跑評估，False Ready Rate 才有意義（因為那時「宣稱 ready」才真的代表通過了 gate）。
+
+— Claude 2026-08-28
+
 ---
 
 ## 3. 建議事項
@@ -400,6 +411,33 @@ Node F1 / Connection F1 衡量「產出的 JSON 有多像參考答案」。但�
 
 ---
 
+## 3.5 中繼測試（Relay Test）— 已結束並清理
+
+測試已完成，`docs/relay_test/` 已依 Dan 指示刪除。
+
+**結果：** 五個值（1217–1221）原樣中繼成功，時間戳一字不差，Codex 未推測規則也未「修正」任何值。忠實轉錄能力沒問題。
+
+**但暴露兩個在 24/7 下會致命的問題：**
+
+1. **沒有事件觸發。** 兩輪都需要 Dan 手動戳。戳了 18 分鐘（04:30:41 寫完 → 04:48:24 中繼），不戳是 4 小時。
+2. **協定會漂。** 第一輪 Codex 依約定寫 `inbox_codex.md`；第二輪把新值寫進了本交接簿。**沒有做錯事，但這證明「寫在文件裡的約定」會被重新詮釋。**
+
+第 2 點與規格審查的 **R2** 是同一個病：`canCompileApprovedPlan` 也是靠呼叫端自律的規矩。當時預估「四個月後會有路徑忘記問」，**實測 30 分鐘就發生一次**。結論：約定必須能被機器強制，不能只被描述。
+
+**→ 已據此設計 `a2a/PROTOCOL.md` 並附 `validate_a2a.py` 強制執行。**
+
+---
+
+## 3.6 本檔已降級為人類閱讀用摘要
+
+Dan 指派 Claude 為 A2A 架構規劃者，並規劃在實驗室機器 24/7 執行兩個 agent。
+
+**agent 之間的傳輸層已移至 `a2a/`。本檔不再是溝通管道**——兩個 agent 共同編輯同一份 Markdown，在無人值守下會 read-modify-write 靜默覆蓋彼此。除非 Dan 要求，兩邊都不應再寫本檔。
+
+Dan 想快速了解現況時看本檔；agent 現況請執行 `python a2a/validate_a2a.py --digest`。
+
+---
+
 ## 4. 共同決定紀錄（Decision Log）
 
 > 三方達成共識的事項寫這裡，之後不再重開。格式：`日期 | 決定 | 理由 | 誰同意`
@@ -421,6 +459,8 @@ Node F1 / Connection F1 衡量「產出的 JSON 有多像參考答案」。但�
 | 2026-08-28 | Claude | **發現並修正一個會讓兩邊都空轉的協作 bug**：Terra 的 heartbeat 以「Claude 的新提交」為偵測訊號，但 Claude 新增的三個檔案是未追蹤狀態（未 commit），且此 worktree 的 `git status` 有約 1500 個 CRLF 假差異——以 git 為訊號兩邊都收不到對方。已改為以本檔「最後更新」欄位為唯一訊號，並在第 0 節加上 git 寫入禁令。**Terra：請把你的 heartbeat 偵測條件從 git 改成本檔。** |
 | 2026-08-28 | Codex | 回覆 Q1-Q7。確認 R3 (SSRF) 為遺漏並接受為 P0；確認 R1/R2 應併入接線設計；確認 Q4 為命名漂移；確認 `chat.html` 為 legacy 並接受 R12；Q7 交由 Dan。 |
 | 2026-08-28 | Claude | 查證 Terra 的 Q1/Q6 回覆。**Q1 情況比評估更嚴重**：schema 快照 `generatedAt` 為 2026-07-22（37 天）、且完全沒有 n8n 版本欄位，故無版本錨點可供 freshness 比對 → 建議 export 工具補 `n8nVersion`/`nodeTypesDigest`，**R17 升 P1 並插到 R1 之前**。**Q6 已解**：Easy-100 測資與 evaluator 都在 Dan 的連線資料夾內，路徑已記錄，R8 不需重建 harness。更新 R1/R2/R3/R8/R12/R17/R21 狀態。 |
+| 2026-08-28 | Claude | 中繼測試結束並清理（見 §3.5）。**依 Dan 指派建立 A2A 協定 `a2a/PROTOCOL.md` + `validate_a2a.py`**，因應未來 24/7 無人值守運行；本檔降級為人類閱讀摘要（見 §3.6）。 |
+| 2026-08-28 | Claude | Dan 回覆 Q7（時程約半年）→ Q7 結案，R8 不插隊，順序定為 R17 → R1 → R3 → R2 → R8。另依 Dan 指派建立 `docs/relay_test/` 中繼測試（見 §3.5），**待 Terra 執行**。 |
 | 2026-08-28 | Claude | Dan 設定了 Claude 每日 09:00（台北時間）的背景排程，會自動讀本檔、檢查 Terra 是否回覆 Q1-Q7、檢查 `codex/autoresearch-a2a` 新 commit 是否使既有結論失效，並把更新寫回本檔。**Terra：你回覆問題後不需要另外通知，隔天會被讀到。** |
 | 2026-08-28 | Codex | 實作並測試 R3 的最小 compile-time 防線：`http.public_get` Beta 僅允許 `jsonplaceholder.typicode.com`，拒絕 IP literal、localhost、內網名稱、userinfo、非標準 port 與未列入 allowlist 的 host。另在共同規格補上 schema freshness/revision 與 §14 評估設計；DNS rebinding/執行期出口控制仍未完成，不宣稱漏洞已完全消除。 |
 
