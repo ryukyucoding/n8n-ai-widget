@@ -23,6 +23,7 @@ const {
 const MODEL = process.env.PLANNER_MODEL || 'qwen3.8:27b';
 const OLLAMA = process.env.OLLAMA_BASE_URL || '';
 const OPENAI = process.env.OPENAI_API_KEY ? (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1') : '';
+const OLLAMA_OPENAI_COMPAT = /\/v1\/?$/.test(OLLAMA);
 const SECRET = 'planner-probe-secret-value-32chr';
 const TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 120000);
 
@@ -58,9 +59,11 @@ async function callModel(userRequest) {
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
     let url, headers = { 'Content-Type': 'application/json' };
-    if (OPENAI) {
-      url = `${OPENAI.replace(/\/$/, '')}/chat/completions`;
-      headers.Authorization = `Bearer ${process.env.OPENAI_API_KEY}`;
+    if (OPENAI || OLLAMA_OPENAI_COMPAT) {
+      const base = OPENAI || OLLAMA;
+      url = `${base.replace(/\/$/, '')}/chat/completions`;
+      if (OPENAI) headers.Authorization = `Bearer ${process.env.OPENAI_API_KEY}`;
+      else if (process.env.OLLAMA_BASIC_AUTH) headers.Authorization = process.env.OLLAMA_BASIC_AUTH;
       body.response_format = { type: 'json_object' };
     } else {
       if (!OLLAMA) throw new Error('需要 OLLAMA_BASE_URL 或 OPENAI_API_KEY');
@@ -73,7 +76,9 @@ async function callModel(userRequest) {
     const elapsed = Date.now() - started;
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data = await res.json();
-    const text = OPENAI ? data.choices?.[0]?.message?.content : data.message?.content;
+    const text = (OPENAI || OLLAMA_OPENAI_COMPAT)
+      ? data.choices?.[0]?.message?.content
+      : data.message?.content;
     return { text: String(text || ''), elapsed };
   } finally { clearTimeout(timer); }
 }
@@ -127,7 +132,10 @@ async function runCase(c) {
 }
 
 (async () => {
-  console.log(`模型：${MODEL}   端點：${OPENAI ? 'OpenAI ' + OPENAI : 'Ollama ' + OLLAMA}\n`);
+  const endpoint = OPENAI ? `OpenAI ${OPENAI}`
+    : OLLAMA_OPENAI_COMPAT ? `Ollama OpenAI-compatible ${OLLAMA}`
+      : `Ollama ${OLLAMA}`;
+  console.log(`模型：${MODEL}   端點：${endpoint}\n`);
   let passAll = 0;
   for (const c of CASES) {
     console.log('='.repeat(70));
