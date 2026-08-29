@@ -33,11 +33,16 @@ const { evaluateShadowRepair } = require('./shadowRepairOrchestrator');
 const { observeShadowRepair, shadowRepairEnabled } = require('./shadowObservation');
 const { SUPPORTED_PATTERNS, compileBetaRequest } = require('./runtimeCompilerBeta');
 const {
+  enabledEnvironmentValue,
+  planFirstAvailability,
+} = require('./planFirstAvailability');
+const {
   proposeNodewisePlan,
   approveNodewisePlan,
   compileApprovedNodewisePlan,
   reviewNodewisePlannerResult,
 } = require('./approvedNodewiseCompiler');
+const { requestNodewisePlannerResult } = require('./nodewisePlanner');
 const {
   createCandidateLimit,
   evaluateCorrectnessFirstRepair,
@@ -100,13 +105,11 @@ const WORKFLOW_PLANNER_ENABLED = !['0', 'false', 'no'].includes(
 const WORKFLOW_PLANNER_MODEL = process.env.WORKFLOW_PLANNER_MODEL || 'gpt-oss:120b';
 const SHADOW_REPAIR_ENABLED = shadowRepairEnabled(process.env.SHADOW_REPAIR_ENABLED);
 const CORRECTNESS_FIRST_REPAIR_ENABLED = shadowRepairEnabled(process.env.CORRECTNESS_FIRST_REPAIR_ENABLED);
-const RUNTIME_COMPILER_BETA_ENABLED = ['1', 'true', 'yes'].includes(
-  String(process.env.RUNTIME_COMPILER_BETA_ENABLED || 'false').toLowerCase()
-);
-const BETA_CHAT_STANDALONE = ['1', 'true', 'yes'].includes(
-  String(process.env.BETA_CHAT_STANDALONE || 'false').toLowerCase()
-);
+const RUNTIME_COMPILER_BETA_ENABLED = enabledEnvironmentValue(process.env.RUNTIME_COMPILER_BETA_ENABLED);
+const BETA_CHAT_STANDALONE = enabledEnvironmentValue(process.env.BETA_CHAT_STANDALONE);
+const PLAN_FIRST_COMPILER_ENABLED = enabledEnvironmentValue(process.env.PLAN_FIRST_COMPILER_ENABLED);
 const PLANNER_APPROVAL_HMAC_SECRET = process.env.PLANNER_APPROVAL_HMAC_SECRET || '';
+const PLAN_FIRST_PLANNER_MODEL = process.env.PLAN_FIRST_PLANNER_MODEL || 'qwen3.8:27b';
 
 function timeoutMs(name, fallback) {
   const value = Number.parseInt(process.env[name] || String(fallback), 10);
@@ -241,6 +244,7 @@ app.get('/models', (req, res) => {
     edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
     compiler: { models: [], defaultModel: '' },
     compilerBeta: { enabled: RUNTIME_COMPILER_BETA_ENABLED, standalone: BETA_CHAT_STANDALONE, supportedPatterns: SUPPORTED_PATTERNS },
+    planFirst: { enabled: planReviewEnabled(), plannerModel: PLAN_FIRST_PLANNER_MODEL },
   });
 });
 
@@ -310,20 +314,63 @@ app.post('/beta/compile', async (req, res) => {
 });
 
 function planReviewEnabled() {
-  return RUNTIME_COMPILER_BETA_ENABLED && PLANNER_APPROVAL_HMAC_SECRET.length >= 16;
+  return planFirstAvailability({
+    runtimeCompilerEnabled: RUNTIME_COMPILER_BETA_ENABLED,
+    planFirstEnabled: PLAN_FIRST_COMPILER_ENABLED,
+    secret: PLANNER_APPROVAL_HMAC_SECRET,
+  }).available;
 }
 
 function planReviewUnavailable(res) {
-  if (!RUNTIME_COMPILER_BETA_ENABLED) {
-    res.status(404).json({ error: 'Runtime Compiler Beta is disabled.' });
-    return true;
-  }
-  if (PLANNER_APPROVAL_HMAC_SECRET.length < 16) {
-    res.status(503).json({ error: 'Plan review is not configured: PLANNER_APPROVAL_HMAC_SECRET is required.' });
-    return true;
-  }
-  return false;
+  const availability = planFirstAvailability({
+    runtimeCompilerEnabled: RUNTIME_COMPILER_BETA_ENABLED,
+    planFirstEnabled: PLAN_FIRST_COMPILER_ENABLED,
+    secret: PLANNER_APPROVAL_HMAC_SECRET,
+  });
+  if (availability.available) return false;
+  res.status(availability.status).json({ error: availability.error });
+  return true;
 }
+
+async function planFromUserRequest(message, previousSpecification, signal) {
+  const plannerResult = await requestNodewisePlannerResult({
+    client: openaiLocal,
+    model: PLAN_FIRST_PLANNER_MODEL,
+    userRequest: message,
+    signal,
+  });
+  return reviewNodewisePlannerResult(plannerResult, { previousSpecification });
+}
+
+// Natural-language plan-first entrypoint. It deliberately stops at a rendered
+// review; only /beta/compile-approved can create a workflow after signed approval.
+app.post('/beta/plan-from-request', async (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  try {
+    const review = await runTimedStage({
+      stage: 'nodewise_planning',
+      timeoutMs: PLANNER_TIMEOUT_MS,
+      emit: () => {},
+      task: (signal) => planFromUserRequest(message, req.body?.previousSpecification, signal),
+    });
+    if (review.outcome === 'clarification_required') {
+      return res.json({ status: 'clarification_required', ...review });
+    }
+    if (review.outcome === 'unsupported_capability') {
+      return res.json({ status: 'capability_gap', ...review });
+    }
+    return res.json({ status: 'review_required', ...review });
+  } catch (error) {
+    const timedOut = error instanceof GenerateStageError
+      && error.stage === 'nodewise_planning'
+      && /timed out/.test(error.message);
+    return res.status(timedOut ? 504 : 502).json({
+      error: timedOut ? '規劃逾時，請稍後再試。' : 'Planner 無法產生可驗證的計畫。',
+      code: timedOut ? 'plan_first_planner_timeout' : 'plan_first_planner_failed',
+    });
+  }
+});
 
 // Plan-first entrypoints. The client must explicitly call approve before it can
 // call compile-approved; the approval token is bound to this exact specification,

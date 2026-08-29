@@ -53,6 +53,7 @@
 
     .model-panel { padding: 10px 12px; background: #fff7f5; border-bottom: 1px solid #ffe0db; }
     .mode-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .mode-switch.four-mode { grid-template-columns: repeat(4, 1fr); }
     .mode-switch.two-mode { grid-template-columns: repeat(2, 1fr); }
     .mode-btn { border: 1px solid #f3c8c0; background: #fff; color: #8a3c31; border-radius: 8px; padding: 7px 5px; font: inherit; font-size: 12px; cursor: pointer; }
     .mode-btn.active { background: #ff6d5a; border-color: #ff6d5a; color: #fff; font-weight: 600; }
@@ -146,6 +147,21 @@
       overflow-y: auto;
       white-space: pre;
     }
+    .plan-review {
+      margin-top: 8px;
+      padding: 10px;
+      border: 1px solid #f3c8c0;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .plan-review-title { font-weight: 600; color: #7a3027; margin-bottom: 7px; }
+    .plan-review-section { margin-top: 7px; font-size: 12px; }
+    .plan-review ul { margin: 3px 0 0 17px; }
+    .plan-review button {
+      width: 100%; margin-top: 10px; padding: 8px; border: 0; border-radius: 6px;
+      background: #ff6d5a; color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+    }
+    .plan-review button:disabled { background: #f0a899; cursor: not-allowed; }
 
     /* Input area */
     .input-area {
@@ -205,6 +221,7 @@
     <div class="mode-switch" role="tablist" aria-label="工作模式">
       <button class="mode-btn active" type="button" data-mode="create">建立 workflow</button>
       <button class="mode-btn" type="button" data-mode="compiler">Compiler Beta</button>
+      <button class="mode-btn" type="button" data-mode="planner" hidden>Plan-first Beta</button>
       <button class="mode-btn" type="button" data-mode="edit">插入／刪除／修改</button>
     </div>
     <label class="model-row" id="model-row">模型<select id="model-select" aria-label="選擇模型"></select></label>
@@ -230,6 +247,9 @@
   <script>
     var AGENT_URL = window.location.origin + '/agent/run';
     var GENERATE_URL = window.location.origin + '/generate';
+    var PLAN_REQUEST_URL = window.location.origin + '/beta/plan-from-request';
+    var PLAN_APPROVE_URL = window.location.origin + '/beta/plan-approve';
+    var PLAN_COMPILE_URL = window.location.origin + '/beta/compile-approved';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
     var MODE_KEY = 'n8n-widget-active-mode';
@@ -241,7 +261,7 @@
       try {
         if (localStorage.getItem(SESSION_KEY)) return 'edit';
         var savedMode = localStorage.getItem(MODE_KEY);
-        return ['edit', 'compiler'].includes(savedMode) ? savedMode : 'create';
+        return ['edit', 'compiler', 'planner'].includes(savedMode) ? savedMode : 'create';
       } catch (e) {
         return 'create';
       }
@@ -253,8 +273,11 @@
       create: { models: ['qwen2.5-coder-32b-ft-original:latest'], defaultModel: 'qwen2.5-coder-32b-ft-original:latest' },
       edit: { models: ['gpt-4o', 'gpt-oss:120b'], defaultModel: 'gpt-4o' },
       compiler: { models: [], defaultModel: '' },
-      compilerBeta: { enabled: false, standalone: false, supportedPatterns: [] }
+      compilerBeta: { enabled: false, standalone: false, supportedPatterns: [] },
+      planFirst: { enabled: false, plannerModel: '' }
     };
+    var pendingPlan = null;
+    var planSessionId = null;
 
     var messagesEl = document.getElementById('messages');
     var inputEl    = document.getElementById('input');
@@ -269,6 +292,8 @@
         ? '👋 描述你想從零建立的 workflow。<br><br>範例：<em>「每天早上 9 點把 Airtable 資料寄到 Slack」</em>'
         : activeMode === 'compiler'
           ? '👋 Runtime Compiler Beta 目前只提供兩個已驗證的公開資料 workflow。<br><br>範例：<em>「Retrieve public JSONPlaceholder user and todo data, then return a todo summary」</em><br><em>「Check Twitch channel twitch live status」</em>'
+          : activeMode === 'planner'
+            ? '👋 描述目標後，我會先提出可執行的計畫；你確認後才會建立 workflow。<br><br>範例：<em>「抓 JSONPlaceholder 使用者 5 的資料與 todo，只輸出姓名和未完成件數」</em>'
         : '👋 描述要對 <strong>目前開啟的 workflow</strong> 做的插入、刪除或修改。<br><br>範例：<em>「在 HTTP Request 後面加一個 Set」</em>、<em>「刪掉用不到的 Code 節點」</em>';
     }
 
@@ -281,11 +306,13 @@
       });
       if (group.defaultModel) modelSelect.value = group.defaultModel;
       modelSelect.disabled = models.length === 0;
-      modelRow.hidden = activeMode === 'compiler';
+      modelRow.hidden = activeMode === 'compiler' || activeMode === 'planner';
       modeHint.textContent = activeMode === 'create'
         ? '從零建立新 workflow；不會讀取或修改目前畫布。'
         : activeMode === 'compiler'
           ? '只編譯已驗證的 public-data pattern；未支援需求會明確拒絕，不會交由模型猜測。'
+          : activeMode === 'planner'
+            ? '先由受限 planner 規劃，再由你確認；只有已實作的 runtime skill 能編譯。'
         : '對目前畫布進行插入、刪除或修改；需要先開啟目標 workflow。';
     }
 
@@ -310,12 +337,17 @@
         if (createButton) createButton.textContent = 'Fine-tuned Create';
         var editButton = document.querySelector('[data-mode="edit"]');
         if (editButton) editButton.hidden = true;
-        document.querySelector('.mode-switch').classList.add('two-mode');
         document.getElementById('header-sub').textContent = 'Fine-tuned Create 與 Runtime Compiler Beta';
       }
       var compilerButton = document.querySelector('[data-mode="compiler"]');
       if (compilerButton) compilerButton.disabled = !(config.compilerBeta && config.compilerBeta.enabled);
       if (activeMode === 'compiler' && !(config.compilerBeta && config.compilerBeta.enabled)) activeMode = 'create';
+      var plannerButton = document.querySelector('[data-mode="planner"]');
+      if (plannerButton) plannerButton.hidden = !(config.planFirst && config.planFirst.enabled);
+      if (activeMode === 'planner' && !(config.planFirst && config.planFirst.enabled)) activeMode = 'create';
+      document.querySelector('.mode-switch').classList.toggle(
+        'four-mode', !!(config.planFirst && config.planFirst.enabled && !(config.compilerBeta && config.compilerBeta.standalone)),
+      );
       renderModelOptions();
     }).catch(function () { renderModelOptions(); });
 
@@ -459,6 +491,83 @@
       scrollBottom();
     }
 
+    function newPlanSessionId() {
+      return 'plan_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function listHtml(items, emptyText) {
+      if (!Array.isArray(items) || !items.length) return '<span>' + escHtml(emptyText || '無') + '</span>';
+      return '<ul>' + items.map(function (item) { return '<li>' + escHtml(typeof item === 'string' ? item : item.id + '：' + item.capability) + '</li>'; }).join('') + '</ul>';
+    }
+
+    function renderPlanReview(data) {
+      var plan = data.plan || {};
+      var fields = plan.expectedOutput && plan.expectedOutput.fields || [];
+      return '<div class="plan-review">'
+        + '<div class="plan-review-title">請確認建立計畫</div>'
+        + '<div class="plan-review-section"><strong>目標：</strong>' + escHtml(plan.goal || data.goal || '') + '</div>'
+        + '<div class="plan-review-section"><strong>步驟：</strong>' + listHtml(plan.steps, '沒有步驟') + '</div>'
+        + '<div class="plan-review-section"><strong>輸出欄位：</strong>' + escHtml(fields.join('、') || '未指定') + '</div>'
+        + '<div class="plan-review-section"><strong>外部網域：</strong>' + escHtml((plan.externalDomains || []).join('、') || '無') + '</div>'
+        + '<div class="plan-review-section"><strong>需要設定：</strong>' + listHtml(plan.setupRequirements, '無') + '</div>'
+        + '<button type="button" data-plan-approve>確認並建立 workflow</button>'
+        + '</div>';
+    }
+
+    async function compilePendingPlan(button) {
+      if (!pendingPlan) return;
+      button.disabled = true;
+      button.textContent = '正在建立 workflow…';
+      var typing = addTyping();
+      setProgress(typing, '正在確認你的核准並編譯 workflow…');
+      try {
+        var approvalResponse = await fetch(PLAN_APPROVE_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ specification: pendingPlan.specification, sessionId: planSessionId, approved: true }),
+        });
+        var approval = await approvalResponse.json();
+        if (!approvalResponse.ok || approval.error) throw new Error(approval.error || '無法核准計畫');
+        setProgress(typing, '正在以已核准計畫建立 n8n workflow…');
+        var compileResponse = await fetch(PLAN_COMPILE_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ specification: pendingPlan.specification, approvalToken: approval.approvalToken, sessionId: planSessionId }),
+        });
+        var compiled = await compileResponse.json();
+        if (!compileResponse.ok || compiled.error) throw new Error(compiled.error || '無法建立 workflow');
+        typing.remove();
+        var refreshResult = compiled.workflow ? await notifyParentCanvasRefresh(compiled.workflow) : null;
+        var html = escHtml(compiled.message || '已建立 workflow。').replace(/\n/g, '<br>');
+        if (compiled.workflowUrl) html += '<br><br><a href="' + escHtml(compiled.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
+        addBubble(html + canvasRefreshNote(refreshResult), 'bot');
+        pendingPlan = null;
+      } catch (err) {
+        typing.remove();
+        button.disabled = false;
+        button.textContent = '確認並建立 workflow';
+        addBubble('❌ ' + escHtml(err.message), 'bot error');
+      }
+    }
+
+    function showPlanResult(data) {
+      if (data.status === 'clarification_required') {
+        addBubble('❓ 我還需要確認：' + listHtml(data.requiredUserInputs, '請補充需求。'), 'bot');
+        return;
+      }
+      if (data.status === 'capability_gap') {
+        var gap = data.capabilityGap || {};
+        var presentation = gap.presentation || {};
+        addBubble('目前的 runtime skill 尚不能完整建立這個 workflow。<br><br><strong>缺少能力：</strong>'
+          + listHtml(data.capabilityGaps, '未分類')
+          + '<br><strong>目前可行替代：</strong>' + listHtml(presentation.nearestAlternative, '目前沒有安全的替代方案。'), 'bot');
+        return;
+      }
+      pendingPlan = data;
+      planSessionId = newPlanSessionId();
+      var bubble = addBubble(renderPlanReview(data), 'bot');
+      var approveButton = bubble.querySelector('[data-plan-approve]');
+      approveButton.addEventListener('click', function () { compilePendingPlan(approveButton); });
+    }
+
     async function generateWithProgress(body, typing) {
       body.stream = true;
       var res = await fetch(GENERATE_URL, {
@@ -512,12 +621,15 @@
       try {
         var useCreate = activeMode === 'create';
         var useCompiler = activeMode === 'compiler';
-        var wfId = (useCreate || useCompiler) ? null : currentWorkflowId();
+        var usePlanner = activeMode === 'planner';
+        var wfId = (useCreate || useCompiler || usePlanner) ? null : currentWorkflowId();
         var body = useCreate
           ? { message: text, model: modelSelect.value }
           : useCompiler
             ? { message: text, mode: 'compiler_beta' }
-          : {
+            : usePlanner
+              ? { message: text, previousSpecification: pendingPlan && pendingPlan.specification }
+            : {
               message: text,
               sessionId: loadSessionId(),
               workflowId: wfId,
@@ -535,6 +647,19 @@
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
           });
           data = await res.json();
+        } else if (usePlanner) {
+          setProgress(typing, '正在依 runtime skill 規劃 workflow…');
+          var progressTimer = setTimeout(function () {
+            setProgress(typing, '正在檢查可用 skill 與輸出格式…');
+          }, 5000);
+          try {
+            res = await fetch(PLAN_REQUEST_URL, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+            });
+            data = await res.json();
+          } finally {
+            clearTimeout(progressTimer);
+          }
         } else {
           res = await fetch(AGENT_URL, {
             method: 'POST',
@@ -571,6 +696,8 @@
             ? await notifyParentCanvasRefresh(data.workflow)
             : null;
           addBubble(formatBotReply(data.message, refreshResult), 'bot');
+        } else if (usePlanner) {
+          showPlanResult(data);
         } else if (useCreate || useCompiler) {
           var htmlQ = escHtml(data.message || '已建立 workflow。').replace(/\n/g, '<br>');
           if (data.workflowUrl) {
@@ -604,6 +731,8 @@
       chatHistory = [];
       try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
       try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+      pendingPlan = null;
+      planSessionId = null;
       messagesEl.innerHTML = '<div class="bubble bot">' + greeting() + '</div>';
     });
 

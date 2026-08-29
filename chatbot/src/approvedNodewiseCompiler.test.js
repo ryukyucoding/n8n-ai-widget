@@ -9,7 +9,7 @@ const {
   compileApprovedNodewisePlan,
 } = require('./approvedNodewiseCompiler');
 
-const SECRET = 'test-only-approval-secret-value';
+const SECRET = 'test-only-approval-secret-value-32chars';
 const SESSION = 'session-1';
 
 function specification(userId = 1) {

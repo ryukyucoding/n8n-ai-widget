@@ -53,7 +53,7 @@ nodeTest('Create sends stream:true, renders progress, ignores unknown events, an
   assert.equal(h.calls[0].url, '/generate');
   assert.equal(JSON.parse(h.calls[0].request.body).stream, true);
   assert.deepEqual(h.updates, ['Planning', 'Generating']);
-  assert.ok(source.indexOf('data = generated.data;') < source.indexOf('typing.remove();'));
+  assert.match(source, /data = generated\.data;[\s\S]*typing\.remove\(\);/);
   assert.equal(result.ok, true);
   assert.equal(result.data.message, 'done');
 });
@@ -75,4 +75,14 @@ nodeTest('Compiler Beta uses the established Create transport with an explicit m
   assert.doesNotMatch(source, /COMPILER_URL/);
   assert.match(serverSource, /if \(mode === 'compiler_beta'\)/);
   assert.match(serverSource, /compileRuntimeBeta\(compilerMessage\)/);
+});
+
+nodeTest('Plan-first Beta shows planning progress and keeps creation behind explicit approval', () => {
+  assert.match(source, /PLAN_REQUEST_URL.*\/beta\/plan-from-request/);
+  assert.match(source, /正在依 runtime skill 規劃 workflow/);
+  assert.match(source, /data-plan-approve/);
+  assert.match(source, /PLAN_APPROVE_URL/);
+  assert.match(source, /PLAN_COMPILE_URL/);
+  assert.match(serverSource, /app\.post\('\/beta\/plan-from-request'/);
+  assert.match(serverSource, /requestNodewisePlannerResult/);
 });

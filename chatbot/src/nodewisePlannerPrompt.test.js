@@ -9,5 +9,6 @@ test('planner prompt defines mutually exclusive readiness outcomes', () => {
     assert.match(NODEWISE_PLANNER_RESULT_PROMPT, new RegExp(outcome));
   }
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Do not emit raw n8n workflow JSON/);
-  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Do not include specification/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /omit specification completely/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /final step must produce exactly expectedOutput\.fields/);
 });
