@@ -360,8 +360,8 @@ async function planFromUserRequest(message, previousSpecification, signal) {
 }
 
 // Natural-language plan-first entrypoint. It deliberately stops at a rendered
-// review; only /beta/compile-approved can create a workflow after signed approval.
-app.post('/beta/plan-from-request', async (req, res) => {
+// review; only an explicit approved-plan request can create a workflow.
+async function handlePlanFromRequest(req, res) {
   if (planReviewUnavailable(res)) return;
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   try {
@@ -387,7 +387,7 @@ app.post('/beta/plan-from-request', async (req, res) => {
       code: timedOut ? 'plan_first_planner_timeout' : 'plan_first_planner_failed',
     });
   }
-});
+}
 
 // Plan-first entrypoints. The client must explicitly call approve before it can
 // call compile-approved; the approval token is bound to this exact specification,
@@ -414,7 +414,7 @@ app.post('/beta/plan-review', (req, res) => {
   }
 });
 
-app.post('/beta/plan-approve', (req, res) => {
+function handlePlanApproval(req, res) {
   if (planReviewUnavailable(res)) return;
   const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
   if (req.body?.approved !== true) return res.status(400).json({ error: 'Explicit approved:true is required.' });
@@ -427,9 +427,9 @@ app.post('/beta/plan-approve', (req, res) => {
   } catch (error) {
     return res.status(422).json({ error: error.message || 'Plan approval failed.', code: 'plan_approval_invalid' });
   }
-});
+}
 
-app.post('/beta/compile-approved', async (req, res) => {
+async function handleApprovedPlanCompilation(req, res) {
   if (planReviewUnavailable(res)) return;
   if (!N8N_API_KEY) return res.status(503).json({ error: 'Runtime Compiler Beta requires an n8n API key.' });
   const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
@@ -452,7 +452,11 @@ app.post('/beta/compile-approved', async (req, res) => {
   } catch (error) {
     return res.status(422).json({ error: error.message || 'Approved plan compilation failed.', code: 'approved_plan_rejected' });
   }
-});
+}
+
+app.post('/beta/plan-from-request', handlePlanFromRequest);
+app.post('/beta/plan-approve', handlePlanApproval);
+app.post('/beta/compile-approved', handleApprovedPlanCompilation);
 
 // ---------------------------------------------------------------------------
 // POST /agent/run — intent decompose + modify/delete/insert station pipelines
@@ -821,6 +825,9 @@ async function planWorkflow(userRequest, signal) {
 
 app.post('/generate', async (req, res) => {
   const { message, model, stream, mode } = req.body || {};
+  if (mode === 'plan_first_request') return handlePlanFromRequest(req, res);
+  if (mode === 'plan_first_approve') return handlePlanApproval(req, res);
+  if (mode === 'plan_first_compile') return handleApprovedPlanCompilation(req, res);
   if (mode === 'compiler_beta') {
     const compilerMessage = typeof message === 'string' ? message.trim() : '';
     const result = await compileRuntimeBeta(compilerMessage);

@@ -248,9 +248,11 @@
     /* __N8N_WIDGET_MODEL_CONFIG__ */
     var AGENT_URL = window.location.origin + '/agent/run';
     var GENERATE_URL = window.location.origin + '/generate';
-    var PLAN_REQUEST_URL = window.location.origin + '/beta/plan-from-request';
-    var PLAN_APPROVE_URL = window.location.origin + '/beta/plan-approve';
-    var PLAN_COMPILE_URL = window.location.origin + '/beta/compile-approved';
+    // The n8n external hook forwards /generate to this chatbot. Keep every
+    // plan-first action on that established public route.
+    var PLAN_REQUEST_URL = GENERATE_URL;
+    var PLAN_APPROVE_URL = GENERATE_URL;
+    var PLAN_COMPILE_URL = GENERATE_URL;
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
     var MODE_KEY = 'n8n-widget-active-mode';
@@ -524,14 +526,14 @@
       try {
         var approvalResponse = await fetch(PLAN_APPROVE_URL, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ specification: pendingPlan.specification, sessionId: planSessionId, approved: true }),
+          body: JSON.stringify({ mode: 'plan_first_approve', specification: pendingPlan.specification, sessionId: planSessionId, approved: true }),
         });
         var approval = await approvalResponse.json();
         if (!approvalResponse.ok || approval.error) throw new Error(approval.error || '無法核准計畫');
         setProgress(typing, '正在以已核准計畫建立 n8n workflow…');
         var compileResponse = await fetch(PLAN_COMPILE_URL, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ specification: pendingPlan.specification, approvalToken: approval.approvalToken, sessionId: planSessionId }),
+          body: JSON.stringify({ mode: 'plan_first_compile', specification: pendingPlan.specification, approvalToken: approval.approvalToken, sessionId: planSessionId }),
         });
         var compiled = await compileResponse.json();
         if (!compileResponse.ok || compiled.error) throw new Error(compiled.error || '無法建立 workflow');
@@ -629,7 +631,7 @@
           : useCompiler
             ? { message: text, mode: 'compiler_beta' }
             : usePlanner
-              ? { message: text, previousSpecification: pendingPlan && pendingPlan.specification }
+              ? { mode: 'plan_first_request', message: text, previousSpecification: pendingPlan && pendingPlan.specification }
             : {
               message: text,
               sessionId: loadSessionId(),
