@@ -167,7 +167,7 @@ function summarise(rows, label) {
 }
 
 async function main() {
-  const corpusPath = argOf('--corpus', 'chatbot/corpus/planner_corpus.json');
+  const corpusPath = argOf('--corpus', path.join(__dirname, '..', 'corpus', 'planner_corpus.json'));
   const level = argOf('--level', 'compiler');
   const model = argOf('--model', process.env.PLAN_FIRST_PLANNER_MODEL || 'qwen3.8:27b');
   const outPath = argOf('--output', null);

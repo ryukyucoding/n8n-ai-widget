@@ -11,6 +11,8 @@ RUN npm install --omit=dev
 
 COPY src ./src
 COPY tests ./tests
+COPY tools ./tools
+COPY corpus ./corpus
 COPY python ./python
 COPY bundles ./bundles
 COPY schemas ./schemas

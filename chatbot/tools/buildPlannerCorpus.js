@@ -169,7 +169,7 @@ function compilerRejectCases() {
 
 function main() {
   const easyPath = argOf('--easy100');
-  const outPath = argOf('--output', 'chatbot/corpus/planner_corpus.json');
+  const outPath = argOf('--output', path.join(__dirname, '..', 'corpus', 'planner_corpus.json'));
 
   const groups = [];
   if (easyPath) {
