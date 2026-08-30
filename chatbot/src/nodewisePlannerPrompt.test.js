@@ -13,4 +13,6 @@ test('planner prompt defines mutually exclusive readiness outcomes', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /final step must produce exactly expectedOutput\.fields/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /jsonplaceholder\.typicode\.com\/users\/:id/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /completed: boolean/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Every mapping.*valueType/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"incompleteTodos", "to": "incompleteTodos", "valueType": "number"/);
 });

@@ -57,6 +57,9 @@ For ready_to_compile, every step must have id, capability, requiredUserSetup, an
 
 Important output invariant: join_object_and_count_false_boolean always produces every objectMapping field plus totalField and falseCountField. The final step must produce exactly expectedOutput.fields, in the same order. If the requested final output needs only a subset of a join result, append a final set_output step. Its input must reference the aggregate step as aggregate.response with cardinality one_object, and its mappings must select only the requested fields. For example, after a join named summary, selecting just name and incompleteTodos requires a final set_output mapping those two fields from summary.response.
 
+Every mapping in select_fields, join_object_and_count_false_boolean, and set_output must include from, to, and valueType. valueType is required and must be one of string, number, or boolean. For the summary example above, the complete final step is:
+{ "id": "output", "capability": "set_output", "requiredUserSetup": [], "configuration": { "input": { "kind": "prior_step", "reference": "summary.response", "cardinality": "one_object" }, "mappings": [{ "from": "name", "to": "name", "valueType": "string" }, { "from": "incompleteTodos", "to": "incompleteTodos", "valueType": "number" }] } }
+
 Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
 
 module.exports = { NODEWISE_PLANNER_RESULT_PROMPT };
