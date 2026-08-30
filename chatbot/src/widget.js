@@ -268,6 +268,9 @@
     if (isNaN(btnTopVal)) btnTopVal = window.innerHeight - MARGIN - BTN;
     var panelW = Math.max(MIN_W, parseInt(localStorage.getItem('n8n-widget-w') || '', 10) || 380);
     var panelH = Math.max(MIN_H, parseInt(localStorage.getItem('n8n-widget-h') || '', 10) || 520);
+    var savedPanelW = panelW;
+    var savedPanelH = panelH;
+    var planReviewExpanded = false;
 
     // -------------------------------------------------------------------------
     // Styles
@@ -434,6 +437,32 @@
       updateResizeHandle();
     }
 
+    function setPanelDimensions(width, height) {
+      panelW = Math.max(MIN_W, Math.min(width, window.innerWidth - (MARGIN * 2)));
+      panelH = Math.max(MIN_H, Math.min(height, window.innerHeight - (MARGIN * 2) - BTN - GAP));
+      panel.style.width = panelW + 'px';
+      panel.style.height = panelH + 'px';
+      applyPositions(false);
+    }
+
+    window.addEventListener('message', function (event) {
+      if (!event || !event.data || typeof event.data !== 'object') return;
+      if (event.data.type !== MSG_TYPE || event.data.action !== 'panelPresentation') return;
+      if (event.origin !== chatOrigin() || event.source !== panel.contentWindow) return;
+
+      if (event.data.presentation === 'plan-review') {
+        if (!planReviewExpanded) {
+          savedPanelW = panelW;
+          savedPanelH = panelH;
+        }
+        planReviewExpanded = true;
+        setPanelDimensions(560, 720);
+      } else if (event.data.presentation === 'default' && planReviewExpanded) {
+        planReviewExpanded = false;
+        setPanelDimensions(savedPanelW, savedPanelH);
+      }
+    });
+
     applyPositions(false);
 
     // -------------------------------------------------------------------------
@@ -529,6 +558,9 @@
 
       if (resizing) {
         resizing = false;
+        planReviewExpanded = false;
+        savedPanelW = panelW;
+        savedPanelH = panelH;
         localStorage.setItem('n8n-widget-w', String(panelW));
         localStorage.setItem('n8n-widget-h', String(panelH));
       }

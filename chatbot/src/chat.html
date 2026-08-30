@@ -104,6 +104,11 @@
       text-decoration: none;
     }
     .bubble.bot a:hover { text-decoration: underline; }
+    .bubble.plan-result {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
 
     /* Typing indicator */
     .typing {
@@ -148,14 +153,14 @@
       white-space: pre;
     }
     .plan-review {
-      margin-top: 8px;
-      padding: 10px;
+      margin: 0;
+      padding: 12px;
       border: 1px solid #f3c8c0;
       border-radius: 8px;
       background: #fff;
     }
-    .plan-review-title { font-weight: 600; color: #7a3027; margin-bottom: 7px; }
-    .plan-review-section { margin-top: 7px; font-size: 12px; }
+    .plan-review-title { font-weight: 600; color: #7a3027; margin-bottom: 8px; }
+    .plan-review-section { margin-top: 8px; font-size: 12px; }
     .plan-review ul { margin: 3px 0 0 17px; }
     .plan-review button {
       width: 100%; margin-top: 10px; padding: 8px; border: 0; border-radius: 6px;
@@ -288,6 +293,15 @@
     var modelRow = document.getElementById('model-row');
     var modeHint = document.getElementById('mode-hint');
 
+    function setPlanReviewPresentation(active) {
+      if (window.parent === window) return;
+      window.parent.postMessage({
+        type: WIDGET_MSG_TYPE,
+        action: 'panelPresentation',
+        presentation: active ? 'plan-review' : 'default',
+      }, window.location.origin);
+    }
+
     function greeting() {
       return activeMode === 'create'
         ? '👋 描述你想從零建立的 workflow。<br><br>範例：<em>「每天早上 9 點把 Airtable 資料寄到 Slack」</em>'
@@ -323,6 +337,7 @@
         return;
       }
       activeMode = mode;
+      if (mode !== 'planner') setPlanReviewPresentation(false);
       try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
       document.querySelectorAll('.mode-btn').forEach(function (button) { button.classList.toggle('active', button.dataset.mode === mode); });
       renderModelOptions();
@@ -543,6 +558,7 @@
         if (compiled.workflowUrl) html += '<br><br><a href="' + escHtml(compiled.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
         addBubble(html + canvasRefreshNote(refreshResult), 'bot');
         pendingPlan = null;
+        setPlanReviewPresentation(false);
       } catch (err) {
         typing.remove();
         button.disabled = false;
@@ -567,6 +583,8 @@
       pendingPlan = data;
       planSessionId = newPlanSessionId();
       var bubble = addBubble(renderPlanReview(data), 'bot');
+      bubble.classList.add('plan-result');
+      setPlanReviewPresentation(true);
       var approveButton = bubble.querySelector('[data-plan-approve]');
       approveButton.addEventListener('click', function () { compilePendingPlan(approveButton); });
     }
@@ -736,6 +754,7 @@
       try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
       pendingPlan = null;
       planSessionId = null;
+      setPlanReviewPresentation(false);
       messagesEl.innerHTML = '<div class="bubble bot">' + greeting() + '</div>';
     });
 

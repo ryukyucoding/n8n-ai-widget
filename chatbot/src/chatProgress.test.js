@@ -93,3 +93,12 @@ nodeTest('Plan-first Beta shows planning progress and keeps creation behind expl
   assert.match(serverSource, /requestNodewisePlannerResult/);
   assert.match(serverSource, /function renderChatHtml\(\)/);
 });
+
+nodeTest('Plan-first review asks the trusted widget to expand only while approval is pending', () => {
+  assert.match(source, /action: 'panelPresentation'/);
+  assert.match(source, /presentation: active \? 'plan-review' : 'default'/);
+  assert.match(source, /bubble\.classList\.add\('plan-result'\)/);
+  assert.match(source, /setPlanReviewPresentation\(true\)/);
+  assert.match(source, /pendingPlan = null;\r?\n\s*setPlanReviewPresentation\(false\)/);
+  assert.match(source, /if \(mode !== 'planner'\) setPlanReviewPresentation\(false\)/);
+});
