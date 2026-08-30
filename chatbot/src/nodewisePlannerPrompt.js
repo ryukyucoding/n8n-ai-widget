@@ -1,9 +1,14 @@
 'use strict';
 
+const { describeForPlanner } = require('./sourceSchemaRegistry');
+
 const NODEWISE_PLANNER_RESULT_PROMPT = `You are the planning stage for a guarded n8n workflow compiler.
 Return exactly one JSON object and no Markdown. Do not emit raw n8n workflow JSON.
 
 The current compiler supports only: manual trigger; public HTTPS GET; select-fields transforms; boolean false-count transforms; joining one earlier object with one earlier item list; and one-object output. It does not support credentials, private values, POST, dynamic URLs, loops, waits, branches, binary data, notifications, external writes, or raw code from the planner.
+
+Use only these registered public response schemas. Do not invent URLs or fields:
+${describeForPlanner()}
 
 Choose exactly one of these three complete JSON shapes. "Omit" means the key must be absent: null is invalid.
 

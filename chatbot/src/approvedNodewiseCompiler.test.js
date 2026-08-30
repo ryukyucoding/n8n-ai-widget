@@ -33,6 +33,7 @@ test('renders review from the exact specification later consumed by the compiler
   assert.deepEqual(review.plan.externalDomains, ['jsonplaceholder.typicode.com']);
   assert.equal(review.plan.expectedOutput.fields.at(-1), 'incompleteTodos');
   assert.match(review.planFingerprint, /^[0-9a-f]{64}$/);
+  assert.match(review.context.sourceRegistryRevision, /^[0-9a-f]{16}$/);
 });
 
 test('compiles only after explicit approval of the same specification and session', () => {

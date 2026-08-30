@@ -42,14 +42,24 @@ function canonicalizeIr(ir) {
   return stableStringify(rest);
 }
 
-function computeFingerprint(ir, { runtimeSchemaRevision, skillRegistryRevision } = {}) {
+function computeFingerprint(
+  ir,
+  { runtimeSchemaRevision, skillRegistryRevision, sourceRegistryRevision } = {},
+) {
   assert(typeof runtimeSchemaRevision === 'string' && runtimeSchemaRevision,
     'runtimeSchemaRevision is required — approval must be invalidated when the runtime changes');
   assert(typeof skillRegistryRevision === 'string' && skillRegistryRevision,
     'skillRegistryRevision is required');
-  return crypto.createHash('sha256')
-    .update(`${canonicalizeIr(ir)} ${runtimeSchemaRevision} ${skillRegistryRevision}`)
-    .digest('hex');
+  // sourceRegistryRevision 為選填，讓來源 schema 綁定可以分階段接線而不打破既有呼叫點。
+  // 一旦提供就併入指紋：外部 API 的欄位宣告改變時，既有核准必須失效——
+  // 理由與 runtime schema 改變時相同，使用者當初核准的是「依那份宣告產生的計畫」。
+  if (sourceRegistryRevision !== undefined) {
+    assert(typeof sourceRegistryRevision === 'string' && sourceRegistryRevision,
+      'sourceRegistryRevision 若提供則不得為空字串');
+  }
+  const parts = [canonicalizeIr(ir), runtimeSchemaRevision, skillRegistryRevision];
+  if (sourceRegistryRevision !== undefined) parts.push(`src:${sourceRegistryRevision}`);
+  return crypto.createHash('sha256').update(parts.join(' ')).digest('hex');
 }
 
 const SHAPE_LABEL = { SingleItem: '單一物件', ItemList: '多筆項目', Binary: '二進位資料', NoOutput: '無輸出' };

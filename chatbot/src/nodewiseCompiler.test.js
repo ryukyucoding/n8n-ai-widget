@@ -54,3 +54,39 @@ test('refuses a public request that is outside the compiler host allowlist', () 
   specification.steps[1].configuration.url.reference = 'https://169.254.169.254/latest/meta-data/';
   assert.throws(() => compileNodewiseSpecification(specification), /private address|approved DNS hostname/);
 });
+
+test('refuses an unregistered public response schema even when its URL is public', () => {
+  const specification = todoSpecification();
+  specification.steps[1].configuration.url.reference = 'https://jsonplaceholder.typicode.com/posts/1';
+  assert.throws(() => compileNodewiseSpecification(specification), /沒有登錄的回應 schema/);
+});
+
+test('refuses undeclared and type-incompatible fields before emitting a workflow', () => {
+  const undeclared = todoSpecification();
+  undeclared.steps[3].configuration.objectMappings[0].from = 'not_a_user_field';
+  assert.throws(() => compileNodewiseSpecification(undeclared), /沒有宣告欄位 not_a_user_field/);
+
+  const incompatible = todoSpecification();
+  incompatible.steps[3].configuration.field = 'title';
+  assert.throws(() => compileNodewiseSpecification(incompatible), /型別是 string.*需要 boolean/);
+});
+
+test('set_output can only project fields produced by its preceding transform', () => {
+  const specification = todoSpecification();
+  specification.expectedOutput.fields = ['name', 'incompleteTodos'];
+  specification.steps.push({
+    id: 'output', capability: 'set_output', requiredUserSetup: [],
+    configuration: {
+      input: { kind: 'prior_step', reference: 'summary.response', cardinality: 'one_object' },
+      mappings: [
+        { from: 'name', to: 'name', valueType: 'string' },
+        { from: 'incompleteTodos', to: 'incompleteTodos', valueType: 'number' },
+      ],
+    },
+  });
+  const workflow = compileNodewiseSpecification(specification);
+  assert.equal(workflow.nodes.at(-1).type, 'n8n-nodes-base.set');
+
+  specification.steps.at(-1).configuration.mappings[1].from = 'missingAggregateField';
+  assert.throws(() => compileNodewiseSpecification(specification), /沒有宣告欄位 missingAggregateField/);
+});

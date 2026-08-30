@@ -185,3 +185,24 @@ test('verifyApprovalToken 也自我強制 secret 長度，不依賴呼叫端 gat
     /at least 32/,
   );
 });
+
+// --- 來源 schema 版本綁定（選填，分階段接線用）---
+
+test('不提供 sourceRegistryRevision 時，指紋與原本相同（不打破既有呼叫點）', () => {
+  const a = computeFingerprint(ir(), CTX);
+  const b = computeFingerprint(ir(), { ...CTX, sourceRegistryRevision: undefined });
+  assert.equal(a, b);
+});
+
+test('提供 sourceRegistryRevision 會改變指紋，且不同值產生不同指紋', () => {
+  const base = computeFingerprint(ir(), CTX);
+  const withSrc = computeFingerprint(ir(), { ...CTX, sourceRegistryRevision: 'abc123' });
+  const other = computeFingerprint(ir(), { ...CTX, sourceRegistryRevision: 'def456' });
+  assert.notEqual(withSrc, base, '來源宣告改變時既有核准必須失效');
+  assert.notEqual(withSrc, other);
+});
+
+test('sourceRegistryRevision 提供空字串視為設定錯誤', () => {
+  assert.throws(() => computeFingerprint(ir(), { ...CTX, sourceRegistryRevision: '' }),
+    /不得為空字串/);
+});

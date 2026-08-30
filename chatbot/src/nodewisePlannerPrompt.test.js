@@ -11,4 +11,6 @@ test('planner prompt defines mutually exclusive readiness outcomes', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Do not emit raw n8n workflow JSON/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /omit specification completely/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /final step must produce exactly expectedOutput\.fields/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /jsonplaceholder\.typicode\.com\/users\/:id/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /completed: boolean/);
 });

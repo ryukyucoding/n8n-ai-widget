@@ -9,6 +9,7 @@ const crypto = require('node:crypto');
 const runtimeSnapshot = require('../schemas/runtime_node_schemas.json');
 const { SKILLS, resolveSkillRequirements } = require('./runtimeSkillRegistry');
 const { schemaRevision } = require('./runtimeSchemaRevision');
+const { sourceRegistryRevision } = require('./sourceSchemaRegistry');
 const {
   stableStringify,
   computeFingerprint,
@@ -28,10 +29,11 @@ function skillRegistryRevision(skillRegistry = SKILLS) {
   return crypto.createHash('sha256').update(stableStringify(skillRegistry)).digest('hex');
 }
 
-function runtimeContext({ snapshot = runtimeSnapshot, skillRegistry = SKILLS } = {}) {
+function runtimeContext({ snapshot = runtimeSnapshot, skillRegistry = SKILLS, sourceRegistry } = {}) {
   return {
     runtimeSchemaRevision: schemaRevision(snapshot).revision,
     skillRegistryRevision: skillRegistryRevision(skillRegistry),
+    sourceRegistryRevision: sourceRegistryRevision(sourceRegistry),
   };
 }
 

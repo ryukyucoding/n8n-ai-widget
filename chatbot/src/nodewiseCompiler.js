@@ -3,6 +3,11 @@
 const crypto = require('node:crypto');
 const runtimeSchemas = require('../schemas/runtime_node_schemas.json');
 const { validatePublicHttpsUrl, VERIFIED_PATTERN_HOSTS } = require('./publicUrlPolicy');
+const {
+  assertSourceRegistered,
+  assertField,
+  assertCardinality,
+} = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
 const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean']);
@@ -26,7 +31,7 @@ function safeIdentifier(value, field) {
   return value;
 }
 
-function source(value, field, previousSteps) {
+function source(value, field, previousSteps, outputs) {
   assert(value && typeof value === 'object' && !Array.isArray(value), `${field} must be an object`);
   assert(['public_literal', 'prior_step'].includes(value.kind), `${field}.kind is unsupported`);
   assert(CARDINALITIES.has(value.cardinality), `${field}.cardinality is unsupported`);
@@ -35,11 +40,24 @@ function source(value, field, previousSteps) {
     // beta 只跑受驗證 pattern，因此顯式帶入該邊界；denylist 同時作為第二道防線。
     validatePublicHttpsUrl(value.reference, `${field}.reference`,
       { allowedHosts: VERIFIED_PATTERN_HOSTS });
+    const registered = assertSourceRegistered(value.reference, `${field}.reference`);
+    assertCardinality(registered, value.cardinality, `${field}.cardinality`);
+    return {
+      value: { kind: value.kind, reference: value.reference, cardinality: value.cardinality },
+      output: { cardinality: registered.cardinality, fields: registered.fields, source: registered },
+    };
   } else {
     const stepId = value.reference.split('.', 1)[0];
     assert(previousSteps.has(stepId), `${field}.reference must reference an earlier step`);
+    const output = outputs.get(stepId);
+    assert(output, `${field}.reference must reference a step with a declared output`);
+    assert(output.cardinality === value.cardinality,
+      `${field}.cardinality must match ${stepId} output cardinality ${output.cardinality}`);
+    return {
+      value: { kind: value.kind, reference: value.reference, cardinality: value.cardinality },
+      output,
+    };
   }
-  return { kind: value.kind, reference: value.reference, cardinality: value.cardinality };
 }
 
 function mappings(value, field) {
@@ -51,6 +69,36 @@ function mappings(value, field) {
     assert(VALUE_TYPES.has(mapping.valueType), `${field}[${index}].valueType is unsupported`);
     return { from, to, valueType: mapping.valueType };
   });
+}
+
+function assertInputField(input, fieldName, { expectedType = null, usedBy = '' } = {}) {
+  if (input.source) return assertField(input.source, fieldName, { expectedType, usedBy });
+  const actual = input.fields[fieldName];
+  assert(actual, `${usedBy || 'input'} 沒有宣告欄位 ${fieldName}。`
+    + `已宣告的欄位：${Object.keys(input.fields).join(', ')}`);
+  if (expectedType) {
+    assert(actual === expectedType,
+      `${usedBy || 'input'}.${fieldName} 的型別是 ${actual}，但需要 ${expectedType}`);
+  }
+  return actual;
+}
+
+function validateMappings(input, value, field) {
+  const result = mappings(value, field);
+  for (const mapping of result) {
+    const actual = assertInputField(input, mapping.from, {
+      expectedType: mapping.valueType,
+      usedBy: field,
+    });
+    assert(actual === mapping.valueType,
+      `${field} 宣告 ${mapping.from} 為 ${mapping.valueType}，但輸入是 ${actual}`);
+  }
+  return result;
+}
+
+function mappedOutput(input, value, field) {
+  const result = validateMappings(input, value, field);
+  return { mappings: result, output: { cardinality: 'one_object', fields: Object.fromEntries(result.map((item) => [item.to, item.valueType])) } };
 }
 
 function validateSpecification(value) {
@@ -66,6 +114,7 @@ function validateSpecification(value) {
   assert(Array.isArray(value.steps) && value.steps.length >= 2 && value.steps.length <= 10, 'steps must contain 2 to 10 entries');
 
   const seen = new Set();
+  const outputs = new Map();
   const steps = value.steps.map((step, index) => {
     assert(step && typeof step === 'object' && !Array.isArray(step), `steps[${index}] must be an object`);
     assert(typeof step.id === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(step.id), `steps[${index}].id is invalid`);
@@ -74,37 +123,56 @@ function validateSpecification(value) {
     assert(Array.isArray(step.requiredUserSetup) && step.requiredUserSetup.length === 0, `steps[${index}] requires user setup`);
     const config = step.configuration || {};
     let configuration;
+    let output = null;
     if (step.capability === 'manual_trigger') {
       assert(index === 0 && Object.keys(config).length === 0, 'manual_trigger must be the first empty step');
       configuration = {};
     } else if (step.capability === 'http_request') {
       assert(config.method === 'GET', 'only public GET requests are supported');
-      configuration = { method: 'GET', url: source(config.url, `steps[${index}].configuration.url`, seen) };
+      const input = source(config.url, `steps[${index}].configuration.url`, seen, outputs);
+      configuration = { method: 'GET', url: input.value };
       assert(configuration.url.kind === 'public_literal', 'HTTP URL must be public_literal');
+      output = input.output;
     } else if (step.capability === 'data_transform') {
       assert(TRANSFORMS.has(config.operation), `steps[${index}].configuration.operation is unsupported`);
       if (config.operation === 'select_fields') {
-        configuration = { operation: config.operation, input: source(config.input, `steps[${index}].configuration.input`, seen), mappings: mappings(config.mappings, `steps[${index}].configuration.mappings`) };
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        const mapped = mappedOutput(input.output, config.mappings, `steps[${index}].configuration.mappings`);
+        configuration = { operation: config.operation, input: input.value, mappings: mapped.mappings };
         assert(configuration.input.cardinality === 'one_object', 'select_fields requires one_object input');
+        output = mapped.output;
       } else if (config.operation === 'count_false_boolean') {
-        configuration = { operation: config.operation, input: source(config.input, `steps[${index}].configuration.input`, seen), field: safeIdentifier(config.field, 'field'), totalField: safeIdentifier(config.totalField, 'totalField'), falseCountField: safeIdentifier(config.falseCountField, 'falseCountField') };
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        configuration = { operation: config.operation, input: input.value, field: safeIdentifier(config.field, 'field'), totalField: safeIdentifier(config.totalField, 'totalField'), falseCountField: safeIdentifier(config.falseCountField, 'falseCountField') };
         assert(configuration.input.cardinality === 'items', 'count_false_boolean requires items input');
+        assertInputField(input.output, configuration.field, { expectedType: 'boolean', usedBy: `steps[${index}].configuration.field` });
+        output = { cardinality: 'one_object', fields: { [configuration.totalField]: 'number', [configuration.falseCountField]: 'number' } };
       } else {
+        const objectInput = source(config.objectInput, `steps[${index}].configuration.objectInput`, seen, outputs);
+        const itemsInput = source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen, outputs);
+        const mapped = validateMappings(objectInput.output, config.objectMappings, `steps[${index}].configuration.objectMappings`);
         configuration = {
-          operation: config.operation,
-          objectInput: source(config.objectInput, `steps[${index}].configuration.objectInput`, seen),
-          itemsInput: source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen),
-          objectMappings: mappings(config.objectMappings, `steps[${index}].configuration.objectMappings`),
+          operation: config.operation, objectInput: objectInput.value, itemsInput: itemsInput.value,
+          objectMappings: mapped,
           field: safeIdentifier(config.field, 'field'), totalField: safeIdentifier(config.totalField, 'totalField'), falseCountField: safeIdentifier(config.falseCountField, 'falseCountField'),
         };
         assert(configuration.objectInput.cardinality === 'one_object', 'join object input must be one_object');
         assert(configuration.itemsInput.cardinality === 'items', 'join items input must be items');
+        assertInputField(itemsInput.output, configuration.field, { expectedType: 'boolean', usedBy: `steps[${index}].configuration.field` });
+        output = { cardinality: 'one_object', fields: {
+          ...Object.fromEntries(mapped.map((item) => [item.to, item.valueType])),
+          [configuration.totalField]: 'number', [configuration.falseCountField]: 'number',
+        } };
       }
     } else {
-      configuration = { input: source(config.input, `steps[${index}].configuration.input`, seen), mappings: mappings(config.mappings, `steps[${index}].configuration.mappings`) };
+      const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+      const mapped = mappedOutput(input.output, config.mappings, `steps[${index}].configuration.mappings`);
+      configuration = { input: input.value, mappings: mapped.mappings };
       assert(configuration.input.cardinality === 'one_object', 'set_output requires one_object input');
+      output = mapped.output;
     }
     seen.add(step.id);
+    if (output) outputs.set(step.id, output);
     return {
       id: step.id,
       capability: step.capability,
