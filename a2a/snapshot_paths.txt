@@ -32,3 +32,7 @@ docs/SPEC_AMENDMENTS_v0.4_PROPOSAL.md
 a2a/RELEASE_A_B_PLAN.md
 a2a/A4_REAL_RUNTIME_VERIFICATION.md
 a2a/RELEASE_C_INTEGRATED_PLAN.md
+chatbot/tools/plannerModelProbe.js
+a2a/COMPILER_EXPANSION_ANALYSIS.md
+chatbot/src/sourceSchemaRegistry.js
+chatbot/src/sourceSchemaRegistry.test.js

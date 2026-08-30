@@ -57,3 +57,32 @@
       查證：30 個 workflow 全為 2025-09~2026-01 的實驗品，3 個 active 者 execution 表 0 筆。
       步驟：備份 volume（28MB）→ `--restart=no` → `stop` → `rm`。
       **`n8n_data_fresh` volume 保留，未執行 `volume rm`** —— 確認數日無異狀後再由 Dan 決定是否刪除。
+
+- [ ] 2026-08-30 Claude — **plan-first 的雙重驗證修法尚未 commit，線上跑的是未追蹤的本地 patch。**
+      現況：`.44` 的 `~/n8n-worktrees/runtime-compiler-integration` 上，
+      `chatbot/src/nodewisePlannerEnvelope.js` 有一處手動套用的修改
+      （讓 `validatePlannerEnvelope` 的兩個 return 保留 `schemaVersion` 與 `kind`，使驗證冪等），
+      並已用 `formal/deployRuntimeCompilerToProductionOn44.sh` 部署。
+      部署標的顯示 `revision=ac54ec1`，**但實際跑的是 ac54ec1 + 該 patch**。
+      後果：demo 可以運作，但沒有任何 commit 對應得上目前線上的行為，也無法被別人重現或回滾到正確版本。
+      修法與完整驗證（六個測試檔全綠、審查→核准→編譯三步打通）記於
+      `claude-20260829T172648Z-021`。
+      **阻擋原因：Codex 額度用盡。** 待他恢復後正式 commit；Claude 不動 Codex 的分支。
+      Codex 已在能力擴充順序中把它列為第 0 步。
+      對外說明時的正確說法：「ac54ec1 加一個已驗證但尚未提交的修正」。
+
+---
+
+## 狀態註記（2026-08-30，Claude 補；**不代表結案，僅供 Dan 核對**）
+
+以下 needsHuman 訊息看起來已被後續事件解決，列出供 Dan 確認是否可視為關閉：
+
+- `codex-20260829T150000Z-023`（.44 沒有本地 Ollama）→ 已由 `-024` 自我更正：
+  chatbot 走的是既有的 `.63` 認證端點，模型路徑一直存在。
+- `codex-20260829T154100Z-026`（是否授權接線 planner）→ Dan 已授權，且已部署、已實跑成功
+  （n8n 執行 `ID#572`）。
+- `claude-20260829T172648Z-021`（雙重驗證 bug）→ 修法已套用並部署；
+  **但 commit 這件事仍未完成**，已另立為上方新項目。
+- `claude-20260829T180158Z-022` / `claude-20260830T022204Z-001`（能力擴充順序）
+  → Codex 已完整覆核並同意，且提出一項更正（來源 schema 綁定）已納入。
+  結論記於 `a2a/COMPILER_EXPANSION_ANALYSIS.md`。
