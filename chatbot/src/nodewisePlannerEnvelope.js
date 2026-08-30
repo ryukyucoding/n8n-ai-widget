@@ -26,7 +26,13 @@ function validatePlannerEnvelope(value) {
 
   if (value.outcome === 'ready_to_compile') {
     assert(value.specification && typeof value.specification === 'object', 'ready_to_compile requires specification');
-    return { outcome: value.outcome, goal: value.goal.trim(), specification: validateSpecification(value.specification) };
+    return {
+      schemaVersion: '1.0',
+      kind: 'nodewise_planner_result',
+      outcome: value.outcome,
+      goal: value.goal.trim(),
+      specification: validateSpecification(value.specification),
+    };
   }
 
   const requiredUserInputs = stringList(value.requiredUserInputs, 'requiredUserInputs', {
@@ -36,7 +42,14 @@ function validatePlannerEnvelope(value) {
     required: value.outcome === 'unsupported_capability',
   });
   assert(value.specification === undefined, `${value.outcome} must not include a compile specification`);
-  return { outcome: value.outcome, goal: value.goal.trim(), requiredUserInputs, capabilityGaps };
+  return {
+    schemaVersion: '1.0',
+    kind: 'nodewise_planner_result',
+    outcome: value.outcome,
+    goal: value.goal.trim(),
+    requiredUserInputs,
+    capabilityGaps,
+  };
 }
 
 function compilePlannerEnvelope(value) {
