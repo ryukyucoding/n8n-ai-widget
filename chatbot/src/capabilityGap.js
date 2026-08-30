@@ -173,6 +173,14 @@ function buildCapabilityGapResponse({ userRequest, requestedSkillIds, registry }
     backlog,
     // 給 UI 的三段式提示。刻意不含 skill id 或節點名稱——使用者不需要知道那些
     presentation: gaps.length === 0 && needsUserSetup.length === 0 ? null : {
+      // UI 必須以本區塊為準，不得改用 planner envelope 的 requiredUserInputs——
+      // planner 可能列出「SMTP 憑證、寄件者、收件者」，但當該能力根本不在這條編譯路徑上時，
+      // 補齊那些值也不會讓它變得可編譯。呈現那份清單等於承諾一件做不到的事。
+      headline: gaps.length > 0
+        ? '這個需求超出目前編譯器的能力範圍，還沒有辦法建立。'
+        : '可以建立，但需要你先補齊下面的資訊。',
+      // false 代表：planner 列出的 requiredUserInputs 在這個情境下不適用，UI 不得呈現
+      userInputsApply: gaps.length === 0,
       whatIsMissing: gaps.map((g) => g.label || g.capability),
       // 「請你補齊這些資訊」——與 whatIsMissing 分開，因為這一類是使用者補得齊的
       whatYouMustProvide: needsUserSetup.map((s2) => ({

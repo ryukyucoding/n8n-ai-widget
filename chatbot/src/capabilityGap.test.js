@@ -152,3 +152,34 @@ test('已實作但需要使用者先補設定的 skill：不是 gap，也不是�
   assert.ok(ask[0].settings.includes('sender email'));
   assert.ok(ask[0].settings.includes('recipient email'));
 });
+
+// --- 迴歸：能力缺口存在時，planner 的 requiredUserInputs 不得被呈現 ---
+// 情境：planner 對「每天把 RSS 摘要寄到信箱」回報 unsupported_capability，
+// 同時附上 requiredUserInputs = [SMTP 憑證, 寄件者, 收件者]。
+// 那兩件事同時到達 UI 會互相矛盾：一邊說做不到，一邊說補齊就能做。
+// 補齊那些值並不會讓它變得可編譯，因為那條能力根本不在這條編譯路徑上。
+
+test('有能力缺口時 userInputsApply 必須是 false，且提供可直接呈現的 headline', () => {
+  const r = buildCapabilityGapResponse({
+    userRequest: '每天把 RSS 摘要寄到我的信箱',
+    requestedSkillIds: ['delivery.smtp_email_draft', 'workflow.daily_rss_digest'],
+    registry: R,
+  });
+  assert.equal(r.presentation.userInputsApply, false,
+    'planner 的 requiredUserInputs 在這個情境下不適用，UI 不得呈現');
+  assert.match(r.presentation.headline, /超出目前編譯器的能力範圍/);
+  assert.deepEqual(r.presentation.whatYouMustProvide, []);
+});
+
+test('只差使用者補設定時 userInputsApply 為 true', () => {
+  const registry = R.map((s) => (s.id === 'delivery.smtp_email_draft'
+    ? { ...s, maturity: 'implemented' } : s));
+  const r = buildCapabilityGapResponse({
+    userRequest: '寄一封信給我',
+    requestedSkillIds: ['delivery.smtp_email_draft'],
+    registry,
+  });
+  assert.equal(r.presentation.userInputsApply, true);
+  assert.match(r.presentation.headline, /需要你先補齊/);
+  assert.equal(r.presentation.whatYouMustProvide.length, 1);
+});
