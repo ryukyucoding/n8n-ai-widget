@@ -23,11 +23,16 @@
 
 ## 分支
 
+完整策略與 promotion gates 見 `docs/BRANCH_STRATEGY.md`。從下一次 branch consolidation 起採用以下責任分界，不重寫既有歷史：
+
 | 分支 | 用途 |
 | --- | --- |
-| `main` | 已驗證的穩定版本 |
-| `ollama-widget` | 部署與測試中，**勿修改** |
-| `codex/autoresearch-a2a` | 研究架構、規格、IR、實驗工具 |
+| `main` | 已通過測試、真實 n8n execution evidence 與 Dan 核准的穩定結果；不做日常實驗 |
+| `ollama-widget` | 主要產品開發、上架與雙週實驗 branch；產品變更先在這裡整合與驗證 |
+| `codex/autoresearch-a2a` | Agent 協作、outbox、協定與裁決紀錄；新產品功能改在 `ollama-widget` 或短期 topic branch |
+| `codex/planner-model-probe` | 歷史 planner probe branch；不再繼續開發，也不整條 merge 回產品 branch |
+
+正常流向：`topic/*` → `ollama-widget` → 經端到端驗證後 → `main`。`ollama-widget` 可定期合併到 A2A branch 供 agents 取得最新背景；A2A branch 不整條反向合併進產品 branch。
 
 ## 共同依據
 
