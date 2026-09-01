@@ -32,6 +32,8 @@
    **不要直接呼叫 `python`**——Windows 環境的 `python` 不在 PATH（2026-08-28 實測），啟動器會自動找直譯器。
    **有 ERROR 必須修正後才能結束。**
 4. **不要假設工作區的變更都是自己或使用者做的。**
+5. Session／UI／provider 異常時先讀 `a2a/recovery/README.md` 與對應角色文件；不要在沒有 handoff 的情況下直接開同名第二實例。
+6. 部署或 `.44` 操作前讀 `a2a/OPERATIONS_RUNBOOK.md`；A2A branch 只保存操作程序，不代表它是可部署的產品來源。
 
 `docs/HANDOFF_CLAUDE_CODEX.md` 已降級為人類閱讀用的現況摘要，**不再是 agent 之間的傳輸層**——除非 Dan 要求，否則不要寫它（兩邊共同編輯同一份 Markdown 會靜默覆蓋彼此）。
 

@@ -1,8 +1,13 @@
 # Runtime Compiler / n8n Operations Runbook
 
-This is the operational handoff for the research branch. It is intentionally
-conservative: no agent may deploy, commit, push, restore, or change `.44`
-without Dan's explicit approval for that specific action.
+This operational handoff is stored on the A2A coordination branch, but the
+source of a deployment must be an explicitly approved `ollama-widget` or
+release/review ref—not the A2A branch merely because this runbook lives here.
+
+The runbook is intentionally conservative. `brain` may commit and normally push
+bounded topic/review changes under `a2a/PROTOCOL.md`; other agents need separate
+authorization to publish. No agent may deploy, restore, move a production ref,
+or change `.44` without Dan's explicit approval for that specific action.
 
 ## What Is Actually Deployed
 
@@ -39,17 +44,20 @@ workflows.
 
 ## 1. Push A Reviewed Change From Windows
 
-Only do this after Dan has approved both the commit and the push.
+Work from the correct checkout and an explicitly assigned topic/review branch.
+`brain` may perform the bounded commit and normal push authorized by the
+protocol; another agent needs Dan's approval for that exact publication.
 
 ```powershell
-cd C:\Users\User\Desktop\C.ai_project\2026_7_10_frontend\n8n-ai-widget-autoresearch
-git add -- a2a/OPERATIONS_RUNBOOK.md
-git commit -m "docs(a2a): add production operations runbook"
-git push origin codex/autoresearch-a2a
+git status --short --branch
+git add -- <explicit-path-1> <explicit-path-2>
+git commit -m "<reviewed commit message>"
+git push origin <assigned-topic-or-review-branch>
 ```
 
-For a different reviewed change, replace the one explicit path and commit
-message. Stage every intended file path explicitly; do not broaden the command.
+Stage every intended file path explicitly; do not broaden the command. Moving
+`main` or `ollama-widget`, deleting a remote branch, force-pushing, or deploying
+still requires Dan's explicit approval for that action.
 
 ## 2. Prepare `.44` Without Overwriting Local Work
 
@@ -63,17 +71,19 @@ git status --porcelain chatbot/
 Expected result: no output. If any path is listed, stop and preserve the output
 for Dan and the agents. Do not restore it merely to make deployment proceed.
 
-After the checkout is confirmed clean, fetch the approved branch and detach at
-the fetched revision:
+After the checkout is confirmed clean, fetch the exact product/release branch
+Dan approved and detach at the fetched revision. Do not deploy
+`codex/autoresearch-a2a`; it is the coordination record, not the product source.
 
 ```bash
-git fetch origin codex/autoresearch-a2a
-git checkout FETCH_HEAD
+git fetch origin <approved-product-or-release-branch>
+git checkout --detach FETCH_HEAD
 git rev-parse --short HEAD
 ```
 
-Record the short revision in the deployment report. `git checkout FETCH_HEAD`
-is deliberate here: the remote-tracking branch might not exist locally on `.44`.
+Record both the approved ref and short revision in the deployment report.
+`git checkout --detach FETCH_HEAD` is deliberate here: the remote-tracking
+branch might not exist locally on `.44`.
 
 ## 3. Deploy The Plan-first Chatbot On `.44`
 
