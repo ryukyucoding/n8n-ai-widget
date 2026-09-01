@@ -65,6 +65,25 @@ A2A finding / proposal
 
 `main` 的 benchmark 資料應另做內容級資料集稽核：確認 case 數、正規化後內容、結果檔與 provenance，再決定哪些檔案需要移植。它不應阻擋產品 branch 先完成職責整理。
 
+## Commit provenance
+
+目前所有 2026 年 8 月後的 agent-assisted commits 都沿用工作站的 `dan0203` repo identity，因此只看 `Author`／`Committer` 無法分辨是 Dan 親自撰寫、Terra 執行，還是其他 agent 代為提交。
+
+從 consolidation cutoff 之後，agent 產生或代為執行的 commit 必須在 message body 保留：
+
+```text
+Agent-Origin: brain | executor | opus5 | terra
+A2A-Ref: <message-id 或 task-id；沒有則寫 none>
+Co-Authored-By: <該 agent／工具的標準署名>
+```
+
+- `Author` 仍可使用 Dan 的 repo identity，避免為每個 agent 改全域 Git 設定。
+- `Agent-Origin` 記錄實際產生／執行變更的 agent；不可把單純 review 者寫成作者。
+- `A2A-Ref` 讓未來能從 commit 回查需求、授權與驗證證據。
+- Dan 親自完成、沒有 agent 產生內容的 commit 不需要 `Agent-Origin`。
+
+這項規則無法補回舊歷史，只從新 cutoff 往後適用。
+
 ## Promotion gates
 
 ### `ollama-widget` → `main`
