@@ -14,7 +14,51 @@
 | Linux / macOS | `./a2a/a2a.sh --check` |
 | 直譯器路徑已知 | 設 `A2A_PYTHON` 指向 python.exe 後照上表執行 |
 
-其他子指令：`--digest`（現況摘要）、`--dashboard`（只重建面板）、`--next <agent>`（產生合法訊息 id）。
+完整子指令（**本表以 `validate_a2a.py` 的實作為準**，新增子指令時必須同步更新這裡）：
+
+| 子指令 | 用途 |
+| --- | --- |
+| `--check` | 驗證協定合規性，並重建 `dashboard.html` |
+| `--digest` | 人類可讀的現況摘要（誰活著、待辦、待裁決） |
+| `--dashboard` | 只重建面板，不印摘要 |
+| `--next <agent>` | 產生下一個合法訊息 id |
+| `--lock <path> --as <agent> --topic <id>` | **鎖定一個檔案（P11 的機器可檢查版本）** |
+| `--unlock <path> --as <agent>` | 釋放自己持有的鎖（**在唯讀/禁刪的掛載上會失敗，見下方**） |
+| `--locks` | 列出目前所有鎖 |
+| `--snapshot [label]` | 對 `snapshot_paths.txt` 列出的路徑建立快照 |
+| `--hours <n>` | 搭配 `--lock` 覆寫鎖的存續時數（預設 4 小時） |
+
+**已知限制（2026-09-01 實測）：`--unlock` 在 Claude 的檔案橋接環境會失敗。**
+釋放鎖是 `Path.unlink()`，而該掛載禁止刪除檔案，實際錯誤是
+`PermissionError: [Errno 1] Operation not permitted: a2a/locks/<file>.json`。
+**後果不嚴重但必須知道**：鎖有 TTL（預設 4 小時），`acquire_lock` 只認 `expiresAt > now` 的鎖，
+過期的鎖檔會被視為無效並可被任一方重新取得。所以殘留的鎖檔不會永久卡住任何人，
+但**在 TTL 內對方會看到一個實際上已經沒人在用的鎖**。
+在這個環境工作時：`--lock` 帶 `--hours` 指定貼近實際工作時間的短 TTL，不要用預設 4 小時，
+並在訊息裡說明鎖已完成使命。要立即清除只能由能刪檔的一方（Windows 側的 Codex 或 Dan）刪除該鎖檔。
+
+**`--lock` 是 P11「開工前先宣告」的機器可檢查版本。**P11 只要求寫一則 decision 訊息宣告，
+那是文件層的約定（F7 說過：只被描述的規矩會漂移）。鎖是同一件事的可檢查版本，
+**兩者都要做**：鎖擋住並行寫入，decision 訊息讓對方知道你為什麼要動這些檔案。
+
+
+## 從乾淨的 clone 開始（新機器第一次執行）
+
+`a2a/*.state.json`、`a2a/dashboard.html`、`a2a/snapshots/` 都在 `.gitignore` 裡，
+**clone 下來不會有**。這是刻意的——它們是執行狀態不是原始碼——但代表新環境要先走這三步：
+
+```
+./a2a/a2a.sh --check      # Windows: a2a\a2a.cmd --check
+./a2a/a2a.sh --digest     # 看現況：誰活著、待辦、待 Dan 裁決
+./a2a/a2a.sh --locks      # 確認沒有別的實例正在改檔案
+```
+
+第一次 `--check` 會對缺少的 `*.state.json` 發出 **WARN，這是正常的**——
+它只是說「這個 agent 在這個環境還沒執行過」。依第 3 節的標準流程寫出第一則訊息、
+更新自己的 state 之後，WARN 會自己消失。
+
+**不要為了消掉 WARN 去手工建立對方的 state 檔**——那違反 P1，而且會偽造對方的存活狀態，
+讓 dashboard 顯示一個實際上沒在跑的 agent 是健康的。
 
 ## 監控面板
 
@@ -119,7 +163,11 @@
 | `codex` | Dan 的 Windows 機器（桌面版） | **能**，透過 `a2a/` 檔案 |
 | `codex-44` | `widm-n8n.csie.ncu.edu.tw` = `140.115.54.44`，**與實際運行的 n8n 同一台**（CLI 版） | **不能** |
 
-**實測（2026-08-28）：** Claude 的 device_bash 無網路（DNS 解不到、curl 回 000）；
+**以下可達性是綁定機器的，換一台機器必須重測，不得沿用結論。**
+（例：`140.115.54.44` 位於 NCU 校內網段，實驗室機器與家用機的可達性未必相同。
+換機器後先實測再更新本節，**不要假設**。）
+
+**實測（2026-08-28，於 Dan 的家用機）：** Claude 的 device_bash 無網路（DNS 解不到、curl 回 000）；
 雲端容器解得到 `140.115.54.44` 但連線被出口政策擋掉。**Claude 到不了 .44。**
 到 .44 的路徑只有：Dan 的機器（可建 SSH tunnel）→ 桌面 Codex 或 Dan 轉述。
 
@@ -322,4 +370,14 @@ Claude 27 則、Codex 12 則，交錯模式顯示是真實往返（最長連續 
 
 1. **仍然只有輪詢，沒有事件觸發。** 對方寫入時我不會被喚醒。24/7 下這代表延遲等於輪詢週期。若 Dan 的實驗室機器能跑檔案監看（inotify / ReadDirectoryChangesW），這一層可以改善——但那需要一個常駐 process，超出目前架構。
 2. **作者身分仍無法在檔案內證明。** 兩邊都有寫入權限。要真正證明需要各自持有對方沒有的秘密並簽章。目前靠 P1 的紀律與 validator 的檢查，這是紀律不是保證。
-3. **JSONL 的 append 在極端併發下仍可能交錯。** 單行小於 4KB 時 POSIX `O_APPEND` 實務上安全，但跨 Windows/Linux mount 未經驗證。若實測發現交錯，改為每則訊息一個檔案（`outbox/<id>.json`）。
+3. **參與者名單寫死在 validator 裡，且身分不等於實例。**
+   `validate_a2a.py` 的 `AGENTS = ("claude", "codex")` 是常數，**第三個參與者無法合法寫入頻道**
+   （`from`/`to` 只認 `claude` / `codex` / `human`）。這產生兩個尚未解決的問題：
+   - P12 已經承認實際有 `codex-44` 這個第三方，但它在檔案層沒有身分，只能靠轉述（P12a/P12b）。
+   - **同一身分的多個實例**（例如家用機與實驗室電腦上各一個 Claude Code）共用同一份
+     outbox 與 state，heartbeat 與 `lastProcessedId` 會互相覆蓋。目前只能靠紀律避免：
+     **同一身分同一時間只跑一個實例**，開工前先 `--locks` 與 `--digest` 確認。
+   要真正解決需要改 validator 的參與者模型（身分 + 實例 id），屬於協定 v2 的範圍，
+   **不得由單一 agent 片面加入新的 `from` 值**——那會讓對方的 validator 判為 ERROR。
+
+4. **JSONL 的 append 在極端併發下仍可能交錯。** 單行小於 4KB 時 POSIX `O_APPEND` 實務上安全，但跨 Windows/Linux mount 未經驗證。若實測發現交錯，改為每則訊息一個檔案（`outbox/<id>.json`）。

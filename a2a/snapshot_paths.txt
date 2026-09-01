@@ -36,3 +36,6 @@ chatbot/tools/plannerModelProbe.js
 a2a/COMPILER_EXPANSION_ANALYSIS.md
 chatbot/src/sourceSchemaRegistry.js
 chatbot/src/sourceSchemaRegistry.test.js
+chatbot/tools/buildPlannerCorpus.js
+chatbot/tools/runPlannerCorpus.js
+chatbot/corpus/planner_corpus.json

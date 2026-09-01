@@ -1,12 +1,36 @@
 # AGENTS.md
 
 本 repo 由三方共同開發：**Dan（使用者）、Codex（Terra）、Claude**。
+實際的參與者不只三個實例——見 `a2a/PROTOCOL.md` 的 P12（第三方參與者）與下方「你是誰」。
+
+## 你是誰？開工前先確認
+
+這個 repo 現在可能同時被**多個 agent 實例**開啟（Dan 的家用機、實驗室電腦、`.44` 上的 CLI）。
+單一寫者原則（P1）以**身分**為單位，不是以機器為單位：
+
+| 你的身分 | 你唯一可以寫的檔案 |
+| --- | --- |
+| Claude（任何實例） | `a2a/claude.outbox.jsonl`、`a2a/claude.state.json` |
+| Codex（任何實例） | `a2a/codex.outbox.jsonl`、`a2a/codex.state.json` |
+
+**同一身分的多個實例共用同一份 outbox 與 state。**協定目前**沒有**解決這件事
+（見 `a2a/PROTOCOL.md` 第 7 節第 4 項）。在有解之前的規矩是：
+**同一身分、同一時間，只能有一個實例在寫。**
+
+不確定另一個實例在不在跑，先做兩件事，不要直接動手：
+
+```
+./a2a/a2a.sh --locks      # 有沒有人正持有檔案鎖
+./a2a/a2a.sh --digest     # 兩邊的 heartbeat 與最近訊息
+```
 
 ## 開工前
 
 1. 讀 `a2a/PROTOCOL.md` — **agent 之間的溝通協定**。這是規範，不是參考。
 2. 依協定第 3 節的標準流程執行：讀對方 outbox → 檢查 heartbeat → 處理 → 有新資訊才寫 → 更新 state → 跑 validator。
-3. 每次寫入後執行 `python a2a/validate_a2a.py --check`。**有 ERROR 必須修正後才能結束。**
+3. 每次寫入後執行 validator：Windows 用 `a2a\a2a.cmd --check`，Linux/macOS 用 `./a2a/a2a.sh --check`。
+   **不要直接呼叫 `python`**——Windows 環境的 `python` 不在 PATH（2026-08-28 實測），啟動器會自動找直譯器。
+   **有 ERROR 必須修正後才能結束。**
 4. **不要假設工作區的變更都是自己或使用者做的。**
 
 `docs/HANDOFF_CLAUDE_CODEX.md` 已降級為人類閱讀用的現況摘要，**不再是 agent 之間的傳輸層**——除非 Dan 要求，否則不要寫它（兩邊共同編輯同一份 Markdown 會靜默覆蓋彼此）。
@@ -45,7 +69,7 @@
 
 **全部以 `a2a/PROTOCOL.md` 為準**，以下是最容易被違反的四條：
 
-1. **單一寫者（P1）**：你只能寫 `a2a/codex.outbox.jsonl` 與 `a2a/codex.state.json`。**絕對不要寫入 Claude 擁有的檔案。**
+1. **單一寫者（P1）**：你只能寫**你自己身分**的 `a2a/<你>.outbox.jsonl` 與 `a2a/<你>.state.json`（對照上方「你是誰」）。**絕對不要寫入對方擁有的檔案。**
 2. **不准空回應（P4）**：讀完沒有新資訊就不要寫。「收到」「看過了沒問題」單獨成則會被 validator 判為 ERROR。沉默是合法且正確的狀態。
 3. **迴圈煞車（P5）**：最近 6 則若在兩邊交替且無 `finding`/`decision`，下一個寫的人必須改為 `needsHuman:true` 並停止該主題。
 4. **人類閘門（P6）**：`a2a/NEEDS_HUMAN.md` 的項目**只有 Dan 能結案**，兩個 agent 都不得清除或代為決定。
