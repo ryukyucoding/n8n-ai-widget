@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "kind": "daily_rss_email_draft_specification",
+  "goal": "每天上午 9 點讀取 arXiv cs.AI RSS，只保留最近 24 小時的論文，去除重複標題後取前 10 筆，將 Markdown 摘要以 Email 寄出。",
+  "requiredUserSetup": ["SMTP credential", "sender email", "recipient email"],
+  "schedule": { "hour": 9, "minute": 0 },
+  "feedUrl": "https://export.arxiv.org/rss/cs.AI",
+  "lookbackHours": 24,
+  "maxItems": 10,
+  "emailSubject": "Daily arXiv cs.AI digest",
+  "expectedOutput": { "deliveryShape": "one_object", "fields": ["markdown", "count"] }
+}

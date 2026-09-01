@@ -1,0 +1,175 @@
+'use strict';
+
+// Read-only, deterministic schema retrieval for the planner and any future
+// workflow-engineer agent. It exposes no credentials, workflow data, or URLs.
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+const DEFAULT_SCHEMA_PATH = path.join(__dirname, '..', '..', 'chatbot', 'schemas', 'runtime_node_schemas.json');
+const TOKEN_PATTERN = /[a-z0-9]{2,}/gi;
+const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'from', 'into', 'that', 'this', 'then', 'using', 'user', 'data', 'workflow', 'create', 'make', 'get', 'n8n']);
+
+function tokens(value) {
+  return [...new Set((String(value || '').toLowerCase().match(TOKEN_PATTERN) || []).filter((token) => !STOP_WORDS.has(token)))];
+}
+
+function latestVersion(versions) {
+  const keys = Object.keys(versions || {}).filter((version) => Number.isFinite(Number(version)));
+  return keys.sort((left, right) => Number(right) - Number(left))[0] || null;
+}
+
+function safeParameter(property) {
+  if (!property || typeof property !== 'object' || typeof property.name !== 'string') return null;
+  return {
+    name: property.name,
+    type: typeof property.type === 'string' ? property.type : 'unknown',
+    required: property.required === true,
+    defaultDefined: Object.hasOwn(property, 'default'),
+  };
+}
+
+function safeNodeDescriptor(type, entry) {
+  const version = latestVersion(entry?.versions);
+  const description = version ? entry.versions[version] : null;
+  if (!description || typeof description !== 'object') return null;
+  return {
+    type,
+    typeVersion: Number(version),
+    displayName: typeof description.displayName === 'string' ? description.displayName : type,
+    description: typeof description.description === 'string' ? description.description : '',
+    aliases: Array.isArray(description?.codex?.alias) ? description.codex.alias.filter((item) => typeof item === 'string').slice(0, 8) : [],
+    parameters: (Array.isArray(description.properties) ? description.properties : []).map(safeParameter).filter(Boolean).slice(0, 40),
+    inputs: Array.isArray(description.inputs) ? description.inputs.map((item) => typeof item === 'string' ? item : item?.type).filter(Boolean) : [],
+    outputs: Array.isArray(description.outputs) ? description.outputs.map((item) => typeof item === 'string' ? item : item?.type).filter(Boolean) : [],
+    builderHint: typeof description?.builderHint?.message === 'string' ? description.builderHint.message : null,
+  };
+}
+
+function catalogFromSchemas(nodeTypes) {
+  if (!nodeTypes || typeof nodeTypes !== 'object') throw new TypeError('nodeTypes must be an object');
+  return Object.entries(nodeTypes).map(([type, entry]) => safeNodeDescriptor(type, entry)).filter(Boolean);
+}
+
+function explicitlyNamedRuntimeRequirements({ userRequest, nodeTypes }) {
+  const request = String(userRequest || '');
+  const clauses = request.split(/[,，。;；\n]+/);
+  const positive = /(?:使用|包含|加入|採用|需要|必須|use|include|with|add|require|must)/i;
+  const negative = /(?:不要|不得|禁止|不可|不包含|排除|不使用|do\s+not|don['’]t|without|exclude|forbid)/i;
+  const required = [];
+  const forbidden = [];
+  for (const node of catalogFromSchemas(nodeTypes)) {
+    // A platform name in a request (for example, "create an n8n workflow")
+    // is not an instruction to use an internal node with the same name.
+    if (!tokens(node.displayName).length) continue;
+    const pattern = new RegExp(`(?<![A-Za-z0-9])${node.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`, 'i');
+    const matching = clauses.filter((clause) => pattern.test(clause));
+    if (matching.some((clause) => negative.test(clause))) forbidden.push({ type: node.type, typeVersion: node.typeVersion });
+    else if (matching.some((clause) => positive.test(clause))) required.push({ type: node.type, typeVersion: node.typeVersion });
+  }
+  return { required, forbidden };
+}
+
+function rankNode(descriptor, requestTokens) {
+  const nameTokens = tokens(`${descriptor.type} ${descriptor.displayName} ${descriptor.aliases.join(' ')}`);
+  const descriptionTokens = tokens(`${descriptor.description} ${descriptor.builderHint || ''}`);
+  const parameterTokens = descriptor.parameters.flatMap((parameter) => tokens(parameter.name));
+  let score = 0;
+  for (const token of requestTokens) {
+    if (nameTokens.includes(token)) score += 8;
+    if (descriptionTokens.includes(token)) score += 3;
+    if (parameterTokens.includes(token)) score += 2;
+  }
+  return score;
+}
+
+function retrieveRuntimeNodes({ userRequest, nodeTypes, limit = 12 }) {
+  if (typeof userRequest !== 'string' || !userRequest.trim()) throw new TypeError('userRequest must be a non-empty string');
+  if (!Number.isInteger(limit) || limit < 1 || limit > 30) throw new TypeError('limit must be an integer from 1 to 30');
+  const requestTokens = tokens(userRequest);
+  return catalogFromSchemas(nodeTypes)
+    .map((descriptor) => ({ descriptor, score: rankNode(descriptor, requestTokens) }))
+    .filter((result) => result.score > 0)
+    .sort((left, right) => right.score - left.score || left.descriptor.type.localeCompare(right.descriptor.type))
+    .slice(0, limit)
+    .map((result) => result.descriptor);
+}
+
+function loadRuntimeNodeTypes(schemaPath = DEFAULT_SCHEMA_PATH) {
+  const payload = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+  if (!payload?.nodeTypes || typeof payload.nodeTypes !== 'object') throw new Error('runtime schema export has no nodeTypes object');
+  return payload.nodeTypes;
+}
+
+function planningParameterScore(parameter, requestTokens) {
+  return (parameter.required ? 4 : 0) + requestTokens.filter((token) => tokens(parameter.name).includes(token)).length * 3;
+}
+
+function compactPlanningNode(node, requestTokens) {
+  const parameters = [...node.parameters]
+    .sort((left, right) => planningParameterScore(right, requestTokens) - planningParameterScore(left, requestTokens) || left.name.localeCompare(right.name))
+    .slice(0, 6)
+    .map(({ name, type, required }) => ({ name, type, required }));
+  return {
+    type: node.type,
+    typeVersion: node.typeVersion,
+    displayName: node.displayName,
+    parameters,
+    inputs: node.inputs,
+    outputs: node.outputs,
+  };
+}
+
+function planningContextStats(context) {
+  const candidateNodes = Array.isArray(context?.candidateNodes) ? context.candidateNodes : [];
+  return {
+    candidateNodeCount: candidateNodes.length,
+    parameterCount: candidateNodes.reduce((count, node) => count + (Array.isArray(node.parameters) ? node.parameters.length : 0), 0),
+    serializedCharCount: JSON.stringify(context || {}).length,
+  };
+}
+
+function buildRuntimePlanningContext({ userRequest, schemaPath = DEFAULT_SCHEMA_PATH, limit = 5 } = {}) {
+  const nodeTypes = loadRuntimeNodeTypes(schemaPath);
+  const requestTokens = tokens(userRequest);
+  const explicitlyNamedNodeRequirements = explicitlyNamedRuntimeRequirements({ userRequest, nodeTypes });
+  const requiredKeys = new Set(explicitlyNamedNodeRequirements.required.map((node) => `${node.type}@${node.typeVersion}`));
+  const fullCatalog = catalogFromSchemas(nodeTypes);
+  const explicitlyRequiredNodes = fullCatalog.filter((node) => requiredKeys.has(`${node.type}@${node.typeVersion}`));
+  const rankedNodes = retrieveRuntimeNodes({ userRequest, nodeTypes, limit });
+  const candidateNodes = [...explicitlyRequiredNodes, ...rankedNodes]
+    .filter((node, index, nodes) => nodes.findIndex((candidate) => candidate.type === node.type && candidate.typeVersion === node.typeVersion) === index)
+    .map((node) => compactPlanningNode(node, requestTokens));
+  return {
+    schemaSource: 'installed_runtime_export',
+    candidateNodes,
+    explicitlyNamedNodeRequirements,
+    instruction: 'Use only these node types and exact typeVersions unless the request needs clarification. Do not invent parameters outside the listed names. If a required service needs credentials, identify it as user setup rather than including a credential value.',
+  };
+}
+
+function buildRuntimeRepairContext({ runtimeContext, schemaPath = DEFAULT_SCHEMA_PATH } = {}) {
+  const allowedKeys = new Set((runtimeContext?.candidateNodes || []).map((node) => `${node.type}@${node.typeVersion}`));
+  const candidateNodes = catalogFromSchemas(loadRuntimeNodeTypes(schemaPath))
+    .filter((node) => allowedKeys.has(`${node.type}@${node.typeVersion}`));
+  return {
+    schemaSource: 'installed_runtime_export',
+    candidateNodes,
+    instruction: 'These are the complete repair cards for the allowed runtime nodes. Keep only their exact type and typeVersion combinations. For a retained node, use only parameter names listed on its card.',
+  };
+}
+
+module.exports = {
+  DEFAULT_SCHEMA_PATH,
+  buildRuntimePlanningContext,
+  buildRuntimeRepairContext,
+  catalogFromSchemas,
+  compactPlanningNode,
+  explicitlyNamedRuntimeRequirements,
+  latestVersion,
+  loadRuntimeNodeTypes,
+  retrieveRuntimeNodes,
+  planningContextStats,
+  safeNodeDescriptor,
+  tokens,
+};

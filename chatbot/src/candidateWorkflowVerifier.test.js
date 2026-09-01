@@ -138,6 +138,30 @@ test('normalizes one source output port and reports sibling any-input Code findi
 
   const result = await verifyCandidateWorkflow({
     operation: 'create', userRequest: 'Create a workflow with two independent branches and a calculation.', candidateWorkflow: candidate,
+  }, {
+    // This is a verifier unit test. Supply the result the structural
+    // normalizer is responsible for instead of depending on Python/n8n.
+    structuralValidator: () => ({
+      workflow: {
+        ...candidate,
+        connections: {
+          ...candidate.connections,
+          Start: { main: [candidate.connections.Start.main[1]] },
+        },
+      },
+      warnings: ['normalized source output port from 1 to 0'],
+      repairs: {
+        connectionPorts: [{
+          kind: 'connection_source_port_normalized',
+          sourceNode: 'Start',
+          targetNode: 'Left',
+          connectionType: 'main',
+          fromOutputIndex: 1,
+          toOutputIndex: 0,
+          reason: 'normalized source output port from 1 to 0',
+        }],
+      },
+    }),
   });
 
   assert.equal(result.status, 'repair');

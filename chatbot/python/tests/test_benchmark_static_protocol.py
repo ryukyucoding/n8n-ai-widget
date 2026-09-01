@@ -79,6 +79,16 @@ class BenchmarkStaticProtocolTests(unittest.TestCase):
                 validate_node_parameters(version_candidate)
         self.assertEqual(version_error.exception.safe_findings[0]["category"], "type_version")
 
+    def test_repair_context_can_identify_only_a_node_and_parameter_name(self):
+        candidate = {"nodes": [{"name": "Private", "type": "test.node", "typeVersion": 1, "parameters": {"private": "value"}}]}
+        with patch("workflow_repair.RuntimeSchemaStore", return_value=schema_store()):
+            with self.assertRaises(StructuredValidationError) as error:
+                validate_node_parameters(candidate, include_repair_context=True)
+        self.assertEqual(
+            error.exception.safe_findings[0]["repairContext"],
+            {"nodeIndex": 0, "nodeType": "test.node", "parameterName": "private"},
+        )
+
     def test_connection_port_error_is_structured_and_blocking(self):
         candidate = {
             "nodes": [

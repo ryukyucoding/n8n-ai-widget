@@ -13,6 +13,7 @@ try {
 
 const express = require('express');
 const cors = require('cors');
+const fs = require('node:fs');
 const path = require('path');
 const { Agent } = require('undici');
 
@@ -33,6 +34,17 @@ const { evaluateShadowRepair } = require('./shadowRepairOrchestrator');
 const { observeShadowRepair, shadowRepairEnabled } = require('./shadowObservation');
 const { SUPPORTED_PATTERNS, compileBetaRequest } = require('./runtimeCompilerBeta');
 const {
+  enabledEnvironmentValue,
+  planFirstAvailability,
+} = require('./planFirstAvailability');
+const {
+  proposeNodewisePlan,
+  approveNodewisePlan,
+  compileApprovedNodewisePlan,
+  reviewNodewisePlannerResult,
+} = require('./approvedNodewiseCompiler');
+const { requestNodewisePlannerResult } = require('./nodewisePlanner');
+const {
   createCandidateLimit,
   evaluateCorrectnessFirstRepair,
   repairControllerLogPayload,
@@ -45,7 +57,9 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  // Defer a missing cloud-key failure until a cloud route is actually used.
+  // This also lets the route module load in offline test environments.
+  apiKey: process.env.OPENAI_API_KEY || 'not-configured',
   baseURL: process.env.OPENAI_BASE_URL || undefined,
   defaultHeaders: (process.env.OPENAI_BASE_URL && process.env.OLLAMA_BASIC_AUTH) ? {
     'Authorization': process.env.OLLAMA_BASIC_AUTH
@@ -92,12 +106,11 @@ const WORKFLOW_PLANNER_ENABLED = !['0', 'false', 'no'].includes(
 const WORKFLOW_PLANNER_MODEL = process.env.WORKFLOW_PLANNER_MODEL || 'gpt-oss:120b';
 const SHADOW_REPAIR_ENABLED = shadowRepairEnabled(process.env.SHADOW_REPAIR_ENABLED);
 const CORRECTNESS_FIRST_REPAIR_ENABLED = shadowRepairEnabled(process.env.CORRECTNESS_FIRST_REPAIR_ENABLED);
-const RUNTIME_COMPILER_BETA_ENABLED = ['1', 'true', 'yes'].includes(
-  String(process.env.RUNTIME_COMPILER_BETA_ENABLED || 'false').toLowerCase()
-);
-const BETA_CHAT_STANDALONE = ['1', 'true', 'yes'].includes(
-  String(process.env.BETA_CHAT_STANDALONE || 'false').toLowerCase()
-);
+const RUNTIME_COMPILER_BETA_ENABLED = enabledEnvironmentValue(process.env.RUNTIME_COMPILER_BETA_ENABLED);
+const BETA_CHAT_STANDALONE = enabledEnvironmentValue(process.env.BETA_CHAT_STANDALONE);
+const PLAN_FIRST_COMPILER_ENABLED = enabledEnvironmentValue(process.env.PLAN_FIRST_COMPILER_ENABLED);
+const PLANNER_APPROVAL_HMAC_SECRET = process.env.PLANNER_APPROVAL_HMAC_SECRET || '';
+const PLAN_FIRST_PLANNER_MODEL = process.env.PLAN_FIRST_PLANNER_MODEL || 'qwen3.8:27b';
 
 function timeoutMs(name, fallback) {
   const value = Number.parseInt(process.env[name] || String(fallback), 10);
@@ -216,48 +229,48 @@ app.get('/widget.js', (req, res) => {
 });
 
 // Serve the chat UI inside the iframe
+const CHAT_HTML_TEMPLATE = fs.readFileSync(path.join(__dirname, 'chat.html'), 'utf8');
+
+function modelConfig() {
+  return {
+    create: { models: CREATE_MODELS, defaultModel: DEFAULT_CREATE_MODEL },
+    edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
+    compiler: { models: [], defaultModel: '' },
+    compilerBeta: { enabled: RUNTIME_COMPILER_BETA_ENABLED, standalone: BETA_CHAT_STANDALONE, supportedPatterns: SUPPORTED_PATTERNS },
+    planFirst: { enabled: planReviewEnabled(), plannerModel: PLAN_FIRST_PLANNER_MODEL },
+  };
+}
+
+function renderChatHtml() {
+  const config = JSON.stringify(modelConfig()).replace(/</g, '\\u003c');
+  return CHAT_HTML_TEMPLATE.replace(
+    '/* __N8N_WIDGET_MODEL_CONFIG__ */',
+    `window.__N8N_WIDGET_MODEL_CONFIG__ = ${config};`,
+  );
+}
+
 app.get('/chat', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, 'chat.html'));
+  res.type('html').send(renderChatHtml());
 });
-
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get('/models', (req, res) => {
-  res.json({
-    create: { models: CREATE_MODELS, defaultModel: DEFAULT_CREATE_MODEL },
-    edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
-    compiler: { models: [], defaultModel: '' },
-    compilerBeta: { enabled: RUNTIME_COMPILER_BETA_ENABLED, standalone: BETA_CHAT_STANDALONE, supportedPatterns: SUPPORTED_PATTERNS },
-  });
-});
+function sendModelConfig(req, res) {
+  res.json(modelConfig());
+}
 
-// The compiler beta is deliberately separate from free-form model generation.
-// It accepts only named public-data patterns whose exact runtime JSON has been
-// tested. Unsupported requests are rejected rather than silently falling back.
-app.post('/beta/compile', async (req, res) => {
-  if (!RUNTIME_COMPILER_BETA_ENABLED) return res.status(404).json({ error: 'Runtime Compiler Beta is disabled.' });
-  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
-  if (!message) return res.status(400).json({ error: 'message is required' });
-  if (!N8N_API_KEY) return res.status(503).json({ error: 'Runtime Compiler Beta requires an n8n API key.' });
+app.get('/models', sendModelConfig);
 
-  const compiled = compileBetaRequest(message);
-  if (compiled.status !== 'supported') {
-    return res.status(422).json({
-      error: '這個 Beta 目前只支援兩個已驗證的公開資料 pattern；不會改由模型猜測或建立 workflow。',
-      code: 'beta_pattern_not_supported', supportedPatterns: compiled.supportedPatterns,
-    });
-  }
-
+async function createVerifiedCompilerWorkflow({ userRequest, candidateWorkflow, metadata = {} }) {
   try {
     const verification = await verifyCandidateWorkflow({
-      operation: 'create', userRequest: message, candidateWorkflow: compiled.workflow,
+      operation: 'create', userRequest, candidateWorkflow,
     }, { n8nBaseUrl: N8N_BASE_URL, n8nApiKey: N8N_API_KEY });
     if (!['pass', 'warning'].includes(verification.status)) {
-      return res.status(422).json({ error: 'Runtime Compiler Beta workflow verification failed.', code: 'beta_static_verification_failed' });
+      return { status: 422, payload: { error: 'Runtime Compiler Beta workflow verification failed.', code: 'beta_static_verification_failed' } };
     }
     const n8nRes = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows`, {
       method: 'POST',
@@ -267,17 +280,182 @@ app.post('/beta/compile', async (req, res) => {
     if (!n8nRes.ok) throw new Error(`n8n_create_failed_${n8nRes.status}`);
     const created = await n8nRes.json();
     const postActionVerification = await verifyCreatedWorkflow(created);
-    return res.status(200).json({
-      message: `Runtime Compiler Beta 已建立 workflow「${created.name}」。請在 n8n 手動執行並確認輸出。`,
-      workflowId: created.id, workflowName: created.name,
-      workflowUrl: `${process.env.N8N_PUBLIC_URL || 'http://localhost:5678'}/workflow/${created.id}`,
-      workflow: created, postActionVerification, compilerPattern: compiled.pattern,
-    });
+    return {
+      status: 200,
+      payload: {
+        message: `Runtime Compiler Beta 已建立 workflow「${created.name}」。請在 n8n 手動執行並確認輸出。`,
+        workflowId: created.id, workflowName: created.name,
+        workflowUrl: `${process.env.N8N_PUBLIC_URL || 'http://localhost:5678'}/workflow/${created.id}`,
+        workflow: created, postActionVerification, ...metadata,
+      },
+    };
   } catch (error) {
     console.error('[chatbot] runtime compiler beta failed:', error.message || error);
-    return res.status(500).json({ error: 'Runtime Compiler Beta could not create the workflow.', code: 'beta_create_failed' });
+    return { status: 500, payload: { error: 'Runtime Compiler Beta could not create the workflow.', code: 'beta_create_failed' } };
+  }
+}
+
+// The legacy beta accepts only named public-data patterns whose exact runtime
+// JSON has been tested. The plan-first routes below use the same create adapter.
+async function compileRuntimeBeta(message) {
+  if (!RUNTIME_COMPILER_BETA_ENABLED) {
+    return { status: 404, payload: { error: 'Runtime Compiler Beta is disabled.' } };
+  }
+  if (!message) return { status: 400, payload: { error: 'message is required' } };
+  if (!N8N_API_KEY) {
+    return { status: 503, payload: { error: 'Runtime Compiler Beta requires an n8n API key.' } };
+  }
+
+  const compiled = compileBetaRequest(message);
+  if (compiled.status !== 'supported') {
+    return {
+      status: 422,
+      payload: {
+        error: '這個 Beta 目前只支援兩個已驗證的公開資料 pattern；不會改由模型猜測或建立 workflow。',
+        code: 'beta_pattern_not_supported', supportedPatterns: compiled.supportedPatterns,
+      },
+    };
+  }
+  return createVerifiedCompilerWorkflow({
+    userRequest: message,
+    candidateWorkflow: compiled.workflow,
+    metadata: { compilerPattern: compiled.pattern },
+  });
+}
+
+app.post('/beta/compile', async (req, res) => {
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  const result = await compileRuntimeBeta(message);
+  return res.status(result.status).json(result.payload);
+});
+
+function planReviewEnabled() {
+  return planFirstAvailability({
+    runtimeCompilerEnabled: RUNTIME_COMPILER_BETA_ENABLED,
+    planFirstEnabled: PLAN_FIRST_COMPILER_ENABLED,
+    secret: PLANNER_APPROVAL_HMAC_SECRET,
+  }).available;
+}
+
+function planReviewUnavailable(res) {
+  const availability = planFirstAvailability({
+    runtimeCompilerEnabled: RUNTIME_COMPILER_BETA_ENABLED,
+    planFirstEnabled: PLAN_FIRST_COMPILER_ENABLED,
+    secret: PLANNER_APPROVAL_HMAC_SECRET,
+  });
+  if (availability.available) return false;
+  res.status(availability.status).json({ error: availability.error });
+  return true;
+}
+
+async function planFromUserRequest(message, previousSpecification, signal) {
+  const plannerResult = await requestNodewisePlannerResult({
+    client: openaiLocal,
+    model: PLAN_FIRST_PLANNER_MODEL,
+    userRequest: message,
+    signal,
+  });
+  return reviewNodewisePlannerResult(plannerResult, { previousSpecification });
+}
+
+// Natural-language plan-first entrypoint. It deliberately stops at a rendered
+// review; only an explicit approved-plan request can create a workflow.
+async function handlePlanFromRequest(req, res) {
+  if (planReviewUnavailable(res)) return;
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  try {
+    const review = await runTimedStage({
+      stage: 'nodewise_planning',
+      timeoutMs: PLANNER_TIMEOUT_MS,
+      emit: () => {},
+      task: (signal) => planFromUserRequest(message, req.body?.previousSpecification, signal),
+    });
+    if (review.outcome === 'clarification_required') {
+      return res.json({ status: 'clarification_required', ...review });
+    }
+    if (review.outcome === 'unsupported_capability') {
+      return res.json({ status: 'capability_gap', ...review });
+    }
+    return res.json({ status: 'review_required', ...review });
+  } catch (error) {
+    const timedOut = error instanceof GenerateStageError
+      && error.stage === 'nodewise_planning'
+      && /timed out/.test(error.message);
+    return res.status(timedOut ? 504 : 502).json({
+      error: timedOut ? '規劃逾時，請稍後再試。' : 'Planner 無法產生可驗證的計畫。',
+      code: timedOut ? 'plan_first_planner_timeout' : 'plan_first_planner_failed',
+    });
+  }
+}
+
+// Plan-first entrypoints. The client must explicitly call approve before it can
+// call compile-approved; the approval token is bound to this exact specification,
+// session, runtime schema revision, and skill registry revision.
+app.post('/beta/plan-review', (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  try {
+    if (req.body?.plannerResult) {
+      const review = reviewNodewisePlannerResult(req.body.plannerResult, {
+        previousSpecification: req.body?.previousSpecification,
+      });
+      if (review.outcome === 'clarification_required') {
+        return res.json({ status: 'clarification_required', ...review });
+      }
+      if (review.outcome === 'unsupported_capability') {
+        return res.json({ status: 'capability_gap', ...review });
+      }
+      return res.json({ status: 'review_required', ...review });
+    }
+    const review = proposeNodewisePlan(req.body?.specification);
+    return res.json({ status: 'review_required', ...review, planDiff: null });
+  } catch (error) {
+    return res.status(422).json({ error: error.message || 'Plan review failed.', code: 'plan_review_invalid' });
   }
 });
+
+function handlePlanApproval(req, res) {
+  if (planReviewUnavailable(res)) return;
+  const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
+  if (req.body?.approved !== true) return res.status(400).json({ error: 'Explicit approved:true is required.' });
+  try {
+    const approved = approveNodewisePlan(req.body?.specification, {
+      secret: PLANNER_APPROVAL_HMAC_SECRET,
+      sessionId,
+    });
+    return res.json({ status: 'approved', ...approved });
+  } catch (error) {
+    return res.status(422).json({ error: error.message || 'Plan approval failed.', code: 'plan_approval_invalid' });
+  }
+}
+
+async function handleApprovedPlanCompilation(req, res) {
+  if (planReviewUnavailable(res)) return;
+  if (!N8N_API_KEY) return res.status(503).json({ error: 'Runtime Compiler Beta requires an n8n API key.' });
+  const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
+  try {
+    const compiled = compileApprovedNodewisePlan(req.body?.specification, req.body?.approvalToken, {
+      secret: PLANNER_APPROVAL_HMAC_SECRET,
+      sessionId,
+    });
+    const result = await createVerifiedCompilerWorkflow({
+      userRequest: compiled.workflow.name,
+      candidateWorkflow: compiled.workflow,
+      metadata: {
+        compilerMode: 'plan_first_nodewise',
+        planFingerprint: compiled.planFingerprint,
+        runtimeSchemaRevision: compiled.runtimeSchemaRevision,
+        skillRegistryRevision: compiled.skillRegistryRevision,
+      },
+    });
+    return res.status(result.status).json(result.payload);
+  } catch (error) {
+    return res.status(422).json({ error: error.message || 'Approved plan compilation failed.', code: 'approved_plan_rejected' });
+  }
+}
+
+app.post('/beta/plan-from-request', handlePlanFromRequest);
+app.post('/beta/plan-approve', handlePlanApproval);
+app.post('/beta/compile-approved', handleApprovedPlanCompilation);
 
 // ---------------------------------------------------------------------------
 // POST /agent/run — intent decompose + modify/delete/insert station pipelines
@@ -645,7 +823,15 @@ async function planWorkflow(userRequest, signal) {
 }
 
 app.post('/generate', async (req, res) => {
-  const { message, model, stream } = req.body || {};
+  const { message, model, stream, mode } = req.body || {};
+  if (mode === 'plan_first_request') return handlePlanFromRequest(req, res);
+  if (mode === 'plan_first_approve') return handlePlanApproval(req, res);
+  if (mode === 'plan_first_compile') return handleApprovedPlanCompilation(req, res);
+  if (mode === 'compiler_beta') {
+    const compilerMessage = typeof message === 'string' ? message.trim() : '';
+    const result = await compileRuntimeBeta(compilerMessage);
+    return res.status(result.status).json(result.payload);
+  }
   const streamProgress = stream === true;
   const lifecycleController = new AbortController();
   const { signal } = lifecycleController;
@@ -996,7 +1182,8 @@ app.post('/generate', async (req, res) => {
 // Start
 // ---------------------------------------------------------------------------
 
-app.listen(port, () => {
+function startServer() {
+  return app.listen(port, () => {
   console.log(`n8n AI widget server running on http://localhost:${port}`);
   console.log(`n8n API base: ${N8N_BASE_URL}`);
   void verifyN8nApiKey(N8N_BASE_URL, N8N_API_KEY).then((check) => {
@@ -1017,4 +1204,11 @@ app.listen(port, () => {
     }
     console.warn('[chatbot] N8N_API_KEY check failed:', check);
   });
-});
+  });
+}
+
+// Node's test runner executes source files supplied via `node --test src` as
+// child test workers. They must be importable without binding an HTTP port.
+if (require.main === module && !process.env.NODE_TEST_CONTEXT) startServer();
+
+module.exports = { app, startServer };

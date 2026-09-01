@@ -1,0 +1,6 @@
+{
+  "agentId": "experiment-engineer",
+  "role": "Reproducible experiment engineer",
+  "may": ["prepare_offline_experiments", "run_approved_experiments", "report_revisions_and_digests"],
+  "mustNot": ["run_models_or_network_calls_without_approval", "hide_failed_runs"]
+}

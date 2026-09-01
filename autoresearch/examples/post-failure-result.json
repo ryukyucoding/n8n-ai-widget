@@ -1,0 +1,15 @@
+{
+  "jsonrpc": "2.0",
+  "id": "example-2",
+  "method": "SendMessage",
+  "params": {
+    "taskId": "task_replace_with_created_task_id",
+    "senderAgentId": "experiment-engineer",
+    "assigneeAgentId": "debugger",
+    "executionHost": "server",
+    "resourceClass": "light",
+    "taskType": "sanitized_failure_diagnosis",
+    "state": "working",
+    "text": "Failure packet: category=dataflow; severity=repair; reproducibility=confirmed. A static check found a candidate ordering violation. Propose a test and a general fix; do not retry external operations."
+  }
+}

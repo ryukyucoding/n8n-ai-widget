@@ -1,0 +1,11 @@
+[Unit]
+Description=Low-frequency fallback for deferred AutoResearch debugger work
+
+[Timer]
+OnBootSec=15min
+OnUnitInactiveSec=15min
+Persistent=true
+Unit=autoresearch-debugger-oncall.service
+
+[Install]
+WantedBy=timers.target

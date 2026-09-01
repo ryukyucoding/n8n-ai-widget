@@ -6,6 +6,7 @@ const nodeTest = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, 'chat.html'), 'utf8');
+const serverSource = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
 
 function extractProgressHelper() {
   const start = source.indexOf('async function generateWithProgress');
@@ -52,7 +53,7 @@ nodeTest('Create sends stream:true, renders progress, ignores unknown events, an
   assert.equal(h.calls[0].url, '/generate');
   assert.equal(JSON.parse(h.calls[0].request.body).stream, true);
   assert.deepEqual(h.updates, ['Planning', 'Generating']);
-  assert.ok(source.indexOf('data = generated.data;') < source.indexOf('typing.remove();'));
+  assert.match(source, /data = generated\.data;[\s\S]*typing\.remove\(\);/);
   assert.equal(result.ok, true);
   assert.equal(result.data.message, 'done');
 });
@@ -64,6 +65,40 @@ nodeTest('malformed NDJSON rejects and the existing error path removes typing', 
 });
 
 nodeTest('Edit stays on the JSON agent request and draft handoff is absent', () => {
-  assert.ok(source.includes('} else {\n          res = await fetch(AGENT_URL, {'));
+  assert.match(source, /\} else \{\r?\n\s*res = await fetch\(AGENT_URL, \{/);
   assert.doesNotMatch(source, /DRAFT_WORKFLOW_KEY|draft_needs_setup|draft_needs_repair|editHandoff|createDraftHandoff/);
+});
+
+nodeTest('Compiler Beta uses the established Create transport with an explicit mode', () => {
+  assert.match(source, /mode: 'compiler_beta'/);
+  assert.match(source, /useCompiler[\s\S]*fetch\(GENERATE_URL/);
+  assert.doesNotMatch(source, /COMPILER_URL/);
+  assert.match(serverSource, /if \(mode === 'compiler_beta'\)/);
+  assert.match(serverSource, /compileRuntimeBeta\(compilerMessage\)/);
+});
+
+nodeTest('Plan-first Beta shows planning progress and keeps creation behind explicit approval', () => {
+  assert.match(source, /__N8N_WIDGET_MODEL_CONFIG__/);
+  assert.doesNotMatch(source, /MODELS_URL/);
+  assert.match(source, /PLAN_REQUEST_URL = GENERATE_URL/);
+  assert.match(source, /mode: 'plan_first_request'/);
+  assert.match(source, /mode: 'plan_first_approve'/);
+  assert.match(source, /mode: 'plan_first_compile'/);
+  assert.match(source, /正在依 runtime skill 規劃 workflow/);
+  assert.match(source, /data-plan-approve/);
+  assert.match(source, /PLAN_APPROVE_URL/);
+  assert.match(source, /PLAN_COMPILE_URL/);
+  assert.match(serverSource, /app\.post\('\/beta\/plan-from-request'/);
+  assert.match(serverSource, /mode === 'plan_first_request'/);
+  assert.match(serverSource, /requestNodewisePlannerResult/);
+  assert.match(serverSource, /function renderChatHtml\(\)/);
+});
+
+nodeTest('Plan-first review asks the trusted widget to expand only while approval is pending', () => {
+  assert.match(source, /action: 'panelPresentation'/);
+  assert.match(source, /presentation: active \? 'plan-review' : 'default'/);
+  assert.match(source, /bubble\.classList\.add\('plan-result'\)/);
+  assert.match(source, /setPlanReviewPresentation\(true\)/);
+  assert.match(source, /pendingPlan = null;\r?\n\s*setPlanReviewPresentation\(false\)/);
+  assert.match(source, /if \(mode !== 'planner'\) setPlanReviewPresentation\(false\)/);
 });

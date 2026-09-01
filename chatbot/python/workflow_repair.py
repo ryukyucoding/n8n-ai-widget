@@ -7,6 +7,7 @@ Post-inference pipeline to repair JSON syntax and align node types.
 from __future__ import annotations
 
 import difflib
+import copy
 import json
 import os
 import re
@@ -33,6 +34,11 @@ SAFE_BENCHMARK_FINDING_CATEGORIES = frozenset({
     "payload_sanitization",
 })
 
+# "n8n" identifies the platform in ordinary user requests. It must not turn
+# those requests into an implicit requirement for the internal n8n-management
+# node whose display name happens to be the same word.
+AMBIGUOUS_RUNTIME_DISPLAY_NAMES = frozenset({"n8n"})
+
 
 class StructuredValidationError(ValueError):
     """A normal validator error with an optional safe benchmark projection."""
@@ -48,19 +54,33 @@ def safe_benchmark_finding(
     repairable: bool = True,
     normalized: bool = False,
     blocking: Optional[bool] = None,
+    repair_context: Optional[JSONDict] = None,
 ) -> JSONDict:
     """Return the child protocol's fixed, de-identified finding shape."""
     if category not in SAFE_BENCHMARK_FINDING_CATEGORIES:
         raise ValueError("unsupported safe benchmark finding category")
     if severity not in {"warning", "repair", "fail"}:
         raise ValueError("unsupported safe benchmark finding severity")
-    return {
+    finding: JSONDict = {
         "category": category,
         "severity": severity,
         "repairable": bool(repairable),
         "normalized": bool(normalized),
         "blocking": bool(blocking) if blocking is not None else severity != "warning" and not normalized,
     }
+    if repair_context is not None:
+        allowed = {
+            "nodeIndex", "nodeType", "parameterName",
+            "requiredNodeType", "forbiddenNodeType",
+            "sourceNodeIndex", "sourceNodeType", "targetNodeIndex", "targetNodeType",
+            "connectionType", "sourceOutputIndex", "targetInputIndex",
+        }
+        finding["repairContext"] = {
+            key: value
+            for key, value in repair_context.items()
+            if key in allowed and (isinstance(value, str) or isinstance(value, int))
+        }
+    return finding
 # n8n node descriptions can declare a variable number of inputs with a
 # declarative expression such as `Array.from({ length: parameters.numberInputs
 # || 2 }, ...)`. This recognizes that shared runtime-description pattern; it
@@ -69,6 +89,61 @@ _DYNAMIC_INPUT_COUNT = re.compile(
     r"Array\.from\(\s*\{\s*length\s*:\s*parameters(?:\.([A-Za-z_]\w*)|\[['\"]([^'\"]+)['\"]\])\s*\|\|\s*(\d+)",
     re.DOTALL,
 )
+_DYNAMIC_PARAMETER_ASSIGNMENT = re.compile(
+    r"const\s+(?P<variable>[A-Za-z_]\w*)\s*=\s*(?:\$parameter|parameters)(?:\.([A-Za-z_]\w*)|\[['\"]([^'\"]+)['\"]\])\s*;"
+)
+_DYNAMIC_ARRAY_PORT = re.compile(
+    r"!Array\.isArray\(\s*(?P<variable>[A-Za-z_]\w*)\s*\).*?"
+    r"return\s*\[\s*\{\s*type\s*:\s*['\"](?P<port>[A-Za-z_]\w*)['\"]",
+    re.DOTALL,
+)
+_DYNAMIC_CONDITIONAL_PORTS = re.compile(
+    r"if\s*\(\s*(?P<left_variable>[A-Za-z_]\w*)\s*===\s*['\"](?P<left_value>[^'\"]+)['\"]\s*"
+    r"&&\s*(?P<right_variable>[A-Za-z_]\w*)\s*===\s*['\"](?P<right_value>[^'\"]+)['\"]\s*\)\s*"
+    r"\{\s*return\s*\[(?P<ports>.*?)\]\s*;\s*\}",
+    re.DOTALL,
+)
+_DYNAMIC_FALLBACK_PORTS = re.compile(r"return\s*\[(?P<ports>[^\]]+)\]\s*;", re.DOTALL)
+_PORT_TYPE_LITERAL = re.compile(r"(?:type\s*:\s*)?['\"](?P<port>[A-Za-z_]\w*)['\"]")
+
+
+def _port_types_from_return(raw_ports: str) -> Optional[List[str]]:
+    ports = _PORT_TYPE_LITERAL.findall(raw_ports)
+    return ports or None
+
+
+def _dynamic_array_ports(raw_ports: str, node: JSONDict) -> Optional[List[str]]:
+    """Read n8n's explicit single-or-array port pattern without evaluating JS."""
+    assignments = {
+        match.group("variable"): match.group(2) or match.group(3)
+        for match in _DYNAMIC_PARAMETER_ASSIGNMENT.finditer(raw_ports)
+    }
+    match = _DYNAMIC_ARRAY_PORT.search(raw_ports)
+    if not match or match.group("variable") not in assignments:
+        return None
+    parameter = assignments[match.group("variable")]
+    value = node.get("parameters", {}).get(parameter)
+    return [match.group("port")] * len(value) if isinstance(value, list) else [match.group("port")]
+
+
+def _dynamic_conditional_ports(raw_ports: str, node: JSONDict) -> Optional[List[str]]:
+    """Read an explicit two-parameter conditional port declaration safely."""
+    assignments = {
+        match.group("variable"): match.group(2) or match.group(3)
+        for match in _DYNAMIC_PARAMETER_ASSIGNMENT.finditer(raw_ports)
+    }
+    match = _DYNAMIC_CONDITIONAL_PORTS.search(raw_ports)
+    if not match:
+        return None
+    left = assignments.get(match.group("left_variable"))
+    right = assignments.get(match.group("right_variable"))
+    parameters = node.get("parameters", {})
+    if left and right and parameters.get(left) == match.group("left_value") and parameters.get(right) == match.group("right_value"):
+        return _port_types_from_return(match.group("ports"))
+    fallback_matches = list(_DYNAMIC_FALLBACK_PORTS.finditer(raw_ports))
+    if not fallback_matches:
+        return None
+    return _port_types_from_return(fallback_matches[-1].group("ports"))
 
 ALLOWED_NODE_FIELDS = {
     "id",
@@ -152,6 +227,8 @@ class RuntimeSchemaStore:
                 display_name = description.get("displayName") if isinstance(description, dict) else None
                 if not isinstance(display_name, str) or len(display_name.strip()) < 3:
                     continue
+                if display_name.strip().casefold() in AMBIGUOUS_RUNTIME_DISPLAY_NAMES:
+                    continue
                 name_pattern = re.compile(
                     rf"(?<![A-Za-z0-9]){re.escape(display_name)}(?![A-Za-z0-9])",
                     re.IGNORECASE,
@@ -197,15 +274,15 @@ class RuntimeSchemaStore:
         if not isinstance(raw_inputs, str):
             return None
         match = _DYNAMIC_INPUT_COUNT.search(raw_inputs)
-        if not match:
-            return None
-        parameter_name = match.group(1) or match.group(2)
-        default_count = int(match.group(3))
-        raw_count = node.get("parameters", {}).get(parameter_name, default_count)
-        if isinstance(raw_count, bool) or not isinstance(raw_count, int) or raw_count < 0:
-            return None
-        # The recognized n8n pattern creates one main input object per item.
-        return ["main"] * raw_count
+        if match:
+            parameter_name = match.group(1) or match.group(2)
+            default_count = int(match.group(3))
+            raw_count = node.get("parameters", {}).get(parameter_name, default_count)
+            if isinstance(raw_count, bool) or not isinstance(raw_count, int) or raw_count < 0:
+                return None
+            # The recognized n8n pattern creates one main input object per item.
+            return ["main"] * raw_count
+        return _dynamic_conditional_ports(raw_inputs, node)
 
     def output_ports_for(self, node: JSONDict) -> Optional[List[str]]:
         """Return source output connection types for static runtime definitions."""
@@ -213,6 +290,8 @@ class RuntimeSchemaStore:
         if not description:
             return None
         raw_outputs = description.get("outputs")
+        if isinstance(raw_outputs, str):
+            return _dynamic_array_ports(raw_outputs, node)
         if not isinstance(raw_outputs, list):
             return None
         ports: List[str] = []
@@ -230,6 +309,34 @@ def _is_expression(value: Any) -> bool:
     return isinstance(value, str) and value.lstrip().startswith("=")
 
 
+def _matches_display_value(actual: Any, expected: Any) -> bool:
+    """Evaluate n8n displayOptions values, including version comparators."""
+    if not isinstance(expected, dict):
+        return actual == expected
+    condition = expected.get("_cnd")
+    if not isinstance(condition, dict):
+        return False
+    for operator, operand in condition.items():
+        try:
+            if operator == "eq" and actual != operand:
+                return False
+            if operator == "neq" and actual == operand:
+                return False
+            if operator == "gt" and not actual > operand:
+                return False
+            if operator == "gte" and not actual >= operand:
+                return False
+            if operator == "lt" and not actual < operand:
+                return False
+            if operator == "lte" and not actual <= operand:
+                return False
+            if operator not in {"eq", "neq", "gt", "gte", "lt", "lte"}:
+                return False
+        except TypeError:
+            return False
+    return True
+
+
 def _is_applicable(property_def: JSONDict, parameters: JSONDict, version: float) -> bool:
     display = property_def.get("displayOptions", {})
     if not isinstance(display, dict):
@@ -242,7 +349,7 @@ def _is_applicable(property_def: JSONDict, parameters: JSONDict, version: float)
         for key, allowed in rules.items():
             actual = version if key == "@version" else parameters.get(key)
             allowed_values = allowed if isinstance(allowed, list) else [allowed]
-            if actual not in allowed_values:
+            if not any(_matches_display_value(actual, value) for value in allowed_values):
                 matches = False
                 break
         if matches:
@@ -271,7 +378,11 @@ def _validate_value(value: Any, definition: JSONDict, path: str) -> Optional[str
     return None
 
 
-def validate_node_parameters(workflow_dict: JSONDict, user_request: str = "") -> None:
+def validate_node_parameters(
+    workflow_dict: JSONDict,
+    user_request: str = "",
+    include_repair_context: bool = False,
+) -> None:
     """Validate every generated parameter against runtime-exported n8n descriptions."""
     store = RuntimeSchemaStore()
     if not store.schemas:
@@ -289,14 +400,20 @@ def validate_node_parameters(workflow_dict: JSONDict, user_request: str = "") ->
             f"original user request requires runtime node {node_type}; "
             "the workflow must include that exact type"
         )
-        safe_findings.append(safe_benchmark_finding("node_type", "repair", True, False, True))
+        repair_context = {"requiredNodeType": node_type} if include_repair_context else None
+        safe_findings.append(
+            safe_benchmark_finding("node_type", "repair", True, False, True, repair_context)
+        )
     for node_type in sorted(forbidden_types & generated_types):
         errors.append(
             f"original user request forbids runtime node {node_type}; "
             "the workflow must not include that type"
         )
-        safe_findings.append(safe_benchmark_finding("node_type", "repair", True, False, True))
-    for node in workflow_dict["nodes"]:
+        repair_context = {"forbiddenNodeType": node_type} if include_repair_context else None
+        safe_findings.append(
+            safe_benchmark_finding("node_type", "repair", True, False, True, repair_context)
+        )
+    for node_index, node in enumerate(workflow_dict["nodes"]):
         description = store.description_for(node["type"], node["typeVersion"])
         if not description:
             versions = ", ".join(store.available_versions(node["type"])) or "none"
@@ -330,7 +447,16 @@ def validate_node_parameters(workflow_dict: JSONDict, user_request: str = "") ->
                     f"node {node['name']!r}: parameters.{name} is not valid for this node version; "
                     f"valid parameters: {valid_names}"
                 )
-                safe_findings.append(safe_benchmark_finding("parameter_schema", "repair", True, False, True))
+                repair_context = (
+                    {"nodeIndex": node_index, "nodeType": node["type"], "parameterName": name}
+                    if include_repair_context
+                    else None
+                )
+                safe_findings.append(
+                    safe_benchmark_finding(
+                        "parameter_schema", "repair", True, False, True, repair_context
+                    )
+                )
                 continue
             candidate_errors = [_validate_value(value, definition, f"parameters.{name}") for definition in candidates]
             if all(error is not None for error in candidate_errors):
@@ -340,7 +466,10 @@ def validate_node_parameters(workflow_dict: JSONDict, user_request: str = "") ->
         raise StructuredValidationError("workflow parameter validation failed: " + "; ".join(errors), safe_findings)
 
 
-def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
+def validate_connection_ports(
+    workflow_dict: JSONDict,
+    include_repair_context: bool = False,
+) -> List[JSONDict]:
     """Normalize unambiguous source/target ports, then validate connections.
 
     n8n accepts some malformed workflow JSON even when the canvas cannot draw
@@ -353,8 +482,33 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
         return []
 
     nodes_by_name = {node["name"]: node for node in workflow_dict["nodes"]}
+    node_indices = {node["name"]: index for index, node in enumerate(workflow_dict["nodes"])}
     errors: List[str] = []
+    error_contexts: List[JSONDict] = []
     normalizations: List[JSONDict] = []
+
+    def add_error(message: str, source_name: str, connection_type: str,
+                  output_index: int, target: Optional[JSONDict] = None,
+                  target_index: Optional[int] = None) -> None:
+        errors.append(message)
+        if not include_repair_context:
+            error_contexts.append({})
+            return
+        source = nodes_by_name[source_name]
+        context: JSONDict = {
+            "sourceNodeIndex": node_indices[source_name],
+            "sourceNodeType": source["type"],
+            "connectionType": connection_type,
+            "sourceOutputIndex": output_index,
+        }
+        if target is not None and target_index is not None:
+            context.update({
+                "targetNodeIndex": node_indices[target["name"]],
+                "targetNodeType": target["type"],
+                "targetInputIndex": target_index,
+            })
+        error_contexts.append(context)
+
     for source_name, output_types in workflow_dict.get("connections", {}).items():
         source = nodes_by_name[source_name]
         source_ports = store.output_ports_for(source)
@@ -365,9 +519,10 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
             ]
             for output_index, group in enumerate(groups):
                 if source_ports is None:
-                    errors.append(
+                    add_error(
                         f"connection from {source_name!r} cannot confirm source output ports from "
-                        "the runtime schema; refusing to guess an output index"
+                        "the runtime schema; refusing to guess an output index",
+                        source_name, connection_type, output_index,
                     )
                 elif output_index not in source_compatible_indices:
                     # The source output index is represented by the connection
@@ -389,13 +544,15 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
                                 "reason": "runtime schema exposes one compatible source output",
                             })
                     elif output_index >= len(source_ports):
-                        errors.append(
-                            f"node {source_name!r} has no output port {output_index} for connection type {connection_type!r}"
+                        add_error(
+                            f"node {source_name!r} has no output port {output_index} for connection type {connection_type!r}",
+                            source_name, connection_type, output_index,
                         )
                     else:
-                        errors.append(
+                        add_error(
                             f"node {source_name!r} output port {output_index} has type "
-                            f"{source_ports[output_index]!r}, not {connection_type!r}"
+                            f"{source_ports[output_index]!r}, not {connection_type!r}",
+                            source_name, connection_type, output_index,
                         )
 
                 # Continue checking target ports even when a source-port
@@ -405,9 +562,10 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
                     target = nodes_by_name[connection["node"]]
                     target_ports = store.input_ports_for(target)
                     if target_ports is None:
-                        errors.append(
+                        add_error(
                             f"connection from {source_name!r} to {target['name']!r} cannot confirm "
-                            "target input ports from the runtime schema; refusing to guess an input index"
+                            "target input ports from the runtime schema; refusing to guess an input index",
+                            source_name, connection_type, output_index, target, connection.get("index", 0),
                         )
                         continue
                     target_index = connection["index"]
@@ -438,16 +596,18 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
                         continue
                     if target_index >= len(target_ports):
                         valid_indices = ", ".join(str(index) for index in range(len(target_ports))) or "none"
-                        errors.append(
+                        add_error(
                             f"connection from {source_name!r} to {target['name']!r} uses input index "
-                            f"{target_index}, but this node version exposes input indices: {valid_indices}"
+                            f"{target_index}, but this node version exposes input indices: {valid_indices}",
+                            source_name, connection_type, output_index, target, target_index,
                         )
                         continue
                     if target_ports[target_index] != connection_type:
-                        errors.append(
+                        add_error(
                             f"connection from {source_name!r} to {target['name']!r} uses type "
                             f"{connection_type!r}, but input index {target_index} expects "
-                            f"{target_ports[target_index]!r}"
+                            f"{target_ports[target_index]!r}",
+                            source_name, connection_type, output_index, target, target_index,
                         )
             # Preserve valid empty branches, but remove only empty groups beyond
             # the runtime's output range after a source-port normalization.
@@ -459,8 +619,8 @@ def validate_connection_ports(workflow_dict: JSONDict) -> List[JSONDict]:
         for _ in normalizations
     ]
     protocol_findings.extend(
-        safe_benchmark_finding("connection_port", "repair", True, False, True)
-        for _ in errors
+        safe_benchmark_finding("connection_port", "repair", True, False, True, context or None)
+        for context in error_contexts
     )
     if errors:
         raise StructuredValidationError("workflow connection-port validation failed: " + "; ".join(errors), protocol_findings)
@@ -797,16 +957,13 @@ def normalize_node_positions(workflow_dict: JSONDict) -> None:
         occupied.append(candidate)
 
 
-def process_and_verify_workflow(
+def canonicalize_workflow(
     raw_output: str,
     n8n_url: Optional[str] = None,
     api_key: Optional[str] = None,
     user_request: str = "",
-    return_metadata: bool = False,
-) -> Any:
-    """
-    Main entrypoint: parses, heals JSON, and aligns node types.
-    """
+) -> JSONDict:
+    """Parse and align a workflow before any runtime validation or execution."""
     # 1. Repair and load JSON
     workflow_data = heal_json_format(raw_output)
 
@@ -825,7 +982,18 @@ def process_and_verify_workflow(
 
     # 4. Align nodes
     aligner = FuzzyNodeAligner(valid_types)
-    healed_workflow = aligner.heal_workflow_nodes(workflow_data)
+    return aligner.heal_workflow_nodes(workflow_data)
+
+
+def process_and_verify_workflow(
+    raw_output: str,
+    n8n_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    user_request: str = "",
+    return_metadata: bool = False,
+) -> Any:
+    """Main entrypoint: canonicalizes, validates, and normalizes a workflow."""
+    healed_workflow = canonicalize_workflow(raw_output, n8n_url, api_key, user_request)
 
     # 5. Reject invalid node options before the workflow is sent to n8n.
     validate_node_parameters(healed_workflow, user_request)

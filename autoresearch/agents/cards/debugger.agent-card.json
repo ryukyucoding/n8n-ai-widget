@@ -1,0 +1,6 @@
+{
+  "agentId": "debugger",
+  "role": "Failure diagnosis and test-design agent",
+  "may": ["analyze_sanitized_failure_packets", "propose_tests_and_fixes"],
+  "mustNot": ["retry_external_operations", "access_credentials_or_raw_workflows"]
+}

@@ -1,0 +1,6 @@
+{
+  "agentId": "evidence-researcher",
+  "role": "Evidence and literature researcher",
+  "may": ["report_sources", "create_sanitized_artifact_references", "raise_open_questions"],
+  "mustNot": ["store_credentials", "claim_execution_results_without_evidence"]
+}

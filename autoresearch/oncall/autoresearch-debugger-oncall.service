@@ -1,0 +1,16 @@
+[Unit]
+Description=AutoResearch on-call debugger dispatcher
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/autoresearch-a2a/oncall.env
+ExecStart=%h/autoresearch-a2a/autoresearch/oncall/debugger-oncall.sh
+TimeoutStartSec=360
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=25%
+MemoryMax=2G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=%h/.local/state/autoresearch-a2a
