@@ -56,3 +56,13 @@ easy100CapabilityCoverage 3  acceptanceContract 12  candidateWorkflowVerifier 8
 nodewisePlannerEnvelope 6
 ```
 註記：planBinding 由 TASKS 記錄的 22 成長到 27，機制持續開發且維持綠燈。**此結果只驗證機制單元正確，不代表已接線到產品路徑（R2），也不代表 .44 線上行為**（見 NEEDS_HUMAN 的未提交 patch 項）。下一步：V2 接線稽核。
+
+### 2026-09-01 V2 — 接線稽核（executor 唯讀，git grep require 追溯）
+方法：對每個機制模組 grep 非測試檔的 `require`，並從 `chatbot/src/index.js` 的 route 往下追（AGENTS.md 的「已接線」判準）。
+**重大進展 vs `TASKS_FOR_CODEX.md`**（當時 planBinding/planDiff/runtimeSchemaRevision/planReviewGate/pipelineIr 全標「無 caller」）：
+- **已接線到產品路徑：** `index.js` L45 直接 require `approvedNodewiseCompiler.js`；route `/beta/plan-approve → handlePlanApproval` 用它，串到 `planBinding` + `planDiff` + `runtimeSchemaRevision`。`publicUrlPolicy` 經 `nodewiseCompiler`/`rssDigestCompiler`。`nodewisePlanner` 由 index.js require。→ **R1/R2/R11/R17 + plan-first 審核/核准/編譯三步已在產品路徑上**（曾是 TASKS 的關鍵瓶頸）。
+- **仍未接線（已實作+測試但無 caller）：** `planReviewGate.js`、`pipelineIr.js`、`setupManifest.js`。前兩者只在 `planBinding.js` 的**註解**被提及（非 require），`setupManifest` 零引用。
+界限：本稽核只證明「require 鏈可達」，未執行實際 route 行為驗證（需起服務或 .44）。下一步 V3：核對這三個未接線模組是「該接未接」還是「已被別的實作取代的死碼」。
+
+### 已知協定張力（記錄，留給 brain/Dan 裁決，不單方面改）
+P8「對同一對象連續發送 6 則 WARN、7 則 ERROR」的設計前提是「對方掛了就該停送」。但 Dan 已授權 executor 在 brain 離線時單飛推進，這會與 P8 相衝：合法的單飛工作會被誤判為病態灌訊。**暫行對策：** 例行進度只寫本執行日誌（非 outbox 訊息，不increment streak），outbox 訊息保留給 brain 必須檢驗/回應的里程碑 finding。長期解法建議 brain 修訂 P8：區分「無授權的單方灌訊」與「有 Dan 授權的單飛」，屬協定層變更，不由 executor 逕改。
