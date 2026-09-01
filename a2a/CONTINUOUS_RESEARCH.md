@@ -64,5 +64,12 @@ nodewisePlannerEnvelope 6
 - **仍未接線（已實作+測試但無 caller）：** `planReviewGate.js`、`pipelineIr.js`、`setupManifest.js`。前兩者只在 `planBinding.js` 的**註解**被提及（非 require），`setupManifest` 零引用。
 界限：本稽核只證明「require 鏈可達」，未執行實際 route 行為驗證（需起服務或 .44）。下一步 V3：核對這三個未接線模組是「該接未接」還是「已被別的實作取代的死碼」。
 
+### 2026-09-02 V3 — 三個未接線模組的定性（executor 讀碼比對）
+方法：讀各模組 exports 與檔頭，對照產品路徑（index.js L40-45 從 `approvedNodewiseCompiler` 引入 `proposeNodewisePlan/reviewNodewisePlannerResult/approveNodewisePlan/compileApprovedNodewisePlan`，plan-review/approve handler 全數呼叫這些）。
+- **`planReviewGate.js` → 已被取代（產品路徑死碼候選）。** 它 export `proposePlanReview/applyPlanReviewDecision/canCompileApprovedPlan`，對「人類可讀 plan」取 fingerprint。這正是規格審查 A1 指出的缺陷（compiler 消費的是 IR，不是人類 plan；見 planBinding.js L5 註解）。`approvedNodewiseCompiler` 已用「同一份 nodewise specification 當 canonical IR：review 由它 render、approval 對它簽章、compiler 消費同一個值」取代之，且產品 handler 完全不呼叫 planReviewGate。→ 建議歸檔，但**刪除/整併需 brain 同意（Dan 指定閘門），我僅標記不移除**。
+- **`setupManifest.js` → 前置建置，等 step 4，非死碼。** 它 require `runtimeSkillRegistry` 的 `resolveCredentialBindings`，處理 credential identities / availableCredentialNames / `create_inactive_draft` disposition。屬憑證/setup 流（COMPILER_EXPANSION 步驟 4）。憑證子系統落地時再接線。
+- **`pipelineIr.js` → 未定，需 brain/設計裁定。** 它是更結構化的 typed IR（`SingleItem/ItemList/Binary` shapes、拓撲排序、merge policies），比現行 nodewise specification 更嚴格。目前無 caller：可能是超前的未採用 IR，也可能被 nodewise spec 取代。executor 不逕自判定，交 brain。
+結論：接線缺口不是「落後」，而是三種不同狀態——死碼(planReviewGate)／前置待依賴(setupManifest)／設計未定(pipelineIr)。真正待推進的是 COMPILER_EXPANSION 步驟 2/3（編譯器內部，不碰憑證）。
+
 ### 已知協定張力（記錄，留給 brain/Dan 裁決，不單方面改）
 P8「對同一對象連續發送 6 則 WARN、7 則 ERROR」的設計前提是「對方掛了就該停送」。但 Dan 已授權 executor 在 brain 離線時單飛推進，這會與 P8 相衝：合法的單飛工作會被誤判為病態灌訊。**暫行對策：** 例行進度只寫本執行日誌（非 outbox 訊息，不increment streak），outbox 訊息保留給 brain 必須檢驗/回應的里程碑 finding。長期解法建議 brain 修訂 P8：區分「無授權的單方灌訊」與「有 Dan 授權的單飛」，屬協定層變更，不由 executor 逕改。
