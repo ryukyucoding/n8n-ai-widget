@@ -334,16 +334,20 @@ Claude 27 則、Codex 12 則，交錯模式顯示是真實往返（最長連續 
 
 ## 4. 權限邊界（24/7 無人值守時特別重要）
 
-無人值守時，**兩個 agent 都不得**：
+無人值守時，除下方列出的 `brain` 有界例外外，**兩個 agent 都不得**：
 
-1. 執行 git 寫入操作（P10）
-2. 修改 `ollama-widget` 分支相關檔案
+1. 執行 git commit、push、merge、rebase、branch 移動或其他 Git 寫入／發布操作（P10）
+2. 直接修改已部署的 `ollama-widget` checkout，或把未驗證內容直接放進長期 deployment branch
 3. 執行會產生外部副作用的腳本（部署、寄信、呼叫外部 API、`run_evaluation.py`）
 4. 刪除對方建立的檔案
 5. 修改 `docs/RUNTIME_AWARE_SYSTEM_SPECIFICATION_ZH.md`，除非 Dan 明確指派該項
 6. 代替 Dan 決定 `NEEDS_HUMAN.md` 中的項目
 
-遇到上述任一情況，寫 `needsHuman: true` 的訊息並停止該主題。
+Dan 若已明確指派一項有界產品任務與 `topic/*`／review branch，agent 可以在該隔離範圍內修改工作檔案並跑本地測試。Dan 已指定協調角色 `brain` 可以在這種明確範圍內執行 commit 與一般 push；每個 commit 必須保留 agent provenance，且不得 force-push。其他 agent 仍不得自行 commit 或 push。
+
+即使是 `brain`，合併或移動 `main`／`ollama-widget`、刪除 remote branch、部署、force-push 與 promotion 仍需要 Dan 對該次動作的明確授權。這使 `ollama-widget` 能成為主要產品／實驗 branch，同時避免無人值守 agent 直接改動正在部署的基線。
+
+遇到上述禁令中的情況，或沒有明確 topic／review 範圍的產品修改要求，寫 `needsHuman: true` 的訊息並停止該主題。
 
 ---
 

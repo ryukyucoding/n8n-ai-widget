@@ -49,15 +49,18 @@ A2A finding / proposal
 
 `codex/autoresearch-a2a` 目前直接建立在 `ollama-widget` 的 `a6fe2d4` 之上，後續同時承載產品程式、實驗、規格和 A2A 記錄。這是歷史形成的結果，不代表未來仍要混用。
 
-不建議重寫或 filter 現有歷史：成本高、會改變 commit id，也會讓 `.44`、個人電腦與實驗室電腦的既有引用失效。正確做法是在一個共同 cutoff 讓 `ollama-widget` 與 A2A branch 對齊，然後從 cutoff 之後開始遵守新的單向流。
+不建議重寫或 filter 現有 A2A 歷史：成本高、會改變 commit id，也會讓 `.44`、個人電腦與實驗室電腦的既有引用失效。但也不能把 A2A branch 直接 fast-forward 回產品 branch，否則 outbox、heartbeat、tasks 與純協作歷史會被永久灌進 `ollama-widget`，違反本文件的責任分界。
+
+正確做法是保留 A2A 歷史，另外從 `ollama-widget` 建立產品 consolidation candidate，以 squash／明確路徑或經審查的 commit series 移植目前產品與實驗成果，排除 `a2a/**` 與純協作檔案。從 cutoff 之後再遵守單向流。
 
 ## Consolidation 建議
 
 1. 在移動 remote branch 前，為目前 tips 建立 archive tag 或 backup ref。
-2. `origin/ollama-widget` 是 `origin/codex/autoresearch-a2a` 的祖先，因此可 fast-forward；先在候選 branch 跑完整測試與真實 n8n smoke test，再由 Dan 核准更新 remote `ollama-widget`。
-3. 讓 A2A branch 以同一個 cutoff 為起點；之後只直接接受協作／紀錄 commits。產品變更改在 `ollama-widget` 或 topic branch 完成。
-4. `main` 暫時不動。每個雙週週期結束時，將已通過端到端驗證的 `ollama-widget` 範圍提升到 `main`。
-5. `codex/planner-model-probe` 不整條 merge。其 public URL、approval、prompt 與 final-output 保證已被後續研究實作取代；若仍需要 standalone probe 的 authenticated endpoint 支援，只把那一個需求以新 topic commit 移植到目前程式。完成核對後，可先加 archive tag，再由 Dan 決定是否刪除 remote branch。
+2. 從 `origin/ollama-widget` 建立 product candidate，移植 A2A branch 上已驗證的 `chatbot/**`、`autoresearch/**`、部署腳本、測試與產品／研究規格；不得把 `a2a/**`、outbox、heartbeat、tasks 或 snapshot history 整條帶入。
+3. Product candidate 通過完整測試與真實 n8n smoke test 後，才由 Dan 核准更新 remote `ollama-widget`。
+4. A2A branch 保留既有完整歷史；cutoff 後只直接接受協作／紀錄 commits，並可定期單向合併 `ollama-widget` 取得最新程式背景。產品變更改在 `ollama-widget` 或 topic branch 完成。
+5. `main` 暫時不動。每個雙週週期結束時，將已通過端到端驗證的 `ollama-widget` 範圍提升到 `main`。
+6. `codex/planner-model-probe` 不整條 merge。其功能已由目前 planner/corpus 工具取代；原 tip `5d36a66` 已保存為 `archive/planner-model-probe-20260829`，remote probe branch 已依 Dan 核准刪除。
 
 ## 為什麼不直接合併 `main` 與研究 branch
 
@@ -69,7 +72,7 @@ A2A finding / proposal
 
 目前所有 2026 年 8 月後的 agent-assisted commits 都沿用工作站的 `dan0203` repo identity，因此只看 `Author`／`Committer` 無法分辨是 Dan 親自撰寫、Terra 執行，還是其他 agent 代為提交。
 
-從 consolidation cutoff 之後，agent 產生或代為執行的 commit 必須在 message body 保留：
+從 consolidation cutoff 之後，agent 產生內容、由 Dan 或已獲授權的 `brain` 協調角色執行的 commit，必須在 message body 保留：
 
 ```text
 Agent-Origin: brain | executor | opus5 | terra
@@ -78,6 +81,7 @@ Co-Authored-By: <該 agent／工具的標準署名>
 ```
 
 - `Author` 仍可使用 Dan 的 repo identity，避免為每個 agent 改全域 Git 設定。
+- Dan 已授權 `brain` 在明確的 topic／review branch 上 commit 與一般 push；force-push、remote branch 刪除、部署及 `main`／`ollama-widget` promotion 仍需逐次授權。
 - `Agent-Origin` 記錄實際產生／執行變更的 agent；不可把單純 review 者寫成作者。
 - `A2A-Ref` 讓未來能從 commit 回查需求、授權與驗證證據。
 - Dan 親自完成、沒有 agent 產生內容的 commit 不需要 `Agent-Origin`。
