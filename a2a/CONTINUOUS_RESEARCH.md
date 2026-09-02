@@ -125,3 +125,25 @@ P8「對同一對象連續發送 6 則 WARN、7 則 ERROR」的設計前提是�
 
 ### 2026-09-02 R2 — Option-B adapter contract
 產出獨立文件 `a2a/OPTION_B_ADAPTER_CONTRACT.md`（implementation-neutral：nodewise branch surface → pipelineIr 結構驗證 → n8n If/Merge emitter）。規定 canonicalize/fingerprint 必涵蓋欄位、source-schema 驗證留在 nodewise 層、兩分支同一 one_object 契約、merge 語意、拒絕矩陣。不寫 code、不裁決 pipelineIr canonical。R1/R2 後依 brain 指示停止,不進 IF implementation。
+
+### 2026-09-02 Option B 暫定決策（brain，記錄）
+brain 已獨立讀 R1/R2 並接受為架構輸入(`c88287f` provenance clean)。**暫定決策:Option B adapter 是 IF research 的唯一前置方向** —— 但**不是實作授權、也不是 pipelineIr canonical 決定**。IF code 仍 blocked,直到 Desktop Codex/Dan 提供真實 fixture 釘死:①filter-v3 的精確 JSON 與 operator allowlist ②互斥兩分支 rejoin/merge 的 item 語意;之後 brain 重審 adapter contract。治理:往後公開 A2A commit/文件/outbox 不放 session URL/ID(改 Agent-Origin/A2A-Ref);既有歷史不改寫(Dan 刪除閘門),由 brain 向 Dan 揭露。
+
+### 2026-09-02 R3 — Credential/setup readiness audit（executor 唯讀,未碰 credential API/network）
+讀 setupManifest.js / runtimeSkillRegistry.js / approvedNodewiseCompiler.js / index.js route。
+**已有契約(設計層,fail-closed):**
+- `setupManifest.createSetupManifest`:輸出 credential 項 `modelVisibility:'never'`、sensitive:true、bindStrategy bind_existing/create_or_select_in_n8n;configuration 項 `placeholder_only`;`workflowDisposition` 在有未解項時為 `create_inactive_draft`。`canExposeToPlanner` 只回 placeholder_only 項 → **credential 值/身分都不進 planner**。
+- `runtimeSkillRegistry.resolveCredentialBindings`:resolved vs setup_required、`create_inactive_draft`;external_write skills(delivery.smtp_email_draft requiresUserSetup、http.authenticated_request=planned)。
+- 產品路徑目前 fail-closed:`validateSpecification` 斷言 `requiredUserSetup.length===0` 才編譯 → 現在**直接拒絕**任何需 setup 的計畫。
+**實際未接線點:**
+- `setupManifest` **零 caller**(V3 已證):契約設計好但未接進 index route/plan-first 流。憑證目前是「被拒」不是「被處理」。
+**最小 credential step 前置條件:**
+1. **存取控制(呼叫者身分)= 首要前置。** index.js `app.use(cors())` 為萬用 CORS、route 無呼叫者身分驗證(Dan 曾裁決在無真實使用者前延後,見 NEEDS_HUMAN,當時正確)。**不能在不驗身分的端點上請使用者交出 Google 憑證** —— 印證 COMPILER_EXPANSION §7:存取控制是憑證的使能者,非事後加固。
+2. 把 setupManifest 接進 plan-first 流(需 setup 時呼叫,canExposeToPlanner 守門)。
+3. inactive-draft 行為:未完成 setup 前 workflow 建為 inactive,使用者在 n8n UI 完成綁定。
+**secret boundary:** credential 值永不進 planner context/compiler/A2A/log;只有 credential 身分(名稱)流動;setupManifest 已以 modelVisibility never/placeholder 實現此界線,接線時必須保持。
+**需 Dan/Desktop Codex 確認的 runtime facts(executor 到不了,不碰 credential API/network):** ①.44 上真實 n8n 的 credential 儲存/綁定機制與 credential-type ID ②create-or-select-in-n8n 流的實際 API ③部署實例目前的 CORS/auth 姿態 ④Dan 對「存取控制」延後裁決的重啟(step 4 的閘門)。
+
+### 2026-09-02 R4 / R5 — 產出獨立文件
+- R4 → `a2a/MAPPING_V1_PROMOTION_EVIDENCE_PACKET.md`：給 Dan/Desktop Codex 的 sanitized promotion checklist(Case A 已滿足、Case B 待執行、target-env rejection matrix 待確認)。executor 不自提 promotion、不索取 raw evidence。
+- R5 → `a2a/MAPPING_CATEGORIZER_DESIGN.md`：mapping 類型 categorizer 的 input/output schema、分類規則、人工標註歧義、測試案例(不寫 code、不捏造頻率)。
