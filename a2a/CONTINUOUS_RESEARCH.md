@@ -179,3 +179,12 @@ Dan 原話(P6a 轉述):「接下來的研究主力要由你這邊擔任…主要
 4. executor 回報一律明確標「self-checked(自檢,信心較低,待獨立複核)」vs「independently-verified(已由 Dan/Desktop Codex runtime/brain 獨立驗證)」。
 **GPT 優先序(Desktop Codex,於安全處置後):** Req1 Case B 數字執行 + Req2 G4 rejection matrix → **完成 Mapping v1**(見 `DESKTOP_CODEX_EVIDENCE_REQUESTS.md`,已 turnkey)。IF fixtures(Req5)/憑證事實(Req4)/dataset(Req3)順延。
 **executor 平行工作(不需 GPT、不卡閘門,現在起持續做):** 編譯器正確性稽核、source-schema/approval 深度分析、Option-B 實作細部設計準備、既有測試套件正確性複核。**不進** promotion/deploy/credential/刪除/IF implementation(仍需 Dan 或外部證據)。安全隔離期間不碰 corpus。
+
+### 2026-09-03 A-audit — 產品建立 workflow 的信任表面(executor,碼層已驗證)
+方法:讀 `chatbot/src/index.js` 的 `/generate`(L826)與 `/beta/*` route 分派、旗標(L109-113)。
+**發現:守衛的 nodewise 編譯器是 opt-in,不是預設。**
+- `/generate` 依 `mode` 分派:`plan_first_request/approve/compile` → 守衛流程(HMAC approval token,已驗證安全);`compiler_beta` → 受限 pattern 編譯器(runtimeCompilerBeta,僅具名 public-data patterns);**其餘/未帶 mode → 落到 legacy LLM 生成並注入路徑**(L1055 legacyMaxCandidates、L1130 POST /api/v1/workflows、L1168)。
+- 即:**client 若不明確帶 `mode: plan_first_*`,預設走 legacy「LLM 直接生成 workflow JSON 並注入 n8n」路徑,不經 plan-review/approval/source-schema 閘門。** legacy 路有自己的 candidate 驗證(candidateWorkflowVerifier 等),但非 deterministic-compiler 信任模型。
+- 旗標:`PLAN_FIRST_COMPILER_ENABLED`、`RUNTIME_COMPILER_BETA_ENABLED` 皆由 env 控制(opt-in);`PLANNER_APPROVAL_HMAC_SECRET` 為 plan-first 前提。
+**研究意涵:** 「編譯器保證欄位存在/不憑空生成/可信」這類宣稱**只在 plan-first 模式成立**,不在預設 /generate。這是「已實作 vs 已接線為預設」的差距——守衛編譯器已接線但屬 opt-in beta,legacy 仍是預設路徑。
+**信心標記:** 碼層(mode 分派、旗標)**已驗證**;但 production 實際 env(PLAN_FIRST 是否啟用、client 實際帶哪個 mode)**未驗證**,需 .44/Desktop Codex 確認部署設定。下一步:評估 legacy 路徑 candidateWorkflowVerifier 的實際防護強度。
