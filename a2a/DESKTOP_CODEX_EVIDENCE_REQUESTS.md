@@ -41,6 +41,13 @@ Provide, from the real n8n instance, the two facts marked UNKNOWN in `CONTINUOUS
 1. **filter-v3 operator allowlist + exact condition JSON shape** — the operators actually available in `n8n-nodes-base.if@2.3` conditions, and the stored `leftValue/operator/rightValue` structure (from a real If node fixture, not guessed).
 2. **Mutually-exclusive branch rejoin merge semantics** — for If → (branchA / branchB) → Merge, which Merge mode (`append` / `chooseBranch` / other) and `numberInputs` yields a single one_object result from whichever branch ran; return a real Merge node fixture + a small execution readback showing the item behavior.
 
+## Req 6 — limit_items real n8n fixture (skill #2; passed brain independent review)
+
+- **Candidate:** `topic/limit-items @ 6e9579a` (base `integration/ollama-product-consolidation`). Code + tests only; brain reviewed, no correctness finding; status is **schema-verified / implemented, NOT verified_fixture**.
+- **Source spec (deterministic, bypasses planner):** manual_trigger → GET `/todos?userId=1` (items) → `limit_items` (limit 5) → `count_false_boolean` (field `completed`, totalField `totalTodos`, falseCountField `incompleteTodos`) → `set_output` projecting `totalTodos`, `incompleteTodos`. (Exact spec = the `limitSpecification()` fixture in `chatbot/src/nodewiseCompiler.test.js` on that branch.)
+- **Return (sanitized):** readback shows an `n8n-nodes-base.limit` node with parameters `{maxItems:5, keep:firstItems}`; manual execution output `totalTodos === 5` (only the first 5 todos survived the limit) plus a numeric `incompleteTodos`. Only these structural facts.
+- **Decision rule (do not pre-declare):** readback + execution preserve the limit (Limit node present, exactly 5 items counted) → `limit_items` → `verified_fixture`; if the Limit node/parameter shape differs from `{maxItems, keep}` or the count is not over 5 → keep schema-verified/implemented, report the discrepancy, do not promote; create/exec failure → keep unverified, preserve evidence, stop.
+
 ## Notes on the approvals Dan gave (sequencing, for transparency)
 
 - **Mapping v1 promotion:** approved by Dan, but still requires Req 1 (Case B) + Req 2 (G4) evidence, then brain+executor independent verification, before the actual merge to `ollama-widget`. Approval does not skip the evidence.
