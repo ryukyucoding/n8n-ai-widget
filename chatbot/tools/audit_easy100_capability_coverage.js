@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { auditJsonLines } = require('../src/easy100CapabilityCoverage');
+const { assertCorpusSourceAllowed } = require('./corpusQuarantine');
 
 function valueAfter(flag) {
   const index = process.argv.indexOf(flag);
@@ -13,6 +14,7 @@ function valueAfter(flag) {
 const input = valueAfter('--input');
 const output = valueAfter('--output');
 if (!input || !output) throw new Error('usage: node audit_easy100_capability_coverage.js --input <testing_data_low_100.jsonl> --output <report.json>');
+assertCorpusSourceAllowed(input);
 const report = auditJsonLines(fs.readFileSync(path.resolve(input), 'utf8'));
 fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
 fs.writeFileSync(path.resolve(output), `${JSON.stringify(report, null, 2)}\n`);

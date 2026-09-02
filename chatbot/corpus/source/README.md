@@ -1,5 +1,9 @@
 # Easy-100 語料源檔（planner corpus 的原始輸入）
 
+> ## ⚠️ 安全隔離中（2026-09-02）
+>
+> `testing_data_low_100.jsonl` 的 raw assistant-workflow payloads 含有待私有複核的 credential-like／個人聯絡資料候選。**在 Dan 明確解除隔離前，不得把它餵給 corpus builder、categorizer、模型、agent 或外部服務。** 不要複製或曝光 raw records，也不要自行 redaction、刪除或改寫歷史。完整政策見 `a2a/CORPUS_SECURITY_QUARANTINE.md`。
+
 ## 這是什麼
 
 `testing_data_low_100.jsonl` —— 100 題低難度 workflow 需求描述，是

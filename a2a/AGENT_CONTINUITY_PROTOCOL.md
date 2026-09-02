@@ -187,3 +187,4 @@ role is not proof that it uses that pool.
 - `a2a/recovery/EXECUTOR.md` — brain-owned executor recovery process.
 - `a2a/CONTINUOUS_RESEARCH.md` — executor's durable autonomous work log.
 - `a2a/ORGANIZATION.md` — roles, authority, quota pools, and collaboration map.
+- `a2a/CORPUS_SECURITY_QUARANTINE.md` — active gate for the raw Easy-100 source corpus.

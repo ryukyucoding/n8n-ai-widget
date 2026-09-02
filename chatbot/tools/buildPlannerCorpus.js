@@ -28,6 +28,7 @@ const path = require('node:path');
 const SRC = path.join(__dirname, '..', 'src');
 const { auditRecords, extractRecord } = require(path.join(SRC, 'easy100CapabilityCoverage'));
 const { SOURCES } = require(path.join(SRC, 'sourceSchemaRegistry'));
+const { assertCorpusSourceAllowed } = require('./corpusQuarantine');
 
 function argOf(flag, fallback = null) {
   const i = process.argv.indexOf(flag);
@@ -38,6 +39,7 @@ function argOf(flag, fallback = null) {
 // 1. Easy-100：真實需求描述 + 由能力稽核推導的標記
 // ---------------------------------------------------------------------------
 function fromEasy100(jsonlPath) {
+  assertCorpusSourceAllowed(jsonlPath);
   const text = fs.readFileSync(jsonlPath, 'utf8');
   const records = [];
   let line = 0;
