@@ -20,6 +20,7 @@ const path = require('node:path');
 const SRC = path.join(__dirname, '..', 'src');
 const { reviewNodewisePlannerResult } = require(path.join(SRC, 'approvedNodewiseCompiler'));
 const { validateSpecification } = require(path.join(SRC, 'nodewiseCompiler'));
+const { assertCorpusArtifactAllowed } = require('./corpusQuarantine');
 
 function argOf(flag, fallback = null) {
   const i = process.argv.indexOf(flag);
@@ -174,6 +175,7 @@ async function main() {
   const limit = Number(argOf('--limit', '0')) || 0;
   const concurrency = Number(argOf('--concurrency', '2')) || 2;
 
+  assertCorpusArtifactAllowed(corpusPath);
   const corpus = JSON.parse(fs.readFileSync(path.resolve(corpusPath), 'utf8'));
   let cases = corpus.cases.filter((c) => (level === 'compiler'
     ? c.group === 'compiler_reject' : c.group !== 'compiler_reject'));

@@ -2,7 +2,12 @@
 
 **Status:** active security quarantine as of 2026-09-02.
 
-**Affected artifact:** `chatbot/corpus/source/testing_data_low_100.jsonl`
+**Affected artifacts:**
+
+```text
+chatbot/corpus/source/testing_data_low_100.jsonl
+chatbot/corpus/planner_corpus.json
+```
 
 **Decision authority:** Dan selected immediate isolation pending private review.
 
@@ -12,7 +17,9 @@ Sanitized independent scans found credential-like material in the raw
 assistant-workflow payloads in the source corpus. At least one finding has a
 real-looking authorization-token shape rather than an obvious placeholder.
 Additional query-value candidates and personal-contact material need private
-semantic review.
+semantic review. A later scan found that the derived planner corpus has no
+matching high-confidence authorization-token shape, but it has one unresolved
+key-shaped candidate; it is therefore quarantined too.
 
 No values, raw lines, private URLs, record contents, or credential identifiers
 are repeated in this public record.
@@ -30,8 +37,13 @@ Until Dan closes this quarantine:
 - Do **not** copy, export, paste, screenshot, or redistribute its raw records.
 - Do **not** write its candidate values into A2A, logs, commits, handoffs, test
   fixtures, or chat.
-- Do **not** assume that the pre-existing derived planner corpus is cleared by
-  this decision; it needs a separate sanitized review before any new model use.
+- The pre-existing derived planner corpus is also quarantined; do **not** use
+  it for compiler-level or planner-level runs until its unresolved candidate has
+  a private sanitized disposition.
+- Standard corpus builder, capability-audit, and planner-corpus runner entry
+  points fail closed for both named artifacts. This is an entry-point guard, not
+  a claim that arbitrary code that manually reads/copied corpus text cannot
+  bypass it; agents must continue to follow this policy.
 - Do **not** delete, redact, rewrite Git history, revoke credentials, or change
   raw corpus data without Dan's explicit remediation decision.
 

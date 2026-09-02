@@ -5,25 +5,31 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const nodeTest = require('node:test');
 const assert = require('node:assert/strict');
-const { QUARANTINED_SOURCE, assertCorpusSourceAllowed } = require('../tools/corpusQuarantine');
+const {
+  QUARANTINED_SOURCE,
+  QUARANTINED_PLANNER_CORPUS,
+  assertCorpusArtifactAllowed,
+} = require('../tools/corpusQuarantine');
 
-nodeTest('compiler corpus runner resolves its checked-in corpus from the chatbot runtime directory', () => {
+nodeTest('planner corpus runner refuses its quarantined checked-in corpus before reading records', () => {
   const chatbotDir = path.join(__dirname, '..');
-  const output = execFileSync(
-    process.execPath,
-    [path.join(chatbotDir, 'tools', 'runPlannerCorpus.js'), '--level', 'compiler'],
-    { cwd: chatbotDir, encoding: 'utf8' },
+  assert.throws(
+    () => execFileSync(
+      process.execPath,
+      [path.join(chatbotDir, 'tools', 'runPlannerCorpus.js'), '--level', 'compiler'],
+      { cwd: chatbotDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ),
+    (error) => error && error.status !== 0,
   );
-
-  const summary = JSON.parse(output);
-  assert.equal(summary.label, 'compiler');
-  assert.equal(summary.rate, 1);
-  assert.ok(summary.byGroup.compiler_reject.total > 0);
 });
 
-nodeTest('refuses the security-quarantined Easy-100 source without reading its records', () => {
+nodeTest('refuses security-quarantined raw and derived corpus artifacts without reading records', () => {
   assert.throws(
-    () => assertCorpusSourceAllowed(QUARANTINED_SOURCE),
+    () => assertCorpusArtifactAllowed(QUARANTINED_SOURCE),
+    /security-quarantined/,
+  );
+  assert.throws(
+    () => assertCorpusArtifactAllowed(QUARANTINED_PLANNER_CORPUS),
     /security-quarantined/,
   );
 });
