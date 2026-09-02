@@ -15,7 +15,7 @@ server (holds N8N_API_KEY in env; uses X-N8N-API-KEY to n8n; key never sent to b
 n8n runtime
 ```
 
-- `N8N_API_KEY` is a high-privilege server-side secret (create/read/modify workflows; n8n's API can reach credentials). It stays in the server process; it is **not** exposed to the browser.
+- `N8N_API_KEY` is a server-side secret used for workflow create/read/modify. Whether it can also reach/manage n8n **credentials** depends on the instance's configuration/version and is **NOT verified here** — treat it as an unconfirmed runtime privilege (see unknowns), not an established fact. Either way, the key stays in the server process and is **not** exposed to the browser.
 - The browser-facing `/models` (`modelConfig()`) returns only model names/flags — **no keys** (verified; earlier apiKey fields are server-side model-client config, not the browser payload).
 - `n8nAgent.js` keeps an in-memory `sessions` Map keyed by a caller-supplied `sessionId` (≥32 chars), but this is a conversation session, **not authenticated identity**.
 - **Gap:** there is no caller *identity* on the browser→server hop (wildcard CORS, no auth). Per R3 / COMPILER_EXPANSION §7, this is the prerequisite that must exist before a user can be asked to connect their own credentials.
@@ -61,6 +61,7 @@ After A or B authenticates the session, the server mints a narrow, short-lived t
 3. Is there an identity provider available for the widget host (org SSO, OAuth app, etc.)?
 4. Current CORS / allowed-origin posture on the deployed instance.
 5. Dan's decision on the deferred access-control NEEDS_HUMAN item — this is the gate that turns any option above from design into work.
+6. **Whether the server's n8n API key can actually reach/manage credentials** on the deployed instance — a runtime privilege claim to confirm against the real n8n auth/credential capabilities, not to assume. Every option above still requires this confirmation before implementation.
 
 ## 6. Recommendation (input only; Dan/brain decide)
 
