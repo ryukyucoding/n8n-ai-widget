@@ -60,6 +60,9 @@ Important output invariant: join_object_and_count_false_boolean always produces 
 Every mapping in select_fields, join_object_and_count_false_boolean, and set_output must include from, to, and valueType. valueType is required and must be one of string, number, or boolean. For the summary example above, the complete final step is:
 { "id": "output", "capability": "set_output", "requiredUserSetup": [], "configuration": { "input": { "kind": "prior_step", "reference": "summary.response", "cardinality": "one_object" }, "mappings": [{ "from": "name", "to": "name", "valueType": "string" }, { "from": "incompleteTodos", "to": "incompleteTodos", "valueType": "number" }] } }
 
+The limit_items transform keeps only the first N items of an item list. Its configuration is exactly { "operation": "limit_items", "input": <a prior_step reference with cardinality items>, "limit": <integer 1 to 1000> }. It preserves every field of the input items unchanged and outputs cardinality items, so it is an intermediate step, never the final one_object step. Use no other keys, no expression or dynamic limit, and never a one_object input. Example limiting a todos list to the first 5 items:
+{ "id": "recent", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "limit_items", "input": { "kind": "prior_step", "reference": "todos.response", "cardinality": "items" }, "limit": 5 } }
+
 Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
 
 module.exports = { NODEWISE_PLANNER_RESULT_PROMPT };

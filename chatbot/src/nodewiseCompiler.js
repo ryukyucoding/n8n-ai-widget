@@ -10,7 +10,7 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'limit_items']);
 const CARDINALITIES = new Set(['one_object', 'items']);
 const VALUE_TYPES = new Set(['string', 'number', 'boolean']);
 
@@ -147,6 +147,17 @@ function validateSpecification(value) {
         assert(configuration.input.cardinality === 'items', 'count_false_boolean requires items input');
         assertInputField(input.output, configuration.field, { expectedType: 'boolean', usedBy: `steps[${index}].configuration.field` });
         output = { cardinality: 'one_object', fields: { [configuration.totalField]: 'number', [configuration.falseCountField]: 'number' } };
+      } else if (config.operation === 'limit_items') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'limit'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'limit_items requires items input');
+        assert(Number.isInteger(config.limit) && config.limit >= 1 && config.limit <= 1000,
+          'limit_items limit must be an integer between 1 and 1000');
+        // Preserve the input item schema exactly — limit removes items, never invents or drops fields.
+        configuration = { operation: config.operation, input: input.value, limit: config.limit };
+        output = { cardinality: 'items', fields: input.output.fields };
       } else {
         const objectInput = source(config.objectInput, `steps[${index}].configuration.objectInput`, seen, outputs);
         const itemsInput = source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen, outputs);
@@ -230,6 +241,10 @@ function compileNodewiseSpecification(specification) {
     if (step.capability === 'data_transform' && config.operation === 'count_false_boolean') {
       type = 'n8n-nodes-base.code';
       parameters = { jsCode: ['const records = $input.all().map((item) => item.json);', `const falseCount = records.filter((record) => record.${config.field} === false).length;`, `return [{ json: { ${config.totalField}: records.length, ${config.falseCountField}: falseCount } }];`].join('\n') };
+    }
+    if (step.capability === 'data_transform' && config.operation === 'limit_items') {
+      type = 'n8n-nodes-base.limit';
+      parameters = { maxItems: config.limit, keep: 'firstItems' };
     }
     if (step.capability === 'data_transform' && config.operation === 'join_object_and_count_false_boolean') {
       type = 'n8n-nodes-base.code';
