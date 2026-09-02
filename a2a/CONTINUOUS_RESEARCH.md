@@ -73,3 +73,40 @@ nodewisePlannerEnvelope 6
 
 ### 已知協定張力（記錄，留給 brain/Dan 裁決，不單方面改）
 P8「對同一對象連續發送 6 則 WARN、7 則 ERROR」的設計前提是「對方掛了就該停送」。但 Dan 已授權 executor 在 brain 離線時單飛推進，這會與 P8 相衝：合法的單飛工作會被誤判為病態灌訊。**暫行對策：** 例行進度只寫本執行日誌（非 outbox 訊息，不increment streak），outbox 訊息保留給 brain 必須檢驗/回應的里程碑 finding。長期解法建議 brain 修訂 P8：區分「無授權的單方灌訊」與「有 Dan 授權的單飛」，屬協定層變更，不由 executor 逕改。
+
+### 2026-09-02 Q1 — Mapping v1 獨立驗收稽核（executor，唯讀）
+比對來源：`MAPPING_V1_ACCEPTANCE_RESULT.md`、`DEPLOYMENT_VERIFICATION_PROTOCOL.md`、commit `205ea30`。方法：checkout `topic/mapping-literals-v1 @ 205ea30` 親手重跑。
+**我能獨立重現（程式/測試層，第一手）：**
+- `205ea30` diff 只碰 `chatbot/src/`（8 檔，無任何 a2a 路徑）。commit 訊息自標 number literal `implemented_untested/provisional` 且「not a promotion or deployment authorization」。Agent-Origin: executor, brain。
+- 親跑：full chatbot `node --test src/*.test.js` = **328/328 pass 0 fail**；focused = nodewiseCompiler 19 + approvedNodewiseCompiler 11 + nodewisePlannerPrompt 2 + runtimeSkillRegistry 6 + capabilityGap 16 = **54/54**（與協定 baseline 相符）。
+- rejection matrix（dup `to`、mixed/extra/unknown source、undeclared field、type mismatch、literal null/object/array/NaN/Infinity、expression 偽裝、items input、未登錄來源 schema、registry 變更使 token 失效）皆有單元測試在跑。
+**我不能獨立重現（僅由 sanitized record + Dan assertion，executor 到不了 .44、raw log 私有）：**
+- 真實 n8n 手動執行的輸出（name=`Chelsey Dietrich` 複製、status=`active` 字串、isActive=`true` 布林）。這是 execution evidence，屬 Dan（驗收權）+ Desktop Codex（執行）的範圍；我依協定只用 sanitized 證據對照，不索取/暴露私有 raw log。
+**成熟度判定（我認同協定分級）：** string/boolean set_fields = `verified_fixture`，但**僅綁定一個固定 public-source 案例**，不構成通用 NL 生成器。number literal = `implemented_untested/provisional`（見 Q2）。
+**為何 number 不可 promotion：** compiler emit 原生 JSON number，但無任何真實 n8n Set fixture 驗證其 stored/executed 參數 shape；若 n8n 實際存成字串 `"1"` 則設計假設為假。未經 Case B 執行證據前提升 = 自我認證，違反協定 §2/§9。
+**Promotion readiness checklist（topic/mapping-literals-v1 → ollama-widget，全部需 Dan 明確核准）：** ① string/boolean 已 `verified_fixture` ✓ ② number literal 完成 Case B 執行證據或明確排除於 promotion 範圍 ③ 獨立驗證（brain+executor）簽核 sanitized 證據 ④ rejection matrix 於目標環境仍 fail-closed（含 `/albums/1` 未登錄來源拒絕）⑤ 依 BRANCH_STRATEGY 的 ollama-widget→ 及 promotion gates（測試通過 + 真實 execution evidence + 無 secret/runtime-state 混入 + Dan 核准）。**executor 不自行 promotion。**
+
+### 2026-09-02 Q2 — Number literal Case B readiness（executor，唯讀，不呼叫模型/n8n）
+**planner 選擇歧義：** 協定 Case B 的 NL 請求「…輸出姓名，並加入固定欄位 rank = 1」不保證 planner 必選 `set_fields`。分析：select_fields/count/join 都無法產生「固定字面值」——唯一能加 literal 的是 set_fields，故*理論上*被迫選它；但 planner 仍可能 (a) 誤把 rank 當來源欄位（users/5 無 rank → 欄位驗證會擋，屬正確 fail-closed，但不是我們要測的 compiler 路徑）(b) 直接回 `unsupported_capability`（若未認出 literal 能力）(c) 產生 select_fields 而漏掉 rank。→ 用 NL 請求測 compiler 會混入 planner 選擇不確定性。
+**Deterministic specification-level fallback fixture（供 Desktop Codex 直接編譯/部署，跳過 planner；不需臨場設計）：**
+```json
+{ "schemaVersion": "1.0", "kind": "nodewise_step_specification",
+  "goal": "Fetch JSONPlaceholder user 5 and add a fixed numeric rank.",
+  "requiredUserSetup": [],
+  "expectedOutput": { "deliveryShape": "one_object", "fields": ["name", "rank"] },
+  "steps": [
+    { "id": "start", "capability": "manual_trigger", "requiredUserSetup": [], "configuration": {} },
+    { "id": "user", "capability": "http_request", "requiredUserSetup": [], "configuration": { "method": "GET", "url": { "kind": "public_literal", "reference": "https://jsonplaceholder.typicode.com/users/5", "cardinality": "one_object" } } },
+    { "id": "shape", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "set_fields", "input": { "kind": "prior_step", "reference": "user.response", "cardinality": "one_object" }, "mappings": [ { "to": "name", "valueType": "string", "source": { "kind": "input_field", "field": "name" } }, { "to": "rank", "valueType": "number", "source": { "kind": "literal", "value": 1 } } ] } }
+  ] }
+```
+**讀回/手動執行必驗欄位（Desktop Codex 回傳 sanitized）：** ① Set 節點 assignments 含 `{name:"rank", value:1(原生數字非字串), type:"number"}` 且 `{name:"name", value 為 n8n 欄位表達式}` ② readback 的 rank 型別為 number ③ 手動執行後最終輸出 `rank === 1`（number，非 `"1"`）。判定：readback+execution 保留原生 number → 升 `verified_fixture`；存成字串 `"1"` → 設計假設為假、修正後才可 promotion；建立/執行失敗 → 保留 unverified 並停。**絕不預告成功。**
+
+### 2026-09-02 Q3 — Control-flow / pipelineIr decision input
+產出獨立文件 `a2a/CONTROL_FLOW_DECISION_INPUT.md`（executor 唯讀架構稽核，含 runtime schema 實證的 If/Merge facts、nodewise vs pipelineIr 對 single 2-way IF 的支援/缺口、三方案與推薦）。摘要：runtime `n8n-nodes-base.if`@2.3 有兩個 main output（true/false）、`merge`@3.2 為 2→1；pipelineIr **已內建** branch/sourcePort 依賴、topological cycle 偵測、MERGE_POLICIES，而 nodewise 為純線性單 one_object。三方案：擴 nodewise / pipelineIr adapter / 採 pipelineIr canonical。**不裁決，交 brain。**
+
+### 2026-09-02 Q4 — Easy-100 dataset evidence gap（executor，唯讀）
+**現況：** audit 工具 `chatbot/tools/audit_easy100_capability_coverage.js` 存在,用法 `node ... --input <testing_data_low_100.jsonl> --output <report.json>`,內部呼叫 `src/easy100CapabilityCoverage.auditJsonLines(讀入的 jsonl 全文)`。**資料不在本機**（全 repo find 無 `testing_data_low_100.jsonl`；`workflow_template/S1_ft_original_description/` 不存在）。
+**取得來源：** 原始資料需由**擁有完整 dataset 的私有環境/同事提供**（依 topology：`.44` 或 Dan 的 dataset repo，經 Desktop Codex/Terra）。executor 到不了,不捏造頻率。
+**注意（範圍界限）：** 既有 audit 產出的是 capability-gap 覆蓋（COMPILER_EXPANSION 用的），brain 要的 field-copy/literal/coercion/items/expression **mapping 類型頻率**很可能需要**擴充 `easy100CapabilityCoverage` 或新 categorizer**——那是實作任務,不在本次唯讀範圍。
+**給 Desktop Codex/Terra 的最小 sanitized request：** 在有資料的私有環境：① `node chatbot/tools/audit_easy100_capability_coverage.js --input <你環境的 testing_data_low_100.jsonl> --output report.json` 取得現有 capability-gap 覆蓋；② 回傳 sanitized 聚合數字（各 gap 類別 caseCount / blocked 數 / 累積解鎖曲線），**不要回傳原始題目或私有路徑**；③ 若要 mapping 類型頻率（field-copy/literal/coercion/items/expression），註明現有 script 未涵蓋,需先由 brain/executor 設計 categorizer 再跑。禁止捏造頻率。
