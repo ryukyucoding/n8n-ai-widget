@@ -16,3 +16,10 @@ test('planner prompt defines mutually exclusive readiness outcomes', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Every mapping.*valueType/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"incompleteTodos", "to": "incompleteTodos", "valueType": "number"/);
 });
+
+test('planner prompt documents the set_fields tagged-union mapping grammar', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /set_fields/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"kind": "input_field"/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"kind": "literal"/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /no leading "="/);
+});

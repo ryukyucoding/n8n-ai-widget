@@ -9,6 +9,17 @@ test('lists only compiler-owned capabilities as implemented', () => {
   assert.equal(getSkill('http.authenticated_request').maturity, 'planned');
 });
 
+test('registers set_fields as an implemented read-only nodewise skill', () => {
+  const skill = getSkill('transform.set_fields');
+  assert.equal(skill.maturity, 'implemented');
+  assert.equal(skill.compiler, 'nodewise');
+  assert.equal(skill.risk, 'read_only');
+  assert.equal(skill.requiresUserSetup, false);
+  const result = resolveSkillRequirements(['transform.set_fields']);
+  assert.equal(result.available, true);
+  assert.equal(result.requiresConfirmation, false);
+});
+
 test('makes credential setup explicit without treating it as a secret value', () => {
   const result = resolveSkillRequirements(['workflow.daily_rss_digest', 'delivery.smtp_email_draft']);
   assert.equal(result.available, true);

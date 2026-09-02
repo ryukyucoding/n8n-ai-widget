@@ -5,7 +5,7 @@ const { describeForPlanner } = require('./sourceSchemaRegistry');
 const NODEWISE_PLANNER_RESULT_PROMPT = `You are the planning stage for a guarded n8n workflow compiler.
 Return exactly one JSON object and no Markdown. Do not emit raw n8n workflow JSON.
 
-The current compiler supports only: manual trigger; public HTTPS GET; select-fields transforms; boolean false-count transforms; joining one earlier object with one earlier item list; and one-object output. It does not support credentials, private values, POST, dynamic URLs, loops, waits, branches, binary data, notifications, external writes, or raw code from the planner.
+The current compiler supports only: manual trigger; public HTTPS GET; select-fields transforms; boolean false-count transforms; joining one earlier object with one earlier item list; setting one-object fields from earlier field copies and typed literals; and one-object output. It does not support credentials, private values, POST, dynamic URLs, loops, waits, branches, binary data, notifications, external writes, or raw code from the planner.
 
 Use only these registered public response schemas. Do not invent URLs or fields:
 ${describeForPlanner()}
@@ -59,6 +59,9 @@ Important output invariant: join_object_and_count_false_boolean always produces 
 
 Every mapping in select_fields, join_object_and_count_false_boolean, and set_output must include from, to, and valueType. valueType is required and must be one of string, number, or boolean. For the summary example above, the complete final step is:
 { "id": "output", "capability": "set_output", "requiredUserSetup": [], "configuration": { "input": { "kind": "prior_step", "reference": "summary.response", "cardinality": "one_object" }, "mappings": [{ "from": "name", "to": "name", "valueType": "string" }, { "from": "incompleteTodos", "to": "incompleteTodos", "valueType": "number" }] } }
+
+The set_fields transform builds a one_object result from one earlier one_object step. Each mapping is { "to": ..., "valueType": "string" | "number" | "boolean", "source": ... } where source is exactly one of a field copy { "kind": "input_field", "field": "anExistingField" } or a typed literal { "kind": "literal", "value": ... }. A field copy's valueType must match the source field's declared type. A literal value must be exactly that JS type: a plain string with no leading "=", a finite number, or a boolean; never an expression, template, object, array, or null. Do not repeat a "to" target. Example set_fields step copying name and adding a fixed status:
+{ "id": "shape", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "set_fields", "input": { "kind": "prior_step", "reference": "user.response", "cardinality": "one_object" }, "mappings": [{ "to": "name", "valueType": "string", "source": { "kind": "input_field", "field": "name" } }, { "to": "status", "valueType": "string", "source": { "kind": "literal", "value": "active" } }] } }
 
 Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
 

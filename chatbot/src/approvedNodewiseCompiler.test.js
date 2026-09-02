@@ -7,7 +7,12 @@ const {
   reviewNodewisePlannerResult,
   approveNodewisePlan,
   compileApprovedNodewisePlan,
+  skillIdsForSpecification,
+  skillRegistryRevision,
+  runtimeContext,
 } = require('./approvedNodewiseCompiler');
+const { verifyApprovalToken } = require('./planBinding');
+const { SKILLS } = require('./runtimeSkillRegistry');
 
 const SECRET = 'test-only-approval-secret-value-32chars';
 const SESSION = 'session-1';
@@ -104,4 +109,61 @@ test('keeps a clarification-required planner result outside the compiler path', 
   assert.equal(result.outcome, 'clarification_required');
   assert.equal(result.specification, undefined);
   assert.equal(result.planFingerprint, undefined);
+});
+
+function setFieldsSpec() {
+  return {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Shape one public user into a fixed contract.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['name', 'status'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'user', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/users/1', cardinality: 'one_object' } } },
+      { id: 'shape', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'set_fields', input: { kind: 'prior_step', reference: 'user.response', cardinality: 'one_object' }, mappings: [{ to: 'name', valueType: 'string', source: { kind: 'input_field', field: 'name' } }, { to: 'status', valueType: 'string', source: { kind: 'literal', value: 'active' } }] } },
+    ],
+  };
+}
+
+test('skillIdsForSpecification maps the set_fields operation to its registry skill', () => {
+  const ids = skillIdsForSpecification(setFieldsSpec());
+  assert.ok(ids.includes('transform.set_fields'));
+  assert.ok(ids.includes('trigger.manual') && ids.includes('http.public_get'));
+});
+
+test('a set_fields plan approves and compiles to a Set node with a stable fingerprint', () => {
+  const first = proposeNodewisePlan(setFieldsSpec());
+  const second = proposeNodewisePlan(setFieldsSpec());
+  assert.equal(first.planFingerprint, second.planFingerprint); // canonical round-trip is deterministic
+  const approved = approveNodewisePlan(setFieldsSpec(), { secret: SECRET, sessionId: SESSION });
+  const result = compileApprovedNodewisePlan(setFieldsSpec(), approved.approvalToken, { secret: SECRET, sessionId: SESSION });
+  assert.equal(result.planFingerprint, approved.planFingerprint);
+  assert.equal(result.workflow.nodes.at(-1).type, 'n8n-nodes-base.set');
+});
+
+test('changing the skill registry invalidates the skill registry revision', () => {
+  const withSetFields = skillRegistryRevision(SKILLS);
+  const withoutSetFields = skillRegistryRevision(SKILLS.filter((skill) => skill.id !== 'transform.set_fields'));
+  assert.notEqual(withSetFields, withoutSetFields);
+  assert.match(withSetFields, /^[0-9a-f]{64}$/);
+});
+
+test('a set_fields approval is cryptographically invalid after its skill registry changes', () => {
+  const spec = setFieldsSpec();
+  const approved = approveNodewisePlan(spec, { secret: SECRET, sessionId: SESSION });
+  const registryWithoutSetFields = SKILLS.filter((skill) => skill.id !== 'transform.set_fields');
+  const changedContext = runtimeContext({ skillRegistry: registryWithoutSetFields });
+  const verification = verifyApprovalToken(approved.approvalToken, spec, changedContext, {
+    secret: SECRET,
+    sessionId: SESSION,
+  });
+
+  assert.equal(verification.valid, false);
+  assert.match(verification.reason, /不屬於當前的計畫或執行環境/);
+  assert.throws(
+    () => compileApprovedNodewisePlan(spec, approved.approvalToken, {
+      secret: SECRET,
+      sessionId: SESSION,
+      skillRegistry: registryWithoutSetFields,
+    }),
+    /不屬於當前的計畫或執行環境/,
+  );
 });
