@@ -110,3 +110,18 @@ P8「對同一對象連續發送 6 則 WARN、7 則 ERROR」的設計前提是�
 **取得來源：** 原始資料需由**擁有完整 dataset 的私有環境/同事提供**（依 topology：`.44` 或 Dan 的 dataset repo，經 Desktop Codex/Terra）。executor 到不了,不捏造頻率。
 **注意（範圍界限）：** 既有 audit 產出的是 capability-gap 覆蓋（COMPILER_EXPANSION 用的），brain 要的 field-copy/literal/coercion/items/expression **mapping 類型頻率**很可能需要**擴充 `easy100CapabilityCoverage` 或新 categorizer**——那是實作任務,不在本次唯讀範圍。
 **給 Desktop Codex/Terra 的最小 sanitized request：** 在有資料的私有環境：① `node chatbot/tools/audit_easy100_capability_coverage.js --input <你環境的 testing_data_low_100.jsonl> --output report.json` 取得現有 capability-gap 覆蓋；② 回傳 sanitized 聚合數字（各 gap 類別 caseCount / blocked 數 / 累積解鎖曲線），**不要回傳原始題目或私有路徑**；③ 若要 mapping 類型頻率（field-copy/literal/coercion/items/expression），註明現有 script 未涵蓋,需先由 brain/executor 設計 categorizer 再跑。禁止捏造頻率。
+
+### 2026-09-02 R1 — Control-flow schema deep audit（executor 唯讀,runtime schema 實證）
+來源：`chatbot/schemas/runtime_node_schemas.json`。**已知事實：**
+- `n8n-nodes-base.if@2.3`：inputs `['main']`；outputs **`['main','main']`**（port 0 = true/matched，port 1 = false/fallback）。`conditions` 屬性 type=`filter`，typeOptions.filter version=**3**（@2.3），caseSensitive 由 `options.ignoreCase` 推導、typeValidation strict/loose 由 `looseTypeValidation` 推導。`options`：ignoreCase、looseTypeValidation。
+- `n8n-nodes-base.merge@3.2`：inputs 動態（`numberInputs` ∈ 2..10，預設 2），outputs `['main']`（n→1）。mode 選項：`append`（各輸入依序輸出）、`combine`（配對合併）、`combineBySql`、`chooseBranch`（原樣輸出某分支）。
+**未知（不猜,需 filter 元件源碼／真實 fixture／.44 確認）：**
+- filter v3 內部的 operator 詞彙（equals/gt/contains…）與 leftValue/operator{type,operation}/rightValue 的精確 JSON shape —— **不在 node property schema 內**（由 n8n filter 元件定義）。
+- 互斥兩分支 rejoin 的正確 merge 語意：`append` numberInputs=2 是候選,但「每個 item 只走一條分支 → merge 後應得單一結果」的實際 item 行為需 fixture 確認;`chooseBranch` 亦為候選。
+**單一 2-way IF + rejoin 所需的最小 nodewise surface grammar（implementation-neutral,未知項標明）：**
+- 一個 `branch`/`if` 步驟,configuration 含：`condition`（`{ field(需對來源/前步 schema 驗證存在), operator(來自「待定的 bounded allowlist」——對映 filter v3 子集,operator 集合=未知需釘), compareValue(typed literal, JS 型別=valueType) }`）、`onTrue` 與 `onFalse` 兩條子步驟串（各自最終產生**相同**的 expectedOutput.fields=one_object）、以及一個 rejoin(merge) 點。
+- 連線需求:If 步驟 emit 兩條 main 連線(port 0/1),兩分支尾端接同一 Merge(mode/numberInputs 待釘)。
+- 明確標未知:operator allowlist、filter JSON shape、merge rejoin 語意 —— 這三項在 R2 contract 中列為必須由 fixture/.44 釘死的前置。
+
+### 2026-09-02 R2 — Option-B adapter contract
+產出獨立文件 `a2a/OPTION_B_ADAPTER_CONTRACT.md`（implementation-neutral：nodewise branch surface → pipelineIr 結構驗證 → n8n If/Merge emitter）。規定 canonicalize/fingerprint 必涵蓋欄位、source-schema 驗證留在 nodewise 層、兩分支同一 one_object 契約、merge 語意、拒絕矩陣。不寫 code、不裁決 pipelineIr canonical。R1/R2 後依 brain 指示停止,不進 IF implementation。
