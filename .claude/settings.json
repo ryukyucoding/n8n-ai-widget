@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node a2a/hooks/continuity-hook.js SessionStart",
+            "timeout": 10,
+            "statusMessage": "Loading A2A continuity context"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node a2a/hooks/continuity-hook.js PreCompact",
+            "timeout": 10,
+            "statusMessage": "Preparing A2A handoff reminder"
+          }
+        ]
+      }
+    ]
+  }
+}
