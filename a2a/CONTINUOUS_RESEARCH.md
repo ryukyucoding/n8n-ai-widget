@@ -167,3 +167,15 @@ brain 已獨立讀 R1/R2 並接受為架構輸入(`c88287f` provenance clean)。
 ### 2026-09-02 Dan 批准 + 證據需求彙整
 Dan 在對話中回覆原話:「都批准,然後資料的部分請你將需求寫進 a2a,我請 desktop 的 codex 整理上去」。取得管道:Dan ⇄ executor 對話。轉述者:executor。批准範圍:Mapping v1 promotion(仍需 Case B + G4 證據)、planReviewGate 清理(走產品路徑 + brain review)、存取控制(進設計)、資料/範例取得。
 → 已產出 `a2a/DESKTOP_CODEX_EVIDENCE_REQUESTS.md`:5 類 sanitized 需求(Req1 Case B 執行、Req2 G4 rejection matrix、Req3 Easy-100 dataset+categorizer、Req4 caller-auth/credential runtime facts、Req5 If/Merge fixtures)供 Desktop Codex/Terra/.44 提供。executor 未自行 promotion/deploy/刪除;approval 不跳過證據。Case B/G4/dataset/facts 回來後,executor+brain 獨立驗證再更新成熟度,promotion 由 Dan 定。
+
+### 2026-09-02 研究主力交接 + GPT 優先序（Dan 決定）
+背景:Dan 本週 GPT 額度將盡(brain 與 Desktop Codex 同吃 GPT pool,約兩天用掉一週),尚有一次重置。Dan 指示由 executor 接過 brain 部分工作,成為**持續研究主力**。
+Dan 原話(P6a 轉述):「接下來的研究主力要由你這邊擔任…主要是幫我繼續推進研究進度」;GPT 優先序決定原話:「完成 Mapping v1」。取得管道:Dan⇄executor 對話。轉述者:executor。
+**交接範圍(executor 接手 brain 的部分功能):** roadmap 維護、優先序、實驗規劃、研究佇列執行、稽核、驗證、文件。
+**保留的獨立性安全機制(避免自我認證,對應 ORGANIZATION §6 anti-patterns):**
+1. Dan 為重要結果的最終驗收者。
+2. Desktop Codex/.44 提供 executor 做不出的 runtime 證據(執行證據仍來自獨立來源)。
+3. brain 稀缺的 GPT 保留給**里程碑的獨立複核**,不花在日常瑣事。
+4. executor 回報一律明確標「self-checked(自檢,信心較低,待獨立複核)」vs「independently-verified(已由 Dan/Desktop Codex runtime/brain 獨立驗證)」。
+**GPT 優先序(Desktop Codex,於安全處置後):** Req1 Case B 數字執行 + Req2 G4 rejection matrix → **完成 Mapping v1**(見 `DESKTOP_CODEX_EVIDENCE_REQUESTS.md`,已 turnkey)。IF fixtures(Req5)/憑證事實(Req4)/dataset(Req3)順延。
+**executor 平行工作(不需 GPT、不卡閘門,現在起持續做):** 編譯器正確性稽核、source-schema/approval 深度分析、Option-B 實作細部設計準備、既有測試套件正確性複核。**不進** promotion/deploy/credential/刪除/IF implementation(仍需 Dan 或外部證據)。安全隔離期間不碰 corpus。
