@@ -187,4 +187,7 @@ Dan 原話(P6a 轉述):「接下來的研究主力要由你這邊擔任…主要
 - 即:**client 若不明確帶 `mode: plan_first_*`,預設走 legacy「LLM 直接生成 workflow JSON 並注入 n8n」路徑,不經 plan-review/approval/source-schema 閘門。** legacy 路有自己的 candidate 驗證(candidateWorkflowVerifier 等),但非 deterministic-compiler 信任模型。
 - 旗標:`PLAN_FIRST_COMPILER_ENABLED`、`RUNTIME_COMPILER_BETA_ENABLED` 皆由 env 控制(opt-in);`PLANNER_APPROVAL_HMAC_SECRET` 為 plan-first 前提。
 **研究意涵:** 「編譯器保證欄位存在/不憑空生成/可信」這類宣稱**只在 plan-first 模式成立**,不在預設 /generate。這是「已實作 vs 已接線為預設」的差距——守衛編譯器已接線但屬 opt-in beta,legacy 仍是預設路徑。
-**信心標記:** 碼層(mode 分派、旗標)**已驗證**;但 production 實際 env(PLAN_FIRST 是否啟用、client 實際帶哪個 mode)**未驗證**,需 .44/Desktop Codex 確認部署設定。下一步:評估 legacy 路徑 candidateWorkflowVerifier 的實際防護強度。
+**信心標記:** 碼層(mode 分派、旗標)**已驗證**;但 production 實際 env(PLAN_FIRST 是否啟用、client 實際帶哪個 mode)**未驗證**,需 .44/Desktop Codex 確認部署設定。
+
+**精化(碼層已驗證):legacy 路徑不是無防護,但缺的正是關鍵語意保證。** `candidateWorkflowVerifier.js`(367行)對 LLM 生成 workflow 做結構驗證 + 修復迴圈:JSON/node_schema/connection/dataflow/configuration/semantic 類別,含連線 port 正規化、code 節點對**缺失/不可達/未保證先執行的節點**引用偵測(dataflow.code_reference.*),severity=repair 走修復重試(MAX_WORKFLOW_GENERATION_ATTEMPTS)。→ 它擋**內部結構**錯誤。但它**不提供 nodewise 的語意保證**:①外部 API 欄位是否真實存在於宣告 schema(「不憑空捏欄位」,由 sourceSchemaRegistry/assertField 提供)②deterministic 組裝(legacy 是 LLM 生成後驗證/修復,非由已驗證 IR 決定性編譯)③approval-token 綁定已審核計畫。外部 API 欄位真實性在 legacy 只靠 `semantic_review`(LLM 複核),非 deterministic source-schema binding。
+**結論:** COMPILER_EXPANSION §9 的「引用不存在的 API 欄位 → 跑得動但回 undefined」失敗模式,**只有 nodewise 的 source-schema binding 能決定性擋下;legacy 預設路徑的結構驗證擋不住這一類**。信任缺口具體是「語意/來源 schema 正確性」,不是粗結構有效性。下一步:待 brain 獨立複核此判定,並評估是否升級給 Dan。
