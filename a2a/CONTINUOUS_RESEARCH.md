@@ -147,3 +147,19 @@ brain 已獨立讀 R1/R2 並接受為架構輸入(`c88287f` provenance clean)。
 ### 2026-09-02 R4 / R5 — 產出獨立文件
 - R4 → `a2a/MAPPING_V1_PROMOTION_EVIDENCE_PACKET.md`：給 Dan/Desktop Codex 的 sanitized promotion checklist(Case A 已滿足、Case B 待執行、target-env rejection matrix 待確認)。executor 不自提 promotion、不索取 raw evidence。
 - R5 → `a2a/MAPPING_CATEGORIZER_DESIGN.md`：mapping 類型 categorizer 的 input/output schema、分類規則、人工標註歧義、測試案例(不寫 code、不捏造頻率)。
+
+### 2026-09-02 S1 — Public-source onboarding contract audit（executor 唯讀,僅分析現有 sources）
+來源:`sourceSchemaRegistry.js`(172行)、`publicUrlPolicy.js`、`approvedNodewiseCompiler`/`nodewisePlannerPrompt`/tests。
+**現有 registry 形狀:** 每個 source = `{ id, host, path(含 :id pattern), cardinality(one_object|items), verifiedAt(ISO 日期), fields(Object.freeze name→primitive type) }`。已登錄 3 個:jsonplaceholder `/users/:id`(one_object)、`/todos`(items)、`/users/:id/todos`(items),verifiedAt 皆 2026-08-30。函式:resolveSource(host+path 比對)、assertSourceRegistered、assertField(欄位存在+型別)、assertCardinality。
+**新增一個公開 API source 必須具備的證據與不可變式:**
+1. **host policy(縱深防禦):** host 在 `VERIFIED_PATTERN_HOSTS` allowlist,且通過 `publicUrlPolicy` denylist(classifyIp 擋 RFC1918/127/169.254 metadata 等);allowedHosts 每次呼叫顯式傳入,無全域可變狀態。
+2. **exact path + cardinality:** 宣告精確 path pattern 與 cardinality,且與實際回應相符(assertCardinality 會擋不符)。
+3. **declared primitive fields/types:** name→string/number/boolean,Object.freeze;引用未宣告欄位 → assertField 擋。
+4. **verifiedAt provenance:** 必須有人實際打過端點並核對欄位(檔頭 L25 明載);日期即證據。**故新增 source 不是純設定變更,需真實驗證**(呼應 COMPILER_EXPANSION §9)。
+5. **sourceRegistryRevision / approval invalidation:** SOURCES 變更 → sourceRegistryRevision 變 → 令未結 approval 失效(fail-closed;approval 綁定確切 source 集)。
+6. **fixture/rejection tests:** registered source 能編譯;未登錄 host/path → `沒有登錄的回應 schema`;cardinality 不符 → assertCardinality error;未宣告欄位 → assertField error。每項需測試。
+(依 brain 指示只分析現有 sources,不列外部候選或假資料。)
+
+### 2026-09-02 S2 / S3 — 產出獨立文件
+- S2 → `a2a/CALLER_AUTH_DESIGN_INPUT.md`:caller-auth / credential-enablement 設計輸入。已確認 server 端 `N8N_API_KEY` 僅在 server(env,`X-N8N-API-KEY`),**不送 browser**;`/models` 的 modelConfig() 只回模型名/flags(無 key,無洩漏)。真正缺口是**呼叫者身分**(CORS *、browser→server 無 auth)。提出 ≥2 種不把高權限 key 給 browser 的 caller-auth 方案。
+- S3 → `a2a/PLANREVIEWGATE_RETIREMENT_PACKET.md`:planReviewGate **無 production caller**(僅 planBinding 註解 + 自身 test);可安全 deprecate/刪除的證據包,刪前需保留的項目與影響(移除其 test 使套件 328→325)。不刪除/不歸檔,等 Dan 同意。
