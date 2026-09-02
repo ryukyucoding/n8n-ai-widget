@@ -163,3 +163,7 @@ brain 已獨立讀 R1/R2 並接受為架構輸入(`c88287f` provenance clean)。
 ### 2026-09-02 S2 / S3 — 產出獨立文件
 - S2 → `a2a/CALLER_AUTH_DESIGN_INPUT.md`:caller-auth / credential-enablement 設計輸入。已確認 server 端 `N8N_API_KEY` 僅在 server(env,`X-N8N-API-KEY`),**不送 browser**;`/models` 的 modelConfig() 只回模型名/flags(無 key,無洩漏)。真正缺口是**呼叫者身分**(CORS *、browser→server 無 auth)。提出 ≥2 種不把高權限 key 給 browser 的 caller-auth 方案。
 - S3 → `a2a/PLANREVIEWGATE_RETIREMENT_PACKET.md`:planReviewGate **無 production caller**(僅 planBinding 註解 + 自身 test);可安全 deprecate/刪除的證據包,刪前需保留的項目與影響(移除其 test 使套件 328→325)。不刪除/不歸檔,等 Dan 同意。
+
+### 2026-09-02 Dan 批准 + 證據需求彙整
+Dan 在對話中回覆原話:「都批准,然後資料的部分請你將需求寫進 a2a,我請 desktop 的 codex 整理上去」。取得管道:Dan ⇄ executor 對話。轉述者:executor。批准範圍:Mapping v1 promotion(仍需 Case B + G4 證據)、planReviewGate 清理(走產品路徑 + brain review)、存取控制(進設計)、資料/範例取得。
+→ 已產出 `a2a/DESKTOP_CODEX_EVIDENCE_REQUESTS.md`:5 類 sanitized 需求(Req1 Case B 執行、Req2 G4 rejection matrix、Req3 Easy-100 dataset+categorizer、Req4 caller-auth/credential runtime facts、Req5 If/Merge fixtures)供 Desktop Codex/Terra/.44 提供。executor 未自行 promotion/deploy/刪除;approval 不跳過證據。Case B/G4/dataset/facts 回來後,executor+brain 獨立驗證再更新成熟度,promotion 由 Dan 定。
