@@ -28,3 +28,9 @@ test('planner prompt documents the remove_duplicates transform contract', () => 
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /drops duplicate items/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /never a one_object input/);
 });
+
+test('planner prompt documents the limit_items transform contract', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /limit_items/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /integer 1 to 1000/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /cardinality items/);
+});

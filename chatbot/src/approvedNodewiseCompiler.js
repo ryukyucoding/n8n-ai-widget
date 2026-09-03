@@ -50,6 +50,7 @@ function skillIdsForSpecification(specification) {
       if (operation === 'join_object_and_count_false_boolean') ids.push('transform.join_object_and_count');
       if (operation === 'sort_items') ids.push('transform.sort_items');
       if (operation === 'remove_duplicates') ids.push('transform.remove_duplicates');
+      if (operation === 'limit_items') ids.push('transform.limit_items');
     }
   }
   return [...new Set(ids)];

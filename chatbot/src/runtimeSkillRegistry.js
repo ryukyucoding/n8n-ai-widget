@@ -60,6 +60,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'transform.limit_items',
+    label: 'Limit an item list to the first N items',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'output.one_object',
     label: 'One object output contract',
     maturity: 'implemented',
