@@ -48,6 +48,37 @@ Provide, from the real n8n instance, the two facts marked UNKNOWN in `CONTINUOUS
 - **Return (sanitized):** readback shows an `n8n-nodes-base.limit` node with parameters `{maxItems:5, keep:firstItems}`; manual execution output `totalTodos === 5` (only the first 5 todos survived the limit) plus a numeric `incompleteTodos`. Only these structural facts.
 - **Decision rule (do not pre-declare):** readback + execution preserve the limit (Limit node present, exactly 5 items counted) → `limit_items` → `verified_fixture`; if the Limit node/parameter shape differs from `{maxItems, keep}` or the count is not over 5 → keep schema-verified/implemented, report the discrepancy, do not promote; create/exec failure → keep unverified, preserve evidence, stop.
 
+## Req 7 — establish active revision before retrying Req 6
+
+The first Req 6 attempt stopped during compiler validation because the active
+service rejected `limit_items` as unsupported. It produced no workflow,
+readback, or execution evidence. This does **not** distinguish an old active
+image from a candidate deployment failure.
+
+Before retrying the unchanged Req 6 fixture, Desktop Codex must return only
+sanitized deployment evidence:
+
+1. `active_service_revision`: full and short revision reported by the running
+   service or its deployment record;
+2. `candidate_build_evidence`: proof that the image/build was produced from
+   `topic/limit-items@6e9579a`;
+3. `deploy_evidence`: proof that that candidate image was installed as the
+   active service, plus final health/restart/rollback categories;
+4. `post_deploy_capability_probe`: a bounded compile-validation probe showing
+   whether `limit_items` is accepted before attempting the full fixture.
+
+Decision rules:
+
+- If active revision is not exactly `6e9579a` or is unknown, do not rerun Req 6;
+  first correct the deployment and repeat this gate.
+- If active revision is exactly `6e9579a` and `limit_items` is still rejected,
+  classify as a candidate/compiler integration defect and stop for review.
+- Only if revision/build/deploy evidence match may the unchanged Req 6 fixture
+  run once more.
+
+Do not return private hostnames, addresses, paths, credentials, raw logs,
+session links, or workflow/execution payloads.
+
 ## Notes on the approvals Dan gave (sequencing, for transparency)
 
 - **Mapping v1 promotion:** approved by Dan, but still requires Req 1 (Case B) + Req 2 (G4) evidence, then brain+executor independent verification, before the actual merge to `ollama-widget`. Approval does not skip the evidence.
