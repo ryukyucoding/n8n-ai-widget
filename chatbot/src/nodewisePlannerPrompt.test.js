@@ -22,3 +22,9 @@ test('planner prompt documents the sort_items transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"ascending" \| "descending"/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /cardinality items/);
 });
+
+test('planner prompt documents the remove_duplicates transform contract', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /remove_duplicates/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /drops duplicate items/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /never a one_object input/);
+});

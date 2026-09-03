@@ -63,6 +63,9 @@ Every mapping in select_fields, join_object_and_count_false_boolean, and set_out
 The sort_items transform reorders an item list by one field. Its configuration is exactly { "operation": "sort_items", "input": <a prior_step reference with cardinality items>, "field": <an existing item field>, "order": "ascending" | "descending" }. It preserves every field of the input items unchanged and outputs cardinality items, so it is an intermediate step, never the final one_object step. Use no other keys, no code or random ordering, and never a one_object input. Example sorting a todos list by id ascending:
 { "id": "ordered", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "sort_items", "input": { "kind": "prior_step", "reference": "todos.response", "cardinality": "items" }, "field": "id", "order": "ascending" } }
 
+The remove_duplicates transform drops duplicate items that share the same value in one field. Its configuration is exactly { "operation": "remove_duplicates", "input": <a prior_step reference with cardinality items>, "field": <an existing item field> }. It keeps every field of the input items unchanged and outputs cardinality items with duplicates removed, so it is an intermediate step, never the final one_object step. Use no other keys and never a one_object input. Example removing todos that repeat a userId:
+{ "id": "unique", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "remove_duplicates", "input": { "kind": "prior_step", "reference": "todos.response", "cardinality": "items" }, "field": "userId" } }
+
 Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
 
 module.exports = { NODEWISE_PLANNER_RESULT_PROMPT };

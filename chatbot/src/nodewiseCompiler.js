@@ -10,7 +10,7 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const CARDINALITIES = new Set(['one_object', 'items']);
 const VALUE_TYPES = new Set(['string', 'number', 'boolean']);
@@ -160,6 +160,17 @@ function validateSpecification(value) {
         // Sorting reorders items only; the item schema is preserved exactly.
         configuration = { operation: config.operation, input: input.value, field, order: config.order };
         output = { cardinality: 'items', fields: input.output.fields };
+      } else if (config.operation === 'remove_duplicates') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'field'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'remove_duplicates requires items input');
+        const field = safeIdentifier(config.field, `steps[${index}].configuration.field`);
+        assertInputField(input.output, field, { usedBy: `steps[${index}].configuration.field` });
+        // Dropping duplicate items removes rows only; the item schema is preserved exactly.
+        configuration = { operation: config.operation, input: input.value, field };
+        output = { cardinality: 'items', fields: input.output.fields };
       } else {
         const objectInput = source(config.objectInput, `steps[${index}].configuration.objectInput`, seen, outputs);
         const itemsInput = source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen, outputs);
@@ -247,6 +258,10 @@ function compileNodewiseSpecification(specification) {
     if (step.capability === 'data_transform' && config.operation === 'sort_items') {
       type = 'n8n-nodes-base.sort';
       parameters = { type: 'simple', sortFieldsUi: { sortField: [{ fieldName: config.field, order: config.order }] } };
+    }
+    if (step.capability === 'data_transform' && config.operation === 'remove_duplicates') {
+      type = 'n8n-nodes-base.removeDuplicates';
+      parameters = { operation: 'removeDuplicateInputItems', compare: 'selectedFields', fieldsToCompare: config.field };
     }
     if (step.capability === 'data_transform' && config.operation === 'join_object_and_count_false_boolean') {
       type = 'n8n-nodes-base.code';

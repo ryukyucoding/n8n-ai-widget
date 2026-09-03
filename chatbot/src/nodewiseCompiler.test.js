@@ -171,3 +171,67 @@ test('sort_items cannot be the final one_object step', () => {
   };
   assert.throws(() => compileNodewiseSpecification(spec), /final step must produce declared output fields/);
 });
+
+function dedupSpec() {
+  return {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Count false completed among unique-userId todos.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos', 'incompleteTodos'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+      { id: 'unique', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'remove_duplicates', input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' }, field: 'userId' } },
+      { id: 'summary', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'unique.response', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' } },
+      { id: 'output', capability: 'set_output', requiredUserSetup: [], configuration: { input: { kind: 'prior_step', reference: 'summary.response', cardinality: 'one_object' }, mappings: [{ from: 'totalTodos', to: 'totalTodos', valueType: 'number' }, { from: 'incompleteTodos', to: 'incompleteTodos', valueType: 'number' }] } },
+    ],
+  };
+}
+
+test('remove_duplicates compiles to a v2 Remove Duplicates node with the schema-verified selected-field shape', () => {
+  const workflow = compileNodewiseSpecification(dedupSpec());
+  const node = workflow.nodes.find((n) => n.type === 'n8n-nodes-base.removeDuplicates');
+  assert.ok(node, 'a Remove Duplicates node is emitted');
+  assert.equal(node.typeVersion, 2);
+  assert.deepEqual(node.parameters, { operation: 'removeDuplicateInputItems', compare: 'selectedFields', fieldsToCompare: 'userId' });
+});
+
+test('remove_duplicates rejects an extra configuration key', () => {
+  const spec = dedupSpec();
+  spec.steps[2].configuration.order = 'ascending';
+  assert.throws(() => compileNodewiseSpecification(spec), /has unsupported key order/);
+});
+
+test('remove_duplicates rejects a one_object input', () => {
+  const spec = dedupSpec();
+  spec.steps[1].configuration.url.reference = 'https://jsonplaceholder.typicode.com/users/1';
+  spec.steps[1].configuration.url.cardinality = 'one_object';
+  spec.steps[2].configuration.input.cardinality = 'one_object';
+  spec.steps[2].configuration.field = 'name';
+  assert.throws(() => compileNodewiseSpecification(spec), /remove_duplicates requires items input/);
+});
+
+test('remove_duplicates rejects a field not declared by the source schema', () => {
+  const spec = dedupSpec();
+  spec.steps[2].configuration.field = 'not_a_declared_field';
+  assert.throws(() => compileNodewiseSpecification(spec), /沒有宣告欄位 not_a_declared_field/);
+});
+
+test('remove_duplicates preserves the input item schema for the following step', () => {
+  const workflow = compileNodewiseSpecification(dedupSpec());
+  assert.ok(workflow.nodes.some((n) => n.type === 'n8n-nodes-base.code'));
+  const spec = dedupSpec();
+  spec.steps[3].configuration.field = 'not_a_declared_field';
+  assert.throws(() => compileNodewiseSpecification(spec), /沒有宣告欄位 not_a_declared_field/);
+});
+
+test('remove_duplicates cannot be the final one_object step', () => {
+  const spec = {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Dedupe only, no final one_object.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['completed'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+      { id: 'unique', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'remove_duplicates', input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' }, field: 'userId' } },
+    ],
+  };
+  assert.throws(() => compileNodewiseSpecification(spec), /final step must produce declared output fields/);
+});

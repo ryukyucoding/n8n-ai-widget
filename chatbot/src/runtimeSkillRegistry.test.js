@@ -20,6 +20,17 @@ test('registers sort_items as an implemented read-only nodewise skill', () => {
   assert.equal(result.requiresConfirmation, false);
 });
 
+test('registers remove_duplicates as an implemented read-only nodewise skill', () => {
+  const skill = getSkill('transform.remove_duplicates');
+  assert.equal(skill.maturity, 'implemented');
+  assert.equal(skill.compiler, 'nodewise');
+  assert.equal(skill.risk, 'read_only');
+  assert.equal(skill.requiresUserSetup, false);
+  const result = resolveSkillRequirements(['transform.remove_duplicates']);
+  assert.equal(result.available, true);
+  assert.equal(result.requiresConfirmation, false);
+});
+
 test('makes credential setup explicit without treating it as a secret value', () => {
   const result = resolveSkillRequirements(['workflow.daily_rss_digest', 'delivery.smtp_email_draft']);
   assert.equal(result.available, true);
