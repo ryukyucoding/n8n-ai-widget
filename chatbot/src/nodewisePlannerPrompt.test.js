@@ -16,3 +16,9 @@ test('planner prompt defines mutually exclusive readiness outcomes', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Every mapping.*valueType/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"incompleteTodos", "to": "incompleteTodos", "valueType": "number"/);
 });
+
+test('planner prompt documents the sort_items transform contract', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /sort_items/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"ascending" \| "descending"/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /cardinality items/);
+});

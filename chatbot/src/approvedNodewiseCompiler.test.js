@@ -7,7 +7,10 @@ const {
   reviewNodewisePlannerResult,
   approveNodewisePlan,
   compileApprovedNodewisePlan,
+  skillIdsForSpecification,
+  skillRegistryRevision,
 } = require('./approvedNodewiseCompiler');
+const { SKILLS } = require('./runtimeSkillRegistry');
 
 const SECRET = 'test-only-approval-secret-value-32chars';
 const SESSION = 'session-1';
@@ -104,4 +107,43 @@ test('keeps a clarification-required planner result outside the compiler path', 
   assert.equal(result.outcome, 'clarification_required');
   assert.equal(result.specification, undefined);
   assert.equal(result.planFingerprint, undefined);
+});
+
+function sortSpecification() {
+  return {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Count false completed among todos sorted by id.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos', 'incompleteTodos'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+      { id: 'ordered', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'sort_items', input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' }, field: 'id', order: 'ascending' } },
+      { id: 'summary', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'ordered.response', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' } },
+      { id: 'output', capability: 'set_output', requiredUserSetup: [], configuration: { input: { kind: 'prior_step', reference: 'summary.response', cardinality: 'one_object' }, mappings: [{ from: 'totalTodos', to: 'totalTodos', valueType: 'number' }, { from: 'incompleteTodos', to: 'incompleteTodos', valueType: 'number' }] } },
+    ],
+  };
+}
+
+test('skillIdsForSpecification maps the sort_items operation to its registry skill', () => {
+  const ids = skillIdsForSpecification(sortSpecification());
+  assert.ok(ids.includes('transform.sort_items'));
+  assert.ok(ids.includes('http.public_get') && ids.includes('output.one_object'));
+});
+
+test('a sort_items plan approves and compiles with a stable fingerprint and a Sort node', () => {
+  const first = proposeNodewisePlan(sortSpecification());
+  const second = proposeNodewisePlan(sortSpecification());
+  assert.equal(first.planFingerprint, second.planFingerprint);
+  const approved = approveNodewisePlan(sortSpecification(), { secret: SECRET, sessionId: SESSION });
+  const result = compileApprovedNodewisePlan(sortSpecification(), approved.approvalToken, { secret: SECRET, sessionId: SESSION });
+  assert.equal(result.planFingerprint, approved.planFingerprint);
+  assert.ok(result.workflow.nodes.some((node) => node.type === 'n8n-nodes-base.sort'));
+});
+
+test('removing sort_items from the skill registry invalidates an already-issued approval', () => {
+  const approved = approveNodewisePlan(sortSpecification(), { secret: SECRET, sessionId: SESSION });
+  const registryWithoutSort = SKILLS.filter((skill) => skill.id !== 'transform.sort_items');
+  assert.throws(
+    () => compileApprovedNodewisePlan(sortSpecification(), approved.approvalToken, { secret: SECRET, sessionId: SESSION, skillRegistry: registryWithoutSort }),
+    /不屬於當前的計畫或執行環境/,
+  );
 });

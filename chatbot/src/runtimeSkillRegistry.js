@@ -44,6 +44,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'transform.sort_items',
+    label: 'Sort an item list by one field ascending or descending',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'output.one_object',
     label: 'One object output contract',
     maturity: 'implemented',
