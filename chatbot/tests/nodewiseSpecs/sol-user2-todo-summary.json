@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0",
+  "kind": "nodewise_step_specification",
+  "goal": "Retrieve JSONPlaceholder user 2 and Todo summary.",
+  "requiredUserSetup": [],
+  "expectedOutput": {
+    "deliveryShape": "one_object",
+    "fields": ["name", "email", "totalTodos", "incompleteTodos"]
+  },
+  "steps": [
+    { "id": "manual-start", "capability": "manual_trigger", "requiredUserSetup": [], "configuration": {} },
+    { "id": "fetch-user", "capability": "http_request", "requiredUserSetup": [], "configuration": { "method": "GET", "url": { "kind": "public_literal", "reference": "https://jsonplaceholder.typicode.com/users/2", "cardinality": "one_object" } } },
+    { "id": "fetch-todos", "capability": "http_request", "requiredUserSetup": [], "configuration": { "method": "GET", "url": { "kind": "public_literal", "reference": "https://jsonplaceholder.typicode.com/todos?userId=2", "cardinality": "items" } } },
+    { "id": "build-output", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "join_object_and_count_false_boolean", "objectInput": { "kind": "prior_step", "reference": "fetch-user.response", "cardinality": "one_object" }, "itemsInput": { "kind": "prior_step", "reference": "fetch-todos.response", "cardinality": "items" }, "objectMappings": [{ "from": "name", "to": "name", "valueType": "string" }, { "from": "email", "to": "email", "valueType": "string" }], "field": "completed", "totalField": "totalTodos", "falseCountField": "incompleteTodos" } }
+  ]
+}
