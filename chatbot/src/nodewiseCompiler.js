@@ -10,7 +10,7 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const CARDINALITIES = new Set(['one_object', 'items']);
 const VALUE_TYPES = new Set(['string', 'number', 'boolean']);
@@ -182,6 +182,53 @@ function validateSpecification(value) {
         // Dropping duplicate items removes rows only; the item schema is preserved exactly.
         configuration = { operation: config.operation, input: input.value, field };
         output = { cardinality: 'items', fields: input.output.fields };
+      } else if (config.operation === 'rename_keys') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'renames'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'rename_keys requires items input');
+        assert(Array.isArray(config.renames) && config.renames.length >= 1 && config.renames.length <= 20,
+          'rename_keys renames must contain 1 to 20 mappings');
+
+        const seenFrom = new Set();
+        const seenTo = new Set();
+        const renames = config.renames.map((mapping, rIndex) => {
+          assert(mapping && typeof mapping === 'object' && !Array.isArray(mapping),
+            `steps[${index}].configuration.renames[${rIndex}] must be an object`);
+          for (const k of Object.keys(mapping)) {
+            assert(['from', 'to'].includes(k),
+              `steps[${index}].configuration.renames[${rIndex}] has unsupported key ${k}`);
+          }
+          const from = safeIdentifier(mapping.from, `steps[${index}].configuration.renames[${rIndex}].from`);
+          const to = safeIdentifier(mapping.to, `steps[${index}].configuration.renames[${rIndex}].to`);
+          assert(from !== to, `rename_keys from and to must be distinct: ${from} cannot be renamed to itself`);
+          assert(!seenFrom.has(from), `rename_keys renames contains duplicate source field ${from}`);
+          assert(!seenTo.has(to), `rename_keys renames contains duplicate target field ${to}`);
+          seenFrom.add(from);
+          seenTo.add(to);
+          return { from, to };
+        });
+
+        for (const mapping of renames) {
+          assertInputField(input.output, mapping.from, { usedBy: `steps[${index}].configuration.renames` });
+        }
+
+        const inputFieldNames = new Set(Object.keys(input.output.fields));
+        for (const mapping of renames) {
+          assert(!inputFieldNames.has(mapping.to),
+            `rename_keys target field ${mapping.to} collides with an existing input field`);
+        }
+
+        const renameMap = new Map(renames.map((m) => [m.from, m.to]));
+        const outputFields = {};
+        for (const [fieldName, fieldType] of Object.entries(input.output.fields)) {
+          const finalName = renameMap.has(fieldName) ? renameMap.get(fieldName) : fieldName;
+          outputFields[finalName] = fieldType;
+        }
+
+        configuration = { operation: config.operation, input: input.value, renames };
+        output = { cardinality: 'items', fields: outputFields };
       } else {
         const objectInput = source(config.objectInput, `steps[${index}].configuration.objectInput`, seen, outputs);
         const itemsInput = source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen, outputs);
@@ -277,6 +324,18 @@ function compileNodewiseSpecification(specification) {
     if (step.capability === 'data_transform' && config.operation === 'remove_duplicates') {
       type = 'n8n-nodes-base.removeDuplicates';
       parameters = { operation: 'removeDuplicateInputItems', compare: 'selectedFields', fieldsToCompare: config.field };
+    }
+    if (step.capability === 'data_transform' && config.operation === 'rename_keys') {
+      type = 'n8n-nodes-base.renameKeys';
+      parameters = {
+        keys: {
+          key: config.renames.map((mapping) => ({
+            currentKey: mapping.from,
+            newKey: mapping.to,
+          })),
+        },
+        additionalOptions: {},
+      };
     }
     if (step.capability === 'data_transform' && config.operation === 'join_object_and_count_false_boolean') {
       type = 'n8n-nodes-base.code';

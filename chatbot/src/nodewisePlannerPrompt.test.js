@@ -34,3 +34,9 @@ test('planner prompt documents the limit_items transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /integer 1 to 1000/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /cardinality items/);
 });
+
+test('planner prompt documents the rename_keys transform contract', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /rename_keys/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /renames one or more fields/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /never a one_object input/);
+});

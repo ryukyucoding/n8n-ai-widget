@@ -312,3 +312,187 @@ test('limit_items cannot be the final one_object step', () => {
   };
   assert.throws(() => compileNodewiseSpecification(spec), /final step must produce declared output fields/);
 });
+
+function renameSpec({ renames = [{ from: 'id', to: 'todoId' }] } = {}) {
+  return {
+    schemaVersion: '1.0',
+    kind: 'nodewise_step_specification',
+    goal: 'Rename todo keys and count incomplete todos.',
+    requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos', 'incompleteTodos'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+      { id: 'renamed', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'rename_keys', input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' }, renames } },
+      { id: 'summary', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'renamed.response', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' } },
+      { id: 'output', capability: 'set_output', requiredUserSetup: [], configuration: { input: { kind: 'prior_step', reference: 'summary.response', cardinality: 'one_object' }, mappings: [{ from: 'totalTodos', to: 'totalTodos', valueType: 'number' }, { from: 'incompleteTodos', to: 'incompleteTodos', valueType: 'number' }] } },
+    ],
+  };
+}
+
+test('rename_keys compiles valid todos id->todoId then count/set_output and asserts schema parameters', () => {
+  const workflow = compileNodewiseSpecification(renameSpec());
+  const renameNode = workflow.nodes.find((node) => node.type === 'n8n-nodes-base.renameKeys');
+  assert.ok(renameNode, 'a Rename Keys node is emitted');
+  assert.equal(renameNode.typeVersion, 1);
+  assert.deepEqual(renameNode.parameters, {
+    keys: {
+      key: [{ currentKey: 'id', newKey: 'todoId' }],
+    },
+    additionalOptions: {},
+  });
+  // rename_keys is intermediate; final one_object step is set_output
+  assert.equal(workflow.nodes.at(-1).type, 'n8n-nodes-base.set');
+});
+
+test('rename_keys preserves field ordering deterministically and keeps value types', () => {
+  const spec = renameSpec({
+    renames: [
+      { from: 'id', to: 'todoId' },
+      { from: 'title', to: 'todoTitle' },
+    ],
+  });
+  // downstream sort on renamed field todoId succeeds
+  spec.steps[3] = {
+    id: 'ordered', capability: 'data_transform', requiredUserSetup: [],
+    configuration: { operation: 'sort_items', input: { kind: 'prior_step', reference: 'renamed.response', cardinality: 'items' }, field: 'todoId', order: 'ascending' },
+  };
+  spec.steps[4] = {
+    id: 'summary', capability: 'data_transform', requiredUserSetup: [],
+    configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'ordered.response', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' },
+  };
+  spec.steps.push({
+    id: 'output', capability: 'set_output', requiredUserSetup: [],
+    configuration: { input: { kind: 'prior_step', reference: 'summary.response', cardinality: 'one_object' }, mappings: [{ from: 'totalTodos', to: 'totalTodos', valueType: 'number' }, { from: 'incompleteTodos', to: 'incompleteTodos', valueType: 'number' }] },
+  });
+  const workflow = compileNodewiseSpecification(spec);
+  const renameNode = workflow.nodes.find((node) => node.type === 'n8n-nodes-base.renameKeys');
+  const sortNode = workflow.nodes.find((node) => node.type === 'n8n-nodes-base.sort');
+  const codeNode = workflow.nodes.find((node) => node.type === 'n8n-nodes-base.code');
+  assert.ok(renameNode, 'Rename Keys node is emitted');
+  assert.ok(sortNode, 'Sort node is emitted');
+  assert.ok(codeNode, 'Code node is emitted');
+  // direct output-schema assertion: downstream sort verified and bound todoId
+  assert.deepEqual(sortNode.parameters, {
+    type: 'simple',
+    sortFieldsUi: { sortField: [{ fieldName: 'todoId', order: 'ascending' }] },
+  });
+  // direct output-schema assertion: downstream count verified and bound completed
+  assert.match(codeNode.parameters.jsCode, /record\.completed === false/);
+
+  // downstream step cannot reference the original old key 'id' after it was renamed
+  const badSpec = renameSpec({ renames: [{ from: 'id', to: 'todoId' }] });
+  badSpec.steps[3] = {
+    id: 'ordered', capability: 'data_transform', requiredUserSetup: [],
+    configuration: { operation: 'sort_items', input: { kind: 'prior_step', reference: 'renamed.response', cardinality: 'items' }, field: 'id', order: 'ascending' },
+  };
+  assert.throws(() => compileNodewiseSpecification(badSpec), /沒有宣告欄位 id/);
+});
+
+test('rename_keys rejects a non-items input', () => {
+  const spec = renameSpec();
+  spec.steps[1].configuration.url.reference = 'https://jsonplaceholder.typicode.com/users/1';
+  spec.steps[1].configuration.url.cardinality = 'one_object';
+  spec.steps[2].configuration.input.cardinality = 'one_object';
+  assert.throws(() => compileNodewiseSpecification(spec), /rename_keys requires items input/);
+});
+
+test('rename_keys rejects an undeclared from field', () => {
+  const spec = renameSpec({ renames: [{ from: 'nonexistentField', to: 'safeTarget' }] });
+  assert.throws(() => compileNodewiseSpecification(spec), /沒有宣告欄位 nonexistentField/);
+});
+
+test('rename_keys rejects collision where to matches an existing input field', () => {
+  // Input has fields: userId, id, title, completed.
+  // Renaming 'id' to 'title' collides with existing input field 'title'.
+  const spec = renameSpec({ renames: [{ from: 'id', to: 'title' }] });
+  assert.throws(() => compileNodewiseSpecification(spec), /collides with an existing input field/);
+});
+
+test('rename_keys explicitly rejects no-op renaming a field to itself', () => {
+  const spec = renameSpec({ renames: [{ from: 'id', to: 'id' }] });
+  assert.throws(
+    () => compileNodewiseSpecification(spec),
+    /from and to must be distinct: id cannot be renamed to itself/,
+  );
+});
+
+test('rename_keys rejects chain renaming where a target is another input field', () => {
+  // id -> userId, userId -> newUid: userId is an existing input field
+  const spec = renameSpec({
+    renames: [
+      { from: 'id', to: 'userId' },
+      { from: 'userId', to: 'newUid' },
+    ],
+  });
+  assert.throws(() => compileNodewiseSpecification(spec), /collides with an existing input field/);
+});
+
+test('rename_keys rejects swap renaming between two input fields', () => {
+  // id <-> userId: both targets exist in the original input field set
+  const spec = renameSpec({
+    renames: [
+      { from: 'id', to: 'userId' },
+      { from: 'userId', to: 'id' },
+    ],
+  });
+  assert.throws(() => compileNodewiseSpecification(spec), /collides with an existing input field/);
+});
+
+test('rename_keys rejects duplicate target fields', () => {
+  const spec = renameSpec({
+    renames: [
+      { from: 'id', to: 'duplicateTarget' },
+      { from: 'title', to: 'duplicateTarget' },
+    ],
+  });
+  assert.throws(() => compileNodewiseSpecification(spec), /duplicate target field duplicateTarget/);
+});
+
+test('rename_keys rejects duplicate source fields', () => {
+  const spec = renameSpec({
+    renames: [
+      { from: 'id', to: 'target1' },
+      { from: 'id', to: 'target2' },
+    ],
+  });
+  assert.throws(() => compileNodewiseSpecification(spec), /duplicate source field id/);
+});
+
+test('rename_keys rejects extra configuration keys on the step', () => {
+  const spec = renameSpec();
+  spec.steps[2].configuration.extraOption = 'disallowed';
+  assert.throws(() => compileNodewiseSpecification(spec), /has unsupported key extraOption/);
+});
+
+test('rename_keys rejects extra keys inside a rename entry', () => {
+  const spec = renameSpec();
+  spec.steps[2].configuration.renames = [{ from: 'id', to: 'todoId', valueType: 'number' }];
+  assert.throws(() => compileNodewiseSpecification(spec), /has unsupported key valueType/);
+});
+
+test('rename_keys rejects dot notation and deep keys in from or to', () => {
+  const specDotFrom = renameSpec({ renames: [{ from: 'level1.id', to: 'todoId' }] });
+  assert.throws(() => compileNodewiseSpecification(specDotFrom), /must be a simple field identifier/);
+
+  const specDotTo = renameSpec({ renames: [{ from: 'id', to: 'level1.todoId' }] });
+  assert.throws(() => compileNodewiseSpecification(specDotTo), /must be a simple field identifier/);
+});
+
+test('rename_keys rejects an empty renames array', () => {
+  const spec = renameSpec({ renames: [] });
+  assert.throws(() => compileNodewiseSpecification(spec), /must contain 1 to 20 mappings/);
+});
+
+test('rename_keys cannot be the final one_object step', () => {
+  const spec = {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Rename only, no final one_object.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['completed'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+      { id: 'renamed', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'rename_keys', input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' }, renames: [{ from: 'id', to: 'todoId' }] } },
+    ],
+  };
+  assert.throws(() => compileNodewiseSpecification(spec), /final step must produce declared output fields/);
+});

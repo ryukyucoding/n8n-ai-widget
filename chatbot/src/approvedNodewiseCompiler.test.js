@@ -224,3 +224,42 @@ test('removing limit_items from the skill registry invalidates an already-issued
     /不屬於當前的計畫或執行環境/,
   );
 });
+
+function renameSpecification() {
+  return {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Count false completed among todos with id renamed to todoId.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos', 'incompleteTodos'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+      { id: 'renamed', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'rename_keys', input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' }, renames: [{ from: 'id', to: 'todoId' }] } },
+      { id: 'summary', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'renamed.response', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' } },
+      { id: 'output', capability: 'set_output', requiredUserSetup: [], configuration: { input: { kind: 'prior_step', reference: 'summary.response', cardinality: 'one_object' }, mappings: [{ from: 'totalTodos', to: 'totalTodos', valueType: 'number' }, { from: 'incompleteTodos', to: 'incompleteTodos', valueType: 'number' }] } },
+    ],
+  };
+}
+
+test('skillIdsForSpecification maps the rename_keys operation to its registry skill', () => {
+  const ids = skillIdsForSpecification(renameSpecification());
+  assert.ok(ids.includes('transform.rename_keys'));
+  assert.ok(ids.includes('http.public_get') && ids.includes('output.one_object'));
+});
+
+test('a rename_keys plan approves and compiles with a stable fingerprint and a Rename Keys node', () => {
+  const first = proposeNodewisePlan(renameSpecification());
+  const second = proposeNodewisePlan(renameSpecification());
+  assert.equal(first.planFingerprint, second.planFingerprint);
+  const approved = approveNodewisePlan(renameSpecification(), { secret: SECRET, sessionId: SESSION });
+  const result = compileApprovedNodewisePlan(renameSpecification(), approved.approvalToken, { secret: SECRET, sessionId: SESSION });
+  assert.equal(result.planFingerprint, approved.planFingerprint);
+  assert.ok(result.workflow.nodes.some((node) => node.type === 'n8n-nodes-base.renameKeys'));
+});
+
+test('removing rename_keys from the skill registry invalidates an already-issued approval', () => {
+  const approved = approveNodewisePlan(renameSpecification(), { secret: SECRET, sessionId: SESSION });
+  const registryWithoutRename = SKILLS.filter((skill) => skill.id !== 'transform.rename_keys');
+  assert.throws(
+    () => compileApprovedNodewisePlan(renameSpecification(), approved.approvalToken, { secret: SECRET, sessionId: SESSION, skillRegistry: registryWithoutRename }),
+    /不屬於當前的計畫或執行環境/,
+  );
+});

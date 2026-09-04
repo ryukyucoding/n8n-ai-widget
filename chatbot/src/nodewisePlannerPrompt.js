@@ -69,6 +69,9 @@ The sort_items transform reorders an item list by one field. Its configuration i
 The remove_duplicates transform drops duplicate items that share the same value in one field. Its configuration is exactly { "operation": "remove_duplicates", "input": <a prior_step reference with cardinality items>, "field": <an existing item field> }. It keeps every field of the input items unchanged and outputs cardinality items with duplicates removed, so it is an intermediate step, never the final one_object step. Use no other keys and never a one_object input. Example removing todos that repeat a userId:
 { "id": "unique", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "remove_duplicates", "input": { "kind": "prior_step", "reference": "todos.response", "cardinality": "items" }, "field": "userId" } }
 
+The rename_keys transform renames one or more fields in an item list. Its configuration is exactly { "operation": "rename_keys", "input": <a prior_step reference with cardinality items>, "renames": [{ "from": <existing field>, "to": <new field> }] }. It renames only the specified fields, keeps all other fields and their primitive value types unchanged, and outputs cardinality items, so it is an intermediate step, never the final one_object step. Use no other keys, no regex replacement, no dot notation or deep keys, and never a one_object input. Example renaming id to todoId in a todos list:
+{ "id": "renamed", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "rename_keys", "input": { "kind": "prior_step", "reference": "todos.response", "cardinality": "items" }, "renames": [{ "from": "id", "to": "todoId" }] } }
+
 Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
 
 module.exports = { NODEWISE_PLANNER_RESULT_PROMPT };

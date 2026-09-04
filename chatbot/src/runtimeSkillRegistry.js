@@ -68,6 +68,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'transform.rename_keys',
+    label: 'Rename keys in an item list',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'output.one_object',
     label: 'One object output contract',
     maturity: 'implemented',
