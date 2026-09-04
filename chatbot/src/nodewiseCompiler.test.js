@@ -259,6 +259,35 @@ test('limit_items compiles to an n8n Limit node with the schema-verified paramet
   assert.equal(workflow.nodes.at(-1).type, 'n8n-nodes-base.set');
 });
 
+test('limit_items defaults keep to firstItems when the key is omitted', () => {
+  const spec = limitSpec();
+  assert.equal(spec.steps[2].configuration.keep, undefined);
+  const limitNode = compileNodewiseSpecification(spec).nodes.find((node) => node.type === 'n8n-nodes-base.limit');
+  assert.equal(limitNode.parameters.keep, 'firstItems');
+});
+
+test('limit_items emits keep=lastItems when requested', () => {
+  const spec = limitSpec();
+  spec.steps[2].configuration.keep = 'lastItems';
+  const limitNode = compileNodewiseSpecification(spec).nodes.find((node) => node.type === 'n8n-nodes-base.limit');
+  assert.deepEqual(limitNode.parameters, { maxItems: 5, keep: 'lastItems' });
+});
+
+test('limit_items explicit keep=firstItems is accepted', () => {
+  const spec = limitSpec();
+  spec.steps[2].configuration.keep = 'firstItems';
+  const limitNode = compileNodewiseSpecification(spec).nodes.find((node) => node.type === 'n8n-nodes-base.limit');
+  assert.equal(limitNode.parameters.keep, 'firstItems');
+});
+
+test('limit_items rejects an unknown keep value', () => {
+  for (const bad of ['first', 'last', 'lastItem', '', null, 1, true]) {
+    const spec = limitSpec();
+    spec.steps[2].configuration.keep = bad;
+    assert.throws(() => compileNodewiseSpecification(spec), /keep must be firstItems or lastItems/);
+  }
+});
+
 test('limit_items accepts the boundary limits 1 and 1000', () => {
   for (const n of [1, 1000]) {
     const spec = limitSpec();
@@ -278,8 +307,8 @@ test('limit_items rejects non-integer, zero, negative, and out-of-range limits',
 
 test('limit_items rejects an extra configuration key', () => {
   const spec = limitSpec();
-  spec.steps[2].configuration.keep = 'lastItems';
-  assert.throws(() => compileNodewiseSpecification(spec), /has unsupported key keep/);
+  spec.steps[2].configuration.offset = 3;
+  assert.throws(() => compileNodewiseSpecification(spec), /has unsupported key offset/);
 });
 
 test('limit_items rejects a one_object input', () => {

@@ -12,6 +12,7 @@ const {
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
 const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
+const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
 const CARDINALITIES = new Set(['one_object', 'items']);
 const VALUE_TYPES = new Set(['string', 'number', 'boolean']);
 
@@ -150,14 +151,17 @@ function validateSpecification(value) {
         output = { cardinality: 'one_object', fields: { [configuration.totalField]: 'number', [configuration.falseCountField]: 'number' } };
       } else if (config.operation === 'limit_items') {
         for (const key of Object.keys(config)) {
-          assert(['operation', 'input', 'limit'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+          assert(['operation', 'input', 'limit', 'keep'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
         }
         const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
         assert(input.value.cardinality === 'items', 'limit_items requires items input');
         assert(Number.isInteger(config.limit) && config.limit >= 1 && config.limit <= 1000,
           'limit_items limit must be an integer between 1 and 1000');
+        // keep is optional; default preserves the original first-items behaviour.
+        const keep = config.keep === undefined ? 'firstItems' : config.keep;
+        assert(LIMIT_KEEP.has(keep), 'limit_items keep must be firstItems or lastItems');
         // Preserve the input item schema exactly — limit removes items, never invents or drops fields.
-        configuration = { operation: config.operation, input: input.value, limit: config.limit };
+        configuration = { operation: config.operation, input: input.value, limit: config.limit, keep };
         output = { cardinality: 'items', fields: input.output.fields };
       } else if (config.operation === 'sort_items') {
         for (const key of Object.keys(config)) {
@@ -315,7 +319,7 @@ function compileNodewiseSpecification(specification) {
     }
     if (step.capability === 'data_transform' && config.operation === 'limit_items') {
       type = 'n8n-nodes-base.limit';
-      parameters = { maxItems: config.limit, keep: 'firstItems' };
+      parameters = { maxItems: config.limit, keep: config.keep === undefined ? 'firstItems' : config.keep };
     }
     if (step.capability === 'data_transform' && config.operation === 'sort_items') {
       type = 'n8n-nodes-base.sort';
