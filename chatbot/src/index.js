@@ -290,6 +290,8 @@ app.post('/beta/compile', async (req, res) => {
   } catch (error) {
     console.error('[chatbot] runtime compiler beta failed:', error.message || error);
     return res.status(500).json({ error: 'Runtime Compiler Beta could not create the workflow.', code: 'beta_create_failed' });
+  }
+});
 
 async function createVerifiedCompilerWorkflow({ userRequest, candidateWorkflow, metadata = {} }) {
   try {
@@ -449,8 +451,6 @@ async function handleApprovedPlanCompilation(req, res) {
 app.post('/beta/plan-from-request', handlePlanFromRequest);
 app.post('/beta/plan-approve', handlePlanApproval);
 app.post('/beta/compile-approved', handleApprovedPlanCompilation);
-  }
-});
 
 // ---------------------------------------------------------------------------
 // POST /agent/run — intent decompose + modify/delete/insert station pipelines
@@ -1169,6 +1169,7 @@ app.post('/generate', async (req, res) => {
 // Start
 // ---------------------------------------------------------------------------
 
+if (require.main === module) {
 app.listen(port, () => {
   console.log(`n8n AI widget server running on http://localhost:${port}`);
   console.log(`n8n API base: ${N8N_BASE_URL}`);
@@ -1191,3 +1192,5 @@ app.listen(port, () => {
     console.warn('[chatbot] N8N_API_KEY check failed:', check);
   });
 });
+}
+module.exports = app;
