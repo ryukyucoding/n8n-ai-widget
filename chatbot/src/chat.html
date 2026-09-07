@@ -554,10 +554,19 @@
         }).join('');
         var fields = ((data.specification.expectedOutput && data.specification.expectedOutput.fields) || []).map(escHtml).join(', ');
         var goal = (plan.goal || data.specification.goal || '').trim();
+        // Disclosures the backend already computed — the user confirms with full
+        // sight of where data goes and what setup / side effects are involved.
+        var domains = (plan.externalDomains || []).map(escHtml).join(', ');
+        var setup = (plan.setupRequirements || []).map(escHtml).join('、');
+        var effects = (plan.sideEffects || []).map(escHtml).join('、');
+        var meta = 'font-size:12px;opacity:.8';
         var html = '📋 <b>規劃出的步驟</b>（先看再建）'
-          + (goal ? '<div style="font-size:12px;opacity:.8;margin:2px 0 4px">' + escHtml(goal) + '</div>' : '')
+          + (goal ? '<div style="' + meta + ';margin:2px 0 4px">' + escHtml(goal) + '</div>' : '')
           + '<ol style="margin:6px 0 6px 18px;padding:0">' + steps + '</ol>'
-          + (fields ? '<div style="font-size:12px;opacity:.8">輸出欄位：' + fields + '</div>' : '')
+          + (fields ? '<div style="' + meta + '">輸出欄位：' + fields + '</div>' : '')
+          + '<div style="' + meta + '">資料來源：' + (domains || '無外部連線') + '</div>'
+          + (setup ? '<div style="' + meta + '">⚙️ 需要你先設定：' + setup + '</div>' : '')
+          + (effects ? '<div style="font-size:12px;color:#c0392b;font-weight:600;margin-top:2px">⚠️ 副作用：' + effects + '</div>' : '')
           + '<button class="plan-approve-btn" data-plan="' + planId + '" style="margin-top:8px;background:#ff6d5a;color:#fff;border:0;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer">✅ 建立此 workflow</button>';
         var el = addBubble(html, 'bot', true); // skipSave: button handler can't survive a reload
         var btn = el.querySelector('.plan-approve-btn');
