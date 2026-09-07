@@ -72,6 +72,13 @@ The remove_duplicates transform drops duplicate items that share the same value 
 The rename_keys transform renames one or more fields in an item list. Its configuration is exactly { "operation": "rename_keys", "input": <a prior_step reference with cardinality items>, "renames": [{ "from": <existing field>, "to": <new field> }] }. It renames only the specified fields, keeps all other fields and their primitive value types unchanged, and outputs cardinality items, so it is an intermediate step, never the final one_object step. Use no other keys, no regex replacement, no dot notation or deep keys, and never a one_object input. Example renaming id to todoId in a todos list:
 { "id": "renamed", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "rename_keys", "input": { "kind": "prior_step", "reference": "todos.response", "cardinality": "items" }, "renames": [{ "from": "id", "to": "todoId" }] } }
 
+Operation selection (strict):
+- To report counts over an item list (a total, and how many have a boolean field equal to false) when you do NOT need any field copied from a separate object, use count_false_boolean: { "operation": "count_false_boolean", "input": <a prior_step reference with cardinality items>, "field": <a boolean field>, "totalField": <name>, "falseCountField": <name> }. It outputs one_object with totalField and falseCountField. Prefer count_false_boolean for pure counting.
+- Use join_object_and_count_false_boolean ONLY when the output must also include fields copied from a one_object source. Its objectMappings must then contain 1 to 20 { from, to, valueType } entries and must never be empty. If you would leave objectMappings empty, use count_false_boolean instead.
+- Never add an http_request step whose response no later step uses.
+- No data_transform (count_false_boolean, sort_items, limit_items, remove_duplicates, rename_keys, select_fields) may be the final step. The plan MUST end with a set_output step whose input references the immediately prior step with cardinality one_object and whose mappings project EXACTLY expectedOutput.fields (each as { from, to, valueType }). Example final step after a count named summary:
+{ "id": "output", "capability": "set_output", "requiredUserSetup": [], "configuration": { "input": { "kind": "prior_step", "reference": "summary.response", "cardinality": "one_object" }, "mappings": [{ "from": "totalTodos", "to": "totalTodos", "valueType": "number" }, { "from": "incompleteTodos", "to": "incompleteTodos", "valueType": "number" }] } }
+
 Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
 
 module.exports = { NODEWISE_PLANNER_RESULT_PROMPT };

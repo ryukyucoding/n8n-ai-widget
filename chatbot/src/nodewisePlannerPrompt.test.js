@@ -42,3 +42,11 @@ test('planner prompt documents the rename_keys transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /renames one or more fields/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /never a one_object input/);
 });
+
+test('planner prompt documents strict operation selection (count vs join, set_output final)', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Operation selection \(strict\)/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Prefer count_false_boolean for pure counting/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /objectMappings must then contain 1 to 20 .* and must never be empty/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Never add an http_request step whose response no later step uses/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /may be the final step\. The plan MUST end with a set_output step/);
+});
