@@ -48,5 +48,9 @@ test('planner prompt documents strict operation selection (count vs join, set_ou
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Prefer count_false_boolean for pure counting/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /objectMappings must then contain 1 to 20 .* and must never be empty/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Never add an http_request step whose response no later step uses/);
-  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /may be the final step\. The plan MUST end with a set_output step/);
+  // items-only transforms are intermediate; count must be followed by set_output
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /sort_items, limit_items, remove_duplicates, and rename_keys .* always intermediate, never the final step/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /count_false_boolean outputs one_object but must NOT be the final step; follow it with a set_output/);
+  // one_object-producing join/select_fields MAY be final when fields already match
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /join_object_and_count_false_boolean and select_fields produce one_object and MAY be the final step/);
 });
