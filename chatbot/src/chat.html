@@ -231,6 +231,10 @@
     var AGENT_URL = window.location.origin + '/agent/run';
     var GENERATE_URL = window.location.origin + '/generate';
     var COMPILER_URL = window.location.origin + '/beta/compile';
+    // Plan-first (guarded nodewise compiler) endpoints — Compiler Beta mode uses these.
+    var PLAN_REQUEST_URL = window.location.origin + '/beta/plan-from-request';
+    var PLAN_APPROVE_URL = window.location.origin + '/beta/plan-approve';
+    var COMPILE_APPROVED_URL = window.location.origin + '/beta/compile-approved';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
     var MODE_KEY = 'n8n-widget-active-mode';
@@ -269,7 +273,7 @@
       return activeMode === 'create'
         ? '👋 描述你想從零建立的 workflow。<br><br>範例：<em>「每天早上 9 點把 Airtable 資料寄到 Slack」</em>'
         : activeMode === 'compiler'
-          ? '👋 Runtime Compiler Beta 目前只提供兩個已驗證的公開資料 workflow。<br><br>範例：<em>「Retrieve public JSONPlaceholder user and todo data, then return a todo summary」</em><br><em>「Check Twitch channel twitch live status」</em>'
+          ? '👋 用自然語言描述對公開 JSONPlaceholder 資料的處理（排序／取前後 N 筆／去重／改欄位名／計數／選欄位）。系統會先給你「規劃步驟」，你確認後才建立；不支援的需求會明確拒絕，不會硬生 workflow。<br><br>範例：<em>「抓 user 1 的 todos，依 id 排序取前 5 筆，回報總數與未完成數」</em>'
         : '👋 描述要對 <strong>目前開啟的 workflow</strong> 做的插入、刪除或修改。<br><br>範例：<em>「在 HTTP Request 後面加一個 Set」</em>、<em>「刪掉用不到的 Code 節點」</em>';
     }
 
@@ -286,7 +290,7 @@
       modeHint.textContent = activeMode === 'create'
         ? '從零建立新 workflow；不會讀取或修改目前畫布。'
         : activeMode === 'compiler'
-          ? '只編譯已驗證的 public-data pattern；未支援需求會明確拒絕，不會交由模型猜測。'
+          ? '自然語言 → 規劃 → 你確認 → 建立（受驗證技能組合，未支援需求明確拒絕）。'
         : '對目前畫布進行插入、刪除或修改；需要先開啟目標 workflow。';
     }
 
@@ -498,6 +502,108 @@
       this.style.height = Math.min(this.scrollHeight, 100) + 'px';
     });
 
+    // --- Plan-first (Compiler Beta) helpers ---------------------------------
+    // POST JSON and always resolve to { ok, status, data } even on non-JSON.
+    function postJson(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          return { ok: res.ok, status: res.status, data: data };
+        });
+      });
+    }
+
+    // Plans awaiting user confirmation, keyed by an id carried on the button.
+    // Not persisted: a plan bubble restored from history is intentionally inert.
+    var pendingPlans = {};
+
+    function renderPlanFirstReview(data, httpOk) {
+      data = data || {};
+      if (data.error || !httpOk) {
+        var msg = data.error || ('規劃失敗 (HTTP ' + (data.status || '?') + ')');
+        if (data.code === 'plan_first_planner_timeout' || /timeout/i.test(String(data.error || ''))) {
+          msg = '規劃逾時（模型可能在冷啟動），請再送一次。';
+        }
+        addBubble('❌ ' + escHtml(msg), 'bot error');
+        return;
+      }
+      var outcome = data.outcome;
+      if (outcome === 'clarification_required') {
+        var needs = (data.requiredUserInputs || []).map(escHtml).join('、');
+        addBubble('❓ ' + escHtml(data.goal || '需要更多資訊才能規劃') + (needs ? '<br>請補充：<em>' + needs + '</em>' : ''), 'bot');
+        return;
+      }
+      if (outcome === 'unsupported_capability') {
+        var gap = data.capabilityGap || {};
+        var gaps = (data.capabilityGaps || gap.requestedSkillIds || []).map(escHtml).join('、');
+        addBubble('🚫 目前不支援此需求' + (gaps ? '：' + gaps : '')
+          + '<br><span style="font-size:11px;opacity:.75">系統只用已驗證的技能組合，不會硬生一個跑不動的 workflow。</span>', 'bot');
+        return;
+      }
+      if (data.specification && (data.plan || outcome === 'review_required' || outcome === 'ready_to_compile')) {
+        var planId = 'plan_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+        pendingPlans[planId] = { specification: data.specification, sessionId: 'ui-' + planId };
+        var plan = data.plan || {};
+        var stepSrc = plan.steps || data.specification.steps || [];
+        var steps = stepSrc.map(function (s) {
+          var op = s.operation || (s.configuration && s.configuration.operation) || s.capability || s.kind || '?';
+          return '<li>' + escHtml(op) + '</li>';
+        }).join('');
+        var fields = ((data.specification.expectedOutput && data.specification.expectedOutput.fields) || []).map(escHtml).join(', ');
+        var goal = (plan.goal || data.specification.goal || '').trim();
+        var html = '📋 <b>規劃出的步驟</b>（先看再建）'
+          + (goal ? '<div style="font-size:12px;opacity:.8;margin:2px 0 4px">' + escHtml(goal) + '</div>' : '')
+          + '<ol style="margin:6px 0 6px 18px;padding:0">' + steps + '</ol>'
+          + (fields ? '<div style="font-size:12px;opacity:.8">輸出欄位：' + fields + '</div>' : '')
+          + '<button class="plan-approve-btn" data-plan="' + planId + '" style="margin-top:8px;background:#ff6d5a;color:#fff;border:0;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer">✅ 建立此 workflow</button>';
+        var el = addBubble(html, 'bot', true); // skipSave: button handler can't survive a reload
+        var btn = el.querySelector('.plan-approve-btn');
+        if (btn) btn.addEventListener('click', function () { approvePlan(planId, btn); });
+        return;
+      }
+      addBubble('⚠️ 規劃器回傳了未預期的結果，請再試一次或換個描述。', 'bot error');
+    }
+
+    async function approvePlan(planId, btn) {
+      var plan = pendingPlans[planId];
+      if (!plan) { addBubble('⚠️ 這個規劃已失效，請重新描述需求。', 'bot error'); return; }
+      if (btn) { btn.disabled = true; btn.textContent = '建立中…'; }
+      var typing = addTyping();
+      function fail(m) {
+        typing.remove();
+        addBubble('❌ ' + escHtml(m), 'bot error');
+        if (btn) { btn.disabled = false; btn.textContent = '✅ 建立此 workflow'; }
+      }
+      try {
+        var ap = await postJson(PLAN_APPROVE_URL, { specification: plan.specification, approved: true, sessionId: plan.sessionId });
+        if (!ap.ok || !ap.data || !ap.data.approvalToken) {
+          return fail('核准失敗：' + ((ap.data && ap.data.error) || ('HTTP ' + ap.status)));
+        }
+        var cm = await postJson(COMPILE_APPROVED_URL, { specification: plan.specification, approvalToken: ap.data.approvalToken, sessionId: plan.sessionId });
+        if (!cm.ok || !cm.data || cm.data.error) {
+          return fail('建立失敗：' + ((cm.data && cm.data.error) || ('HTTP ' + cm.status)));
+        }
+        delete pendingPlans[planId];
+        typing.remove();
+        if (btn) { btn.textContent = '✅ 已建立'; }
+        var wf = cm.data.workflow;
+        var wfId = cm.data.workflowId || (wf && (wf.id || wf.workflowId));
+        var okHtml = '🎉 已建立 workflow' + (wfId ? '（id: ' + escHtml(String(wfId)) + '）' : '') + '。';
+        var refresh = wf ? await notifyParentCanvasRefresh(wf) : { ok: false };
+        if (cm.data.workflowUrl) {
+          okHtml += '<br><a href="' + escHtml(cm.data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟</a>';
+        } else if (!(refresh && refresh.ok)) {
+          okHtml += '<br>請在 n8n 開啟此 workflow 並手動 Execute 查看結果。';
+        }
+        addBubble(okHtml, 'bot');
+      } catch (err) {
+        fail('無法連線到 chatbot 服務：' + err.message);
+      }
+    }
+
     async function send() {
       var text = inputEl.value.trim();
       if (!text) return;
@@ -513,11 +619,20 @@
       try {
         var useCreate = activeMode === 'create';
         var useCompiler = activeMode === 'compiler';
-        var wfId = (useCreate || useCompiler) ? null : currentWorkflowId();
+
+        // Compiler Beta = plan-first flow: request a plan from the guarded
+        // nodewise compiler, show the planned steps, and only create the
+        // workflow after the user confirms (renderPlanFirstReview -> approvePlan).
+        if (useCompiler) {
+          var planResp = await postJson(PLAN_REQUEST_URL, { message: text });
+          typing.remove();
+          renderPlanFirstReview(planResp.data, planResp.ok);
+          return;
+        }
+
+        var wfId = useCreate ? null : currentWorkflowId();
         var body = useCreate
           ? { message: text, model: modelSelect.value }
-          : useCompiler
-            ? { message: text }
           : {
               message: text,
               sessionId: loadSessionId(),
@@ -531,11 +646,6 @@
           var generated = await generateWithProgress(body, typing);
           res = { ok: generated.ok };
           data = generated.data;
-        } else if (useCompiler) {
-          res = await fetch(COMPILER_URL, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-          });
-          data = await res.json();
         } else {
           res = await fetch(AGENT_URL, {
             method: 'POST',
@@ -572,7 +682,7 @@
             ? await notifyParentCanvasRefresh(data.workflow)
             : null;
           addBubble(formatBotReply(data.message, refreshResult), 'bot');
-        } else if (useCreate || useCompiler) {
+        } else if (useCreate) {
           var htmlQ = escHtml(data.message || '已建立 workflow。').replace(/\n/g, '<br>');
           if (data.workflowUrl) {
             htmlQ += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
