@@ -502,6 +502,105 @@
       this.style.height = Math.min(this.scrollHeight, 100) + 'px';
     });
 
+    async function send() {
+      var text = inputEl.value.trim();
+      if (!text) return;
+
+      inputEl.value = '';
+      inputEl.style.height = 'auto';
+      sendBtn.disabled = true;
+
+      addBubble(escHtml(text), 'user');
+
+      var typing = addTyping();
+
+      try {
+        var useCreate = activeMode === 'create';
+        var useCompiler = activeMode === 'compiler';
+        var wfId = (useCreate || useCompiler) ? null : currentWorkflowId();
+        var body = useCreate
+          ? { message: text, model: modelSelect.value }
+          : useCompiler
+            ? { message: text }
+          : {
+              message: text,
+              sessionId: loadSessionId(),
+              workflowId: wfId,
+              clearSession: false,
+              model: modelSelect.value,
+            };
+        var res;
+        var data;
+        if (useCompiler) {
+          // Compiler Beta = plan-first: request a plan; rendering (and the
+          // confirm-to-create step) happens after typing is removed, below.
+          var planResp = await postJson(PLAN_REQUEST_URL, body);
+          res = { ok: planResp.ok };
+          data = planResp.data;
+        } else if (useCreate) {
+          var generated = await generateWithProgress(body, typing);
+          res = { ok: generated.ok };
+          data = generated.data;
+        } else {
+          res = await fetch(AGENT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          data = await res.json();
+        }
+        typing.remove();
+
+        if (useCompiler) {
+          renderPlanFirstReview(data, res.ok);
+          return;
+        }
+
+        if (!res.ok || data.error) {
+          var errMsg = data.error || 'Unknown error';
+          if (data.sessionId) saveSessionId(data.sessionId);
+          var errHtml = '❌ ' + escHtml(errMsg);
+          if (data.workflow) {
+            errHtml += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
+          }
+          addBubble(errHtml, 'bot error');
+        } else if (data.action === 'clarify') {
+          var cands = data.candidates && data.candidates.length
+            ? '<br><br>候選：<em>' + escHtml(data.candidates.join(', ')) + '</em>'
+            : '';
+          saveSessionId(data.sessionId);
+          // A clarification belongs to the edit pipeline even after an iframe reload.
+          activeMode = 'edit';
+          try { localStorage.setItem(MODE_KEY, activeMode); } catch (e) {}
+          document.querySelectorAll('.mode-btn').forEach(function (button) { button.classList.toggle('active', button.dataset.mode === 'edit'); });
+          renderModelOptions();
+          addBubble('❓ ' + escHtml(data.message || '') + cands, 'bot');
+        } else if (data.action === 'done') {
+          saveSessionId(null);
+          try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+          var refreshResult = data.workflow
+            ? await notifyParentCanvasRefresh(data.workflow)
+            : null;
+          addBubble(formatBotReply(data.message, refreshResult), 'bot');
+        } else if (useCreate) {
+          var htmlQ = escHtml(data.message || '已建立 workflow。').replace(/\n/g, '<br>');
+          if (data.workflowUrl) {
+            htmlQ += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
+          }
+          addBubble(htmlQ, 'bot');
+        } else {
+          saveSessionId(data.sessionId);
+          addBubble(formatBotReply(data.message || '已處理', null), 'bot');
+        }
+      } catch (err) {
+        typing.remove();
+        addBubble('❌ 無法連線到 chatbot 服務：' + escHtml(err.message), 'bot error');
+      } finally {
+        sendBtn.disabled = false;
+        inputEl.focus();
+      }
+    }
+
     // --- Plan-first (Compiler Beta) helpers ---------------------------------
     // POST JSON and always resolve to { ok, status, data } even on non-JSON.
     function postJson(url, body) {
@@ -610,103 +709,6 @@
         addBubble(okHtml, 'bot');
       } catch (err) {
         fail('無法連線到 chatbot 服務：' + err.message);
-      }
-    }
-
-    async function send() {
-      var text = inputEl.value.trim();
-      if (!text) return;
-
-      inputEl.value = '';
-      inputEl.style.height = 'auto';
-      sendBtn.disabled = true;
-
-      addBubble(escHtml(text), 'user');
-
-      var typing = addTyping();
-
-      try {
-        var useCreate = activeMode === 'create';
-        var useCompiler = activeMode === 'compiler';
-
-        // Compiler Beta = plan-first flow: request a plan from the guarded
-        // nodewise compiler, show the planned steps, and only create the
-        // workflow after the user confirms (renderPlanFirstReview -> approvePlan).
-        if (useCompiler) {
-          var planResp = await postJson(PLAN_REQUEST_URL, { message: text });
-          typing.remove();
-          renderPlanFirstReview(planResp.data, planResp.ok);
-          return;
-        }
-
-        var wfId = useCreate ? null : currentWorkflowId();
-        var body = useCreate
-          ? { message: text, model: modelSelect.value }
-          : {
-              message: text,
-              sessionId: loadSessionId(),
-              workflowId: wfId,
-              clearSession: false,
-              model: modelSelect.value,
-            };
-        var res;
-        var data;
-        if (useCreate) {
-          var generated = await generateWithProgress(body, typing);
-          res = { ok: generated.ok };
-          data = generated.data;
-        } else {
-          res = await fetch(AGENT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          data = await res.json();
-        }
-        typing.remove();
-
-        if (!res.ok || data.error) {
-          var errMsg = data.error || 'Unknown error';
-          if (data.sessionId) saveSessionId(data.sessionId);
-          var errHtml = '❌ ' + escHtml(errMsg);
-          if (data.workflow) {
-            errHtml += '<div class="workflow-preview">' + escHtml(JSON.stringify(data.workflow, null, 2)) + '</div>';
-          }
-          addBubble(errHtml, 'bot error');
-        } else if (data.action === 'clarify') {
-          var cands = data.candidates && data.candidates.length
-            ? '<br><br>候選：<em>' + escHtml(data.candidates.join(', ')) + '</em>'
-            : '';
-          saveSessionId(data.sessionId);
-          // A clarification belongs to the edit pipeline even after an iframe reload.
-          activeMode = 'edit';
-          try { localStorage.setItem(MODE_KEY, activeMode); } catch (e) {}
-          document.querySelectorAll('.mode-btn').forEach(function (button) { button.classList.toggle('active', button.dataset.mode === 'edit'); });
-          renderModelOptions();
-          addBubble('❓ ' + escHtml(data.message || '') + cands, 'bot');
-        } else if (data.action === 'done') {
-          saveSessionId(null);
-          try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
-          var refreshResult = data.workflow
-            ? await notifyParentCanvasRefresh(data.workflow)
-            : null;
-          addBubble(formatBotReply(data.message, refreshResult), 'bot');
-        } else if (useCreate) {
-          var htmlQ = escHtml(data.message || '已建立 workflow。').replace(/\n/g, '<br>');
-          if (data.workflowUrl) {
-            htmlQ += '<br><br><a href="' + escHtml(data.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟 workflow</a>';
-          }
-          addBubble(htmlQ, 'bot');
-        } else {
-          saveSessionId(data.sessionId);
-          addBubble(formatBotReply(data.message || '已處理', null), 'bot');
-        }
-      } catch (err) {
-        typing.remove();
-        addBubble('❌ 無法連線到 chatbot 服務：' + escHtml(err.message), 'bot error');
-      } finally {
-        sendBtn.disabled = false;
-        inputEl.focus();
       }
     }
 
