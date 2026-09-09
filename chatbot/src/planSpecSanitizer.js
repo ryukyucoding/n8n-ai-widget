@@ -76,6 +76,18 @@ function sanitizeConfiguration(config) {
   return out;
 }
 
+// Scrub a raw user message before it reaches the planner/model: replace any
+// secret-shaped substring with a placeholder and bound the length. The current
+// user turn is NOT covered by context redaction, so it must be scrubbed here.
+const SECRET_VALUE_G = new RegExp(SECRET_VALUE.source, 'gi');
+function scrubText(str, maxLen = 4000) {
+  if (typeof str !== 'string') return { text: '', redacted: false };
+  let redacted = false;
+  let out = str.replace(SECRET_VALUE_G, () => { redacted = true; return '«redacted»'; });
+  if (out.length > maxLen) out = out.slice(0, maxLen);
+  return { text: out, redacted };
+}
+
 function assertNoSecrets(value, path) {
   if (typeof value === 'string') {
     if (SECRET_VALUE.test(value)) throw new Error(`plan spec contains a secret-shaped value${path ? ` at ${path}` : ''}`);
@@ -129,4 +141,4 @@ function sanitizePlanSpec(spec) {
   return projected;
 }
 
-module.exports = { sanitizePlanSpec, sanitizeConfiguration, assertNoSecrets, FORBIDDEN_KEYS };
+module.exports = { sanitizePlanSpec, sanitizeConfiguration, assertNoSecrets, scrubText, FORBIDDEN_KEYS };

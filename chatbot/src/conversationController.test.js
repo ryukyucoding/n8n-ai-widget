@@ -92,10 +92,55 @@ test('unknown conversation / wrong caller -> error, no throw', async () => {
   assert.equal((await controller.respond('other', r.conversationId, 'x')).error, 'conversation_not_found');
 });
 
-test('computeStatus mapping', () => {
-  assert.equal(computeStatus('clarification_required', null), 'planning');
-  assert.equal(computeStatus('unsupported_capability', null), 'planning');
-  assert.equal(computeStatus('ready_to_compile', { overall: 'needs_choice' }), 'awaiting_credential_choice');
-  assert.equal(computeStatus('ready_to_compile', { overall: 'ready' }), 'ready_to_confirm');
-  assert.equal(computeStatus('ready_to_compile', { overall: 'setup_required' }), 'ready_to_confirm');
+test('computeStatus mapping (hasSpec-gated)', () => {
+  assert.equal(computeStatus('ready_to_compile', { overall: 'ready' }, false), 'planning'); // no spec -> never confirmable
+  assert.equal(computeStatus('clarification_required', null, true), 'planning');
+  assert.equal(computeStatus('unsupported_capability', null, true), 'planning');
+  assert.equal(computeStatus('ready_to_compile', { overall: 'needs_choice' }, true), 'awaiting_credential_choice');
+  assert.equal(computeStatus('ready_to_compile', { overall: 'ready' }, true), 'ready_to_confirm');
+  assert.equal(computeStatus('ready_to_compile', { overall: 'setup_required' }, true), 'ready_to_confirm');
+});
+
+test('ready_to_compile with null spec and no prior plan stays planning (not confirmable)', async () => {
+  const { controller } = make({ planImpl: async () => ({ outcome: 'ready_to_compile', spec: null, assistantMessage: 'hmm' }) });
+  const r = await controller.start('solo', 'x');
+  assert.equal(r.view.status, 'planning');
+  const c = await controller.confirm('solo', r.conversationId);
+  assert.equal(c.error, 'not_ready_to_confirm');
+});
+
+test('raw user message is scrubbed before reaching the planner (secret never sent to qwen)', async () => {
+  const seenMessages = [];
+  const { controller } = make({ planImpl: async ({ message }) => { seenMessages.push(message); return { outcome: 'clarification_required', spec: null, assistantMessage: '?' }; } });
+  const r = await controller.start('solo', 'use my key eyJhbGciOiJIUzI1NiJ9.abcdefghij and read calendar');
+  assert.doesNotMatch(seenMessages[0], /eyJhbGciOiJIUzI1NiJ9\.abcdefghij/);
+  assert.match(seenMessages[0], /«redacted»/);
+  assert.equal(r.inputRedacted, true);
+});
+
+test('confirm RE-RESOLVES credentials; a now-needs_choice (stale/ambiguous) blocks create', async () => {
+  let call = 0;
+  const created = [];
+  const { controller } = make({
+    credsImpl: async () => { call += 1; return call === 1 ? { requirements: [], overall: 'ready', createDisposition: 'bind_and_create' } : { requirements: [{ credentialType: 't', status: 'needs_choice' }], overall: 'needs_choice', createDisposition: 'create_inactive_draft' }; },
+    createImpl: async (spec, resolution) => { created.push({ spec, resolution }); return { status: 200, payload: {} }; },
+  });
+  const r = await controller.start('solo', 'x'); // plan-time creds ready -> ready_to_confirm
+  assert.equal(r.view.status, 'ready_to_confirm');
+  const c = await controller.confirm('solo', r.conversationId); // confirm-time creds needs_choice
+  assert.equal(c.error, 'credential_choice_required');
+  assert.equal(created.length, 0); // never created
+  assert.equal(c.view.status, 'awaiting_credential_choice');
+});
+
+test('confirm passes the freshly-resolved credential resolution to compileAndCreate', async () => {
+  const created = [];
+  const { controller } = make({
+    credsImpl: async () => ({ requirements: [{ credentialType: 't', status: 'ready', selected: 'h' }], overall: 'ready', createDisposition: 'bind_and_create' }),
+    createImpl: async (spec, resolution) => { created.push(resolution); return { status: 200, payload: {} }; },
+  });
+  const r = await controller.start('solo', 'x');
+  await controller.confirm('solo', r.conversationId);
+  assert.equal(created.length, 1);
+  assert.equal(created[0].createDisposition, 'bind_and_create');
 });
