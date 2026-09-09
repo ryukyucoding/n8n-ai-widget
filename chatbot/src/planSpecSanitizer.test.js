@@ -115,3 +115,19 @@ test('config: valueType NOT added to renames entries', () => {
   const out = sanitizeConfiguration({ operation: 'rename_keys', renames: [{ from: 'a', to: 'b', valueType: 'string' }] });
   assert.deepEqual(out.renames, [{ from: 'a', to: 'b' }]); // valueType stripped for renames
 });
+
+test('full canonical spec round-trips losslessly (schemaVersion/kind/deliveryShape/requiredUserSetup preserved, no drift)', () => {
+  const spec = {
+    schemaVersion: '1.0',
+    kind: 'nodewise_step_specification',
+    goal: 'count incomplete todos for user 1',
+    requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos', 'incompleteTodos'] },
+    steps: [
+      { id: 'trigger', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/users/1/todos', cardinality: 'items' } } },
+      { id: 'count', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'todos', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' } },
+    ],
+  };
+  assert.deepEqual(sanitizePlanSpec(spec), spec); // lossless -> recompilable, planner context complete
+});

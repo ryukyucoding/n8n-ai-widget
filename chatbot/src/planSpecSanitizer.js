@@ -89,25 +89,42 @@ function assertNoSecrets(value, path) {
   }
 }
 
+// requiredUserSetup is structural (compiler requires an array, =[] to compile).
+// Preserve as a bounded array of plain scalars; non-scalar entries dropped.
+function sanitizeSetupList(v) {
+  if (!Array.isArray(v)) return undefined;
+  return v.map(scalar).filter((x) => x !== undefined).slice(0, 50);
+}
+
 function sanitizeStep(step) {
   if (!step || typeof step !== 'object') return null;
-  return {
+  const out = {
     id: scalar(step.id),
     capability: scalar(step.capability),
     configuration: sanitizeConfiguration(step.configuration),
   };
+  const rus = sanitizeSetupList(step.requiredUserSetup);
+  if (rus !== undefined) out.requiredUserSetup = rus;
+  return out;
 }
 
-// Structural allowlist projection + fail-closed value scan.
+// Structural allowlist projection (incl. the canonical IR markers the planner
+// needs during multi-turn refinement) + fail-closed value scan.
 function sanitizePlanSpec(spec) {
   if (!spec || typeof spec !== 'object') return null;
-  const projected = {
-    goal: typeof spec.goal === 'string' ? (spec.goal.length > MAX_STR ? spec.goal.slice(0, MAX_STR) : spec.goal) : undefined,
-    expectedOutput: spec.expectedOutput && typeof spec.expectedOutput === 'object'
-      ? { fields: Array.isArray(spec.expectedOutput.fields) ? spec.expectedOutput.fields.filter((f) => typeof f === 'string') : [] }
-      : undefined,
-    steps: Array.isArray(spec.steps) ? spec.steps.map(sanitizeStep) : [],
-  };
+  const projected = {};
+  const put = (k, v) => { if (v !== undefined) projected[k] = v; };
+  put('schemaVersion', scalar(spec.schemaVersion));
+  put('kind', scalar(spec.kind));
+  put('goal', typeof spec.goal === 'string' ? (spec.goal.length > MAX_STR ? spec.goal.slice(0, MAX_STR) : spec.goal) : undefined);
+  put('requiredUserSetup', sanitizeSetupList(spec.requiredUserSetup));
+  if (spec.expectedOutput && typeof spec.expectedOutput === 'object') {
+    const eo = {};
+    if (scalar(spec.expectedOutput.deliveryShape) !== undefined) eo.deliveryShape = scalar(spec.expectedOutput.deliveryShape);
+    eo.fields = Array.isArray(spec.expectedOutput.fields) ? spec.expectedOutput.fields.filter((f) => typeof f === 'string') : [];
+    projected.expectedOutput = eo;
+  }
+  projected.steps = Array.isArray(spec.steps) ? spec.steps.map(sanitizeStep) : [];
   assertNoSecrets(projected); // defense-in-depth: never emit a spec with a secret-shaped value
   return projected;
 }
