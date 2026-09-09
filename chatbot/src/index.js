@@ -49,6 +49,11 @@ const {
   SOLO_CALENDAR_SKILL,
 } = require('./soloCalendarSkeleton');
 const { createAndFinalizeSoloWorkflow, isValidWorkflowId } = require('./soloInactiveGuard');
+const { createConversationStore } = require('./conversationState');
+const { redactForPlannerContext } = require('./plannerContextRedaction');
+const { createConversationController } = require('./conversationController');
+const { createPlannerAdapter, createSetupRequiredResolver } = require('./conversationDeps');
+const { compileNodewiseSpecification, validateSpecification } = require('./nodewiseCompiler');
 const { requestNodewisePlannerResult } = require('./nodewisePlanner');
 const {
   createCandidateLimit,
@@ -536,6 +541,72 @@ async function handleSoloCalendarRead(req, res) {
   }
 }
 app.post('/beta/solo/calendar-read', handleSoloCalendarRead);
+
+// ---- Conversational plan flow (single-user; caller-auth deferred) ----
+// Multi-turn: describe -> qwen refines an editable plan (credentials inline) ->
+// Confirm compiles the FULL server-side spec onto the n8n canvas / Cancel keeps talking.
+const conversationStore = createConversationStore({ ttlMs: 30 * 60 * 1000 });
+async function conversationReviewFromMessage(message, previousSpec) {
+  return runTimedStage({
+    stage: 'nodewise_planning',
+    timeoutMs: PLANNER_TIMEOUT_MS,
+    emit: () => {},
+    task: (signal) => planFromUserRequest(message, previousSpec, signal),
+  });
+}
+const conversationController = createConversationController({
+  store: conversationStore,
+  redact: redactForPlannerContext,
+  plan: createPlannerAdapter(conversationReviewFromMessage),
+  // STUB: no credentialed nodewise skill yet -> requiredTypesForSpec returns [] (conversationDeps).
+  resolveCredentials: createSetupRequiredResolver(() => []),
+  compileAndCreate: async (spec) => {
+    const workflow = compileNodewiseSpecification(spec);
+    const created = await createVerifiedCompilerWorkflow({
+      userRequest: spec.goal || 'conversational plan',
+      candidateWorkflow: workflow,
+      metadata: { compilerMode: 'conversational_plan' },
+    });
+    return { status: created.status, payload: created.payload };
+  },
+  validatePlanSpec: validateSpecification,
+});
+const CONVERSATION_CALLER = 'solo';
+function conversationPlannerError(res, error) {
+  const timedOut = error instanceof GenerateStageError && /timed out/.test(error.message);
+  return res.status(timedOut ? 504 : 502).json({ error: timedOut ? '規劃逾時，請再試一次。' : '對話規劃失敗。', code: timedOut ? 'conversation_planner_timeout' : 'conversation_failed' });
+}
+app.post('/beta/conversation/start', async (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  const message = typeof req.body?.message === 'string' ? req.body.message : '';
+  try { return res.json(await conversationController.start(CONVERSATION_CALLER, message)); }
+  catch (error) { return conversationPlannerError(res, error); }
+});
+app.post('/beta/conversation/message', async (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  const conversationId = typeof req.body?.conversationId === 'string' ? req.body.conversationId : '';
+  const message = typeof req.body?.message === 'string' ? req.body.message : '';
+  try {
+    const r = await conversationController.respond(CONVERSATION_CALLER, conversationId, message);
+    return res.status(r.error === 'conversation_not_found' ? 404 : 200).json(r);
+  } catch (error) { return conversationPlannerError(res, error); }
+});
+app.post('/beta/conversation/cancel', (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  const conversationId = typeof req.body?.conversationId === 'string' ? req.body.conversationId : '';
+  const r = conversationController.cancel(CONVERSATION_CALLER, conversationId);
+  return res.status(r.error ? 404 : 200).json(r);
+});
+app.post('/beta/conversation/confirm', async (req, res) => {
+  if (planReviewUnavailable(res)) return;
+  const conversationId = typeof req.body?.conversationId === 'string' ? req.body.conversationId : '';
+  try {
+    const r = await conversationController.confirm(CONVERSATION_CALLER, conversationId);
+    if (r.error === 'conversation_not_found') return res.status(404).json(r);
+    if (r.error) return res.status(409).json(r); // not_ready / credential_choice_required / credential_unresolved
+    return res.json(r);
+  } catch (error) { return res.status(502).json({ error: '建立失敗。', code: 'conversation_failed' }); }
+});
 
 // ---------------------------------------------------------------------------
 // POST /agent/run — intent decompose + modify/delete/insert station pipelines
