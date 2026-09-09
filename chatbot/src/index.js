@@ -258,6 +258,7 @@ app.get('/models', (req, res) => {
     edit: { models: EDIT_MODELS, defaultModel: DEFAULT_EDIT_MODEL },
     compiler: { models: [], defaultModel: '' },
     compilerBeta: { enabled: RUNTIME_COMPILER_BETA_ENABLED, standalone: BETA_CHAT_STANDALONE, supportedPatterns: SUPPORTED_PATTERNS },
+    soloSkills: { calendarRead: soloAvailability({ soloMode: SOLO_CREDENTIAL_MODE, runtimeCompilerEnabled: RUNTIME_COMPILER_BETA_ENABLED, apiKeyPresent: Boolean(N8N_API_KEY) }).available },
   });
 });
 

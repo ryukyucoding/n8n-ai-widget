@@ -209,6 +209,9 @@
     </div>
     <label class="model-row" id="model-row">模型<select id="model-select" aria-label="選擇模型"></select></label>
     <div id="mode-hint">從零建立新 workflow；不會讀取或修改目前畫布。</div>
+    <div id="solo-actions" hidden>
+      <button id="solo-cal-chip" class="mode-btn" type="button">📅 讀取我的 Google 日曆</button>
+    </div>
   </div>
 
   <div id="messages">
@@ -235,6 +238,8 @@
     var PLAN_REQUEST_URL = window.location.origin + '/beta/plan-from-request';
     var PLAN_APPROVE_URL = window.location.origin + '/beta/plan-approve';
     var COMPILE_APPROVED_URL = window.location.origin + '/beta/compile-approved';
+    // Solo-only Google Calendar read skill (gated by SOLO_CREDENTIAL_MODE server-side).
+    var SOLO_CALENDAR_URL = window.location.origin + '/beta/solo/calendar-read';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
     var MODE_KEY = 'n8n-widget-active-mode';
@@ -268,6 +273,9 @@
     var modelSelect = document.getElementById('model-select');
     var modelRow = document.getElementById('model-row');
     var modeHint = document.getElementById('mode-hint');
+    var soloActions = document.getElementById('solo-actions');
+    var soloCalChip = document.getElementById('solo-cal-chip');
+    var soloCalendarEnabled = false;
 
     function greeting() {
       return activeMode === 'create'
@@ -287,6 +295,7 @@
       if (group.defaultModel) modelSelect.value = group.defaultModel;
       modelSelect.disabled = models.length === 0;
       modelRow.hidden = activeMode === 'compiler';
+      if (soloActions) soloActions.hidden = !(activeMode === 'compiler' && soloCalendarEnabled);
       modeHint.textContent = activeMode === 'create'
         ? '從零建立新 workflow；不會讀取或修改目前畫布。'
         : activeMode === 'compiler'
@@ -306,10 +315,12 @@
     }
 
     document.querySelectorAll('.mode-btn').forEach(function (button) { button.addEventListener('click', function () { switchMode(button.dataset.mode); }); });
+    if (soloCalChip) soloCalChip.addEventListener('click', createSoloCalendar);
     switchMode(activeMode);
     fetch(MODELS_URL).then(function (res) { return res.ok ? res.json() : null; }).then(function (config) {
       if (!config) return;
       modelConfig = config;
+      soloCalendarEnabled = !!(config.soloSkills && config.soloSkills.calendarRead);
       if (config.compilerBeta && config.compilerBeta.standalone) {
         var createButton = document.querySelector('[data-mode="create"]');
         if (createButton) createButton.textContent = 'Fine-tuned Create';
@@ -710,6 +721,49 @@
       } catch (err) {
         fail('無法連線到 chatbot 服務：' + err.message);
       }
+    }
+
+    // --- Solo Google Calendar read skill (quick action + credential guidance) ---
+    async function createSoloCalendar() {
+      if (soloCalChip) soloCalChip.disabled = true;
+      addBubble('📅 建立「讀取我的 Google 日曆」workflow…', 'user');
+      var typing = addTyping();
+      try {
+        var resp = await postJson(SOLO_CALENDAR_URL, { limit: 10 });
+        typing.remove();
+        renderSoloCredentialGuidance(resp.data, resp.ok);
+      } catch (err) {
+        typing.remove();
+        addBubble('❌ 無法連線到 chatbot 服務：' + escHtml(err.message), 'bot error');
+      } finally {
+        if (soloCalChip) soloCalChip.disabled = false;
+      }
+    }
+
+    function renderSoloCredentialGuidance(data, httpOk) {
+      data = data || {};
+      if (!httpOk || data.error) {
+        addBubble('❌ ' + escHtml(data.error || ('建立失敗 (HTTP ' + (data.status || '?') + ')')), 'bot error');
+        return;
+      }
+      var reqs = (data.setupManifest && data.setupManifest.credentialRequirements) || [];
+      var credLine = reqs.map(function (r) { return escHtml(r.displayName || r.credentialType); }).join('、') || 'Google Calendar 憑證';
+      var wfUrl = data.workflowUrl;
+      var openStep = wfUrl
+        ? '<a href="' + escHtml(wfUrl) + '" target="_parent">在 n8n 開啟這個 workflow</a>'
+        : '在 n8n 開啟這個 workflow';
+      var html = '🎉 已建立「讀取 Google 日曆」workflow（<b>停用草稿</b>，尚未啟用）。'
+        + '<br><br>⚠️ 此 workflow 需要你連接：<b>' + credLine + '</b>'
+        + '<br><br>完成以下步驟即可使用：'
+        + '<ol style="margin:6px 0 6px 18px;padding:0">'
+        + '<li>' + openStep + '</li>'
+        + '<li>點「List Calendar Events」節點 → 選擇（或新增）你自己的 Google 帳號憑證</li>'
+        + '<li>選擇要讀取的日曆 → 儲存（Save）</li>'
+        + '<li>按 Activate 啟用（系統刻意先建成停用草稿，不會自動啟用）</li>'
+        + '<li>按 Execute 執行，即可看到你的日曆活動</li>'
+        + '</ol>';
+      addBubble(html, 'bot', true);
+      if (data.workflow) notifyParentCanvasRefresh(data.workflow);
     }
 
     function escHtml(str) {
