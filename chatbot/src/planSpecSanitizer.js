@@ -24,42 +24,55 @@ function scalar(v) {
   return undefined; // drop objects/arrays/functions where a scalar is expected
 }
 
-// {from,to} pairs (mappings/renames/objectMappings) — the only structured config
-// lists the compiler reads; each entry reduced to bounded from/to scalars.
-function fromToList(arr) {
-  if (!Array.isArray(arr)) return undefined;
-  return arr
-    .map((m) => (m && typeof m === 'object' ? { from: scalar(m.from), to: scalar(m.to) } : null))
-    .filter((m) => m && (m.from !== undefined || m.to !== undefined));
-}
-
+// Source ref = { kind, reference, cardinality } (nodewiseCompiler source()).
 function refObject(o) {
   if (!o || typeof o !== 'object') return undefined;
   const out = {};
+  if (scalar(o.kind) !== undefined) out.kind = scalar(o.kind);
   if (scalar(o.reference) !== undefined) out.reference = scalar(o.reference);
   if (scalar(o.cardinality) !== undefined) out.cardinality = scalar(o.cardinality);
   return out;
 }
 
-// Allowlist of configuration keys the nodewise compiler actually consumes
-// (nodewiseCompiler.js). Anything else is dropped.
+// mappings/objectMappings entries are { from, to, valueType }; renames are
+// { from, to } (no valueType). Each reduced to bounded scalars.
+function mapList(arr, withValueType) {
+  if (!Array.isArray(arr)) return undefined;
+  return arr
+    .map((m) => {
+      if (!m || typeof m !== 'object') return null;
+      const e = {};
+      if (scalar(m.from) !== undefined) e.from = scalar(m.from);
+      if (scalar(m.to) !== undefined) e.to = scalar(m.to);
+      if (withValueType && scalar(m.valueType) !== undefined) e.valueType = scalar(m.valueType);
+      return (e.from !== undefined || e.to !== undefined) ? e : null;
+    })
+    .filter(Boolean);
+}
+
+// Allowlist of exactly the configuration keys the nodewise compiler consumes
+// (nodewiseCompiler.js validateSpecification). Refs (url/input/objectInput/
+// itemsInput) and valueType-bearing mappings are preserved so the plan stays
+// recompilable; every other key is dropped.
 function sanitizeConfiguration(config) {
   if (!config || typeof config !== 'object') return {};
   const out = {};
   const put = (k, v) => { if (v !== undefined) out[k] = v; };
   put('operation', scalar(config.operation));
+  put('method', scalar(config.method));
   put('url', refObject(config.url));
+  put('input', refObject(config.input));
   put('objectInput', refObject(config.objectInput));
+  put('itemsInput', refObject(config.itemsInput));
   put('field', scalar(config.field));
   put('totalField', scalar(config.totalField));
   put('falseCountField', scalar(config.falseCountField));
   put('limit', scalar(config.limit));
-  put('offset', scalar(config.offset));
   put('keep', scalar(config.keep));
   put('order', scalar(config.order));
-  put('mappings', fromToList(config.mappings));
-  put('renames', fromToList(config.renames));
-  put('objectMappings', fromToList(config.objectMappings));
+  put('mappings', mapList(config.mappings, true));
+  put('objectMappings', mapList(config.objectMappings, true));
+  put('renames', mapList(config.renames, false));
   return out;
 }
 

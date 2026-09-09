@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { sanitizePlanSpec, assertNoSecrets } = require('./planSpecSanitizer');
+const { sanitizePlanSpec, sanitizeConfiguration, assertNoSecrets } = require('./planSpecSanitizer');
 
 test('projects only structural fields (goal/expectedOutput.fields/steps.{id,capability,configuration})', () => {
   const out = sanitizePlanSpec({
@@ -71,4 +71,47 @@ test('normal prose goal + public URL do not false-positive', () => {
 test('null/undefined spec -> null', () => {
   assert.equal(sanitizePlanSpec(null), null);
   assert.equal(sanitizePlanSpec(undefined), null);
+});
+
+// Config-survival: the sanitizer must be LOSSLESS for valid nodewise configs, or
+// the plan becomes non-recompilable (brain2). Each valid config must round-trip.
+test('config survival: http_request (url ref) round-trips', () => {
+  const c = { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/users/1', cardinality: 'one_object' } };
+  assert.deepEqual(sanitizeConfiguration(c), c);
+});
+
+test('config survival: select_fields (input + mappings w/ valueType) round-trips', () => {
+  const c = { operation: 'select_fields', input: { kind: 'step_reference', reference: 's1', cardinality: 'one_object' }, mappings: [{ from: 'name', to: 'name', valueType: 'string' }] };
+  assert.deepEqual(sanitizeConfiguration(c), c);
+});
+
+test('config survival: count_false_boolean (input + field/total/falseCount) round-trips', () => {
+  const c = { operation: 'count_false_boolean', input: { kind: 'step_reference', reference: 's1', cardinality: 'items' }, field: 'completed', totalField: 'total', falseCountField: 'incomplete' };
+  assert.deepEqual(sanitizeConfiguration(c), c);
+});
+
+test('config survival: join (objectInput + itemsInput + objectMappings w/ valueType) round-trips', () => {
+  const c = {
+    operation: 'join_object_and_count_false_boolean',
+    objectInput: { kind: 'step_reference', reference: 'u', cardinality: 'one_object' },
+    itemsInput: { kind: 'step_reference', reference: 't', cardinality: 'items' },
+    objectMappings: [{ from: 'name', to: 'userName', valueType: 'string' }],
+    field: 'completed', totalField: 'total', falseCountField: 'incomplete',
+  };
+  assert.deepEqual(sanitizeConfiguration(c), c);
+});
+
+test('config survival: set_output (input + mappings w/ valueType) round-trips', () => {
+  const c = { input: { kind: 'step_reference', reference: 'c', cardinality: 'one_object' }, mappings: [{ from: 'total', to: 'total', valueType: 'number' }] };
+  assert.deepEqual(sanitizeConfiguration(c), c);
+});
+
+test('config survival: rename_keys renames {from,to} (no valueType) round-trips', () => {
+  const c = { operation: 'rename_keys', input: { kind: 'step_reference', reference: 's', cardinality: 'items' }, renames: [{ from: 'id', to: 'todoId' }] };
+  assert.deepEqual(sanitizeConfiguration(c), c);
+});
+
+test('config: valueType NOT added to renames entries', () => {
+  const out = sanitizeConfiguration({ operation: 'rename_keys', renames: [{ from: 'a', to: 'b', valueType: 'string' }] });
+  assert.deepEqual(out.renames, [{ from: 'a', to: 'b' }]); // valueType stripped for renames
 });
