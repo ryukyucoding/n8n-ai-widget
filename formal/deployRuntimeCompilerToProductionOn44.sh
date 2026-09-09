@@ -96,6 +96,7 @@ docker run -d --name "$SOURCE_CHATBOT" --restart unless-stopped \
   -e RUNTIME_COMPILER_BETA_ENABLED=true \
   -e BETA_CHAT_STANDALONE=false \
   -e N8N_PUBLIC_URL="$PUBLIC_N8N_URL" \
+  -e SOLO_CREDENTIAL_MODE="${SOLO_CREDENTIAL_MODE:-false}" \
   "$CANDIDATE_IMAGE" >/dev/null
 NEW_STARTED=true
 for index in "${!NETWORKS[@]}"; do
