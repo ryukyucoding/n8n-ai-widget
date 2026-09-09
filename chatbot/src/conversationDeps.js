@@ -58,4 +58,27 @@ function createSetupRequiredResolver(requiredTypesForSpec) {
   };
 }
 
-module.exports = { createPlannerAdapter, createSetupRequiredResolver };
+// Confirm must go through the HMAC approval gate, never raw compile+create. This
+// composes approveNodewisePlan (issues a token bound to spec + runtime/skill/source
+// revisions + sessionId) -> compileApprovedNodewisePlan (re-verifies that binding;
+// any spec/revision mutation fails the fingerprint) -> create. `sessionId` binds the
+// approval to the conversation so a token can't be replayed across conversations.
+function createConversationCompileAndCreate({ approve, compileApproved, createWorkflow, secret }) {
+  if (typeof approve !== 'function' || typeof compileApproved !== 'function' || typeof createWorkflow !== 'function') {
+    throw new Error('createConversationCompileAndCreate requires approve, compileApproved, createWorkflow');
+  }
+  return async function compileAndCreate(spec, resolution, ctx) {
+    const sessionId = (ctx && ctx.conversationId) || '';
+    const approved = approve(spec, { secret, sessionId }); // -> { approvalToken, ... }
+    // Re-verifies the token against THIS exact spec + current revisions; throws on mismatch.
+    const compiled = compileApproved(spec, approved.approvalToken, { secret, sessionId });
+    const created = await createWorkflow({
+      userRequest: (spec && spec.goal) || 'conversational plan',
+      candidateWorkflow: compiled.workflow,
+      metadata: { compilerMode: 'conversational_plan', planFingerprint: compiled.planFingerprint },
+    });
+    return { status: created.status, payload: created.payload };
+  };
+}
+
+module.exports = { createPlannerAdapter, createSetupRequiredResolver, createConversationCompileAndCreate };

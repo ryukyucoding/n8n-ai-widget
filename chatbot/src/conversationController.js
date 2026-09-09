@@ -121,8 +121,9 @@ function createConversationController({ store, redact, plan, resolveCredentials,
       return { error: 'credential_unresolved', overall: resolution.overall, view: store.publicView(conversationId, callerId) };
     }
     // Authoritative compile uses the FULL server-side spec (never the sanitized view)
-    // + the freshly-resolved credential binding.
-    const result = await compileAndCreate(s.planSpec, resolution);
+    // + the freshly-resolved credential binding, through the approval gate bound to
+    // this conversation (compileAndCreate = approve -> compileApproved -> create).
+    const result = await compileAndCreate(s.planSpec, resolution, { conversationId, callerId });
     store.update(conversationId, callerId, { credentials: resolution, status: result.status === 200 ? 'done' : 'planning' });
     return { conversationId, result, view: store.publicView(conversationId, callerId) };
   }

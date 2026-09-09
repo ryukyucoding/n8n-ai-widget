@@ -58,3 +58,39 @@ test('setup_required stub: required types -> setup_required / create_inactive_dr
   assert.equal(r.requirements[0].credentialType, 'googleCalendarOAuth2Api');
   assert.equal(r.requirements[0].status, 'setup_required');
 });
+
+// ---- confirm goes through the HMAC approval gate (never raw compile+create) ----
+const { createConversationCompileAndCreate } = require('./conversationDeps');
+
+test('compileAndCreate: approve -> compileApproved(same token) -> create, in order', async () => {
+  const calls = [];
+  const compileAndCreate = createConversationCompileAndCreate({
+    approve: (spec, opts) => { calls.push(['approve', spec.goal, opts.sessionId]); return { approvalToken: 'TOK' }; },
+    compileApproved: (spec, token, opts) => { calls.push(['compileApproved', spec.goal, token, opts.sessionId]); return { workflow: { name: 'wf' }, planFingerprint: 'fp' }; },
+    createWorkflow: async ({ candidateWorkflow }) => { calls.push(['create', candidateWorkflow.name]); return { status: 200, payload: { workflowId: 'x' } }; },
+    secret: 's',
+  });
+  const r = await compileAndCreate({ goal: 'g' }, {}, { conversationId: 'conv-1' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(calls, [
+    ['approve', 'g', 'conv-1'],
+    ['compileApproved', 'g', 'TOK', 'conv-1'],
+    ['create', 'wf'],
+  ]);
+});
+
+test('compileAndCreate: NO create if approval verification fails (compileApproved throws)', async () => {
+  let created = 0;
+  const compileAndCreate = createConversationCompileAndCreate({
+    approve: () => ({ approvalToken: 'TOK' }),
+    compileApproved: () => { throw new Error('approval token does not match specification'); }, // mutation/mismatch
+    createWorkflow: async () => { created += 1; return { status: 200, payload: {} }; },
+    secret: 's',
+  });
+  await assert.rejects(() => compileAndCreate({ goal: 'g' }, {}, { conversationId: 'c' }), /approval token/);
+  assert.equal(created, 0); // never created without a verified approval
+});
+
+test('createConversationCompileAndCreate requires all deps', () => {
+  assert.throws(() => createConversationCompileAndCreate({ approve: () => {}, compileApproved: () => {} }), /requires/);
+});

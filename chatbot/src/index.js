@@ -52,8 +52,8 @@ const { createAndFinalizeSoloWorkflow, isValidWorkflowId } = require('./soloInac
 const { createConversationStore } = require('./conversationState');
 const { redactForPlannerContext } = require('./plannerContextRedaction');
 const { createConversationController } = require('./conversationController');
-const { createPlannerAdapter, createSetupRequiredResolver } = require('./conversationDeps');
-const { compileNodewiseSpecification, validateSpecification } = require('./nodewiseCompiler');
+const { createPlannerAdapter, createSetupRequiredResolver, createConversationCompileAndCreate } = require('./conversationDeps');
+const { validateSpecification } = require('./nodewiseCompiler');
 const { requestNodewisePlannerResult } = require('./nodewisePlanner');
 const {
   createCandidateLimit,
@@ -560,15 +560,13 @@ const conversationController = createConversationController({
   plan: createPlannerAdapter(conversationReviewFromMessage),
   // STUB: no credentialed nodewise skill yet -> requiredTypesForSpec returns [] (conversationDeps).
   resolveCredentials: createSetupRequiredResolver(() => []),
-  compileAndCreate: async (spec) => {
-    const workflow = compileNodewiseSpecification(spec);
-    const created = await createVerifiedCompilerWorkflow({
-      userRequest: spec.goal || 'conversational plan',
-      candidateWorkflow: workflow,
-      metadata: { compilerMode: 'conversational_plan' },
-    });
-    return { status: created.status, payload: created.payload };
-  },
+  // Confirm goes through the HMAC approval gate: approve -> compileApproved -> create.
+  compileAndCreate: createConversationCompileAndCreate({
+    approve: approveNodewisePlan,
+    compileApproved: compileApprovedNodewisePlan,
+    createWorkflow: createVerifiedCompilerWorkflow,
+    secret: PLANNER_APPROVAL_HMAC_SECRET,
+  }),
   validatePlanSpec: validateSpecification,
 });
 const CONVERSATION_CALLER = 'solo';
