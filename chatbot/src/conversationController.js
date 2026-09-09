@@ -31,9 +31,13 @@ function computeStatus(outcome, credentials, hasSpec) {
   return 'planning'; // fail-closed: stale/unknown/missing credential state is never confirmable
 }
 
-// validatePlanSpec is optional (real wiring injects the compiler's validateSpecification
-// for canonical structural validation); assertNoSecrets is always enforced here.
+// validatePlanSpec (the compiler's validateSpecification) is REQUIRED — canonical
+// structural validation of untrusted model output must never be silently skipped.
+// assertNoSecrets is also always enforced.
 function createConversationController({ store, redact, plan, resolveCredentials, compileAndCreate, validatePlanSpec }) {
+  if (typeof validatePlanSpec !== 'function') {
+    throw new Error('createConversationController requires validatePlanSpec (canonical validateSpecification)');
+  }
   async function turn(callerId, conversationId, message) {
     const s = store.get(conversationId, callerId);
     if (!s) return { error: 'conversation_not_found' };
@@ -54,7 +58,7 @@ function createConversationController({ store, redact, plan, resolveCredentials,
     if (result.spec) {
       try {
         assertNoSecrets(result.spec);
-        if (typeof validatePlanSpec === 'function') validatePlanSpec(result.spec);
+        validatePlanSpec(result.spec); // required canonical validation
       } catch (err) {
         store.update(conversationId, callerId, { status: computeStatus('clarification_required', s.credentials, Boolean(s.planSpec)), history: [...s.history, { role: 'user', inputRedacted: redacted }, { role: 'assistant', rejected: true }] });
         return { conversationId, outcome: 'unsafe_plan_rejected', assistantMessage: '這個計畫無法使用（內容不合規或無法驗證），請換個說法再試。', inputRedacted: redacted, view: store.publicView(conversationId, callerId) };

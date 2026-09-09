@@ -16,7 +16,7 @@ function make({ planImpl, credsImpl, createImpl, validateImpl } = {}) {
     plan: planImpl || (async () => ({ outcome: 'ready_to_compile', spec: { schemaVersion: '1.0', goal: 'g', steps: [] }, assistantMessage: 'ok' })),
     resolveCredentials: credsImpl || (async () => ({ requirements: [], overall: 'ready', createDisposition: 'bind_and_create' })),
     compileAndCreate: createImpl || (async (spec) => { seen.created.push(spec); return { status: 200, payload: { workflowId: 'wf1' } }; }),
-    validatePlanSpec: validateImpl,
+    validatePlanSpec: validateImpl || (() => {}), // real wiring injects the compiler's validateSpecification
   });
   return { store, controller, seen };
 }
@@ -197,4 +197,16 @@ test('confirm passes the freshly-resolved credential resolution to compileAndCre
   await controller.confirm('solo', r.conversationId);
   assert.equal(created.length, 1);
   assert.equal(created[0].createDisposition, 'bind_and_create');
+});
+
+test('controller construction FAILS CLOSED without a validatePlanSpec (canonical validator)', () => {
+  const store = createConversationStore({ now: () => 0, ttlMs: 1 });
+  assert.throws(() => createConversationController({
+    store,
+    redact: redactForPlannerContext,
+    plan: async () => ({ outcome: 'clarification_required', spec: null, assistantMessage: '?' }),
+    resolveCredentials: async () => ({ requirements: [], overall: 'ready' }),
+    compileAndCreate: async () => ({ status: 200, payload: {} }),
+    // validatePlanSpec intentionally omitted
+  }), /validatePlanSpec|required/i);
 });
