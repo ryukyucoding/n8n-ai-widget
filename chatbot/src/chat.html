@@ -56,6 +56,10 @@
     .mode-switch.two-mode { grid-template-columns: repeat(2, 1fr); }
     .mode-btn { border: 1px solid #f3c8c0; background: #fff; color: #8a3c31; border-radius: 8px; padding: 7px 5px; font: inherit; font-size: 12px; cursor: pointer; }
     .mode-btn.active { background: #ff6d5a; border-color: #ff6d5a; color: #fff; font-weight: 600; }
+    /* Distinct from .mode-btn so the mode-switch click handler never attaches to it. */
+    .solo-action-btn { border: 1px solid #f3c8c0; background: #fff; color: #8a3c31; border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+    .solo-action-btn:hover { background: #fff2ef; }
+    .solo-action-btn:disabled { opacity: .6; cursor: default; }
     .model-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: #6b4a45; }
     #model-select { min-width: 0; flex: 1; border: 1px solid #f3c8c0; border-radius: 6px; padding: 5px; background: #fff; font: inherit; }
     #mode-hint { margin-top: 7px; font-size: 11px; line-height: 1.35; color: #8a5a52; }
@@ -210,7 +214,7 @@
     <label class="model-row" id="model-row">模型<select id="model-select" aria-label="選擇模型"></select></label>
     <div id="mode-hint">從零建立新 workflow；不會讀取或修改目前畫布。</div>
     <div id="solo-actions" hidden>
-      <button id="solo-cal-chip" class="mode-btn" type="button">📅 讀取我的 Google 日曆</button>
+      <button id="solo-cal-chip" class="solo-action-btn" type="button">📅 讀取我的 Google 日曆</button>
     </div>
   </div>
 

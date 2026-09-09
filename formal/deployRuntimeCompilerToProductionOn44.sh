@@ -76,7 +76,8 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   /app/src/workflowCreatePayload.test.js \
   /app/src/soloCalendarSkeleton.test.js \
   /app/src/soloAvailability.test.js \
-  /app/src/soloInactiveGuard.test.js
+  /app/src/soloInactiveGuard.test.js \
+  /app/src/soloChatChip.test.js
 
 OLD_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$SOURCE_CHATBOT")"
 docker tag "$OLD_IMAGE" "$ROLLBACK_TAG"
