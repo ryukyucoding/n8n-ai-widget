@@ -73,7 +73,10 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   --entrypoint node "$CANDIDATE_IMAGE" --test \
   /app/src/runtimeCompilerBeta.test.js \
   /app/src/chatProgress.test.js \
-  /app/src/workflowCreatePayload.test.js
+  /app/src/workflowCreatePayload.test.js \
+  /app/src/soloCalendarSkeleton.test.js \
+  /app/src/soloAvailability.test.js \
+  /app/src/soloInactiveGuard.test.js
 
 OLD_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$SOURCE_CHATBOT")"
 docker tag "$OLD_IMAGE" "$ROLLBACK_TAG"
