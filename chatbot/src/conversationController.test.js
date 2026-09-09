@@ -7,7 +7,7 @@ const { redactForPlannerContext } = require('./plannerContextRedaction');
 const { createConversationController, computeStatus } = require('./conversationController');
 
 // Build a controller with injected mocks + a real conversation store.
-function make({ planImpl, credsImpl, createImpl } = {}) {
+function make({ planImpl, credsImpl, createImpl, validateImpl } = {}) {
   const store = createConversationStore({ now: () => 1000, ttlMs: 100000 });
   const seen = { plannerContexts: [], created: [] };
   const controller = createConversationController({
@@ -16,6 +16,7 @@ function make({ planImpl, credsImpl, createImpl } = {}) {
     plan: planImpl || (async () => ({ outcome: 'ready_to_compile', spec: { schemaVersion: '1.0', goal: 'g', steps: [] }, assistantMessage: 'ok' })),
     resolveCredentials: credsImpl || (async () => ({ requirements: [], overall: 'ready', createDisposition: 'bind_and_create' })),
     compileAndCreate: createImpl || (async (spec) => { seen.created.push(spec); return { status: 200, payload: { workflowId: 'wf1' } }; }),
+    validatePlanSpec: validateImpl,
   });
   return { store, controller, seen };
 }
@@ -99,6 +100,59 @@ test('computeStatus mapping (hasSpec-gated)', () => {
   assert.equal(computeStatus('ready_to_compile', { overall: 'needs_choice' }, true), 'awaiting_credential_choice');
   assert.equal(computeStatus('ready_to_compile', { overall: 'ready' }, true), 'ready_to_confirm');
   assert.equal(computeStatus('ready_to_compile', { overall: 'setup_required' }, true), 'ready_to_confirm');
+  // fail-closed on stale/unknown/missing credential state:
+  assert.equal(computeStatus('ready_to_compile', { overall: 'stale' }, true), 'planning');
+  assert.equal(computeStatus('ready_to_compile', { overall: 'weird' }, true), 'planning');
+  assert.equal(computeStatus('ready_to_compile', null, true), 'planning');
+});
+
+test('planner receives a SANITIZED previousSpec, never the raw server spec', async () => {
+  const seenPrev = [];
+  const { controller } = make({ planImpl: async ({ previousSpec }) => {
+    seenPrev.push(previousSpec);
+    return { outcome: 'ready_to_compile', assistantMessage: 'ok', spec: {
+      schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'g', requiredUserSetup: [],
+      expectedOutput: { deliveryShape: 'one_object', fields: ['x'] },
+      steps: [{ id: 's', capability: 'http_request', requiredUserSetup: [], configuration: { operation: 'x', query: 'PRIVATE_QUERY' } }],
+    } };
+  } });
+  const r = await controller.start('solo', 'a');            // stores raw spec (with query)
+  await controller.respond('solo', r.conversationId, 'b');  // 2nd turn: previousSpec must be sanitized
+  assert.equal(seenPrev[0], null);                          // no prior plan on first turn
+  assert.ok(seenPrev[1]);
+  assert.doesNotMatch(JSON.stringify(seenPrev[1]), /PRIVATE_QUERY|query/); // sanitized, not raw
+});
+
+test('a model spec carrying a forbidden/secret field is rejected, never stored/created', async () => {
+  const { controller, seen } = make({ planImpl: async () => ({ outcome: 'ready_to_compile', assistantMessage: 'ok', spec: { goal: 'g', steps: [{ id: 's', capability: 'http_request', configuration: { token: 'sk-secret-value' } }] } }) });
+  const r = await controller.start('solo', 'x');
+  assert.equal(r.outcome, 'unsafe_plan_rejected');
+  assert.equal(r.view.status, 'planning');
+  assert.equal(r.view.planSpec, null);   // bad spec never stored
+  assert.equal(seen.created.length, 0);
+});
+
+test('injected validatePlanSpec rejects a structurally invalid model spec (fail-closed)', async () => {
+  const { controller } = make({
+    planImpl: async () => ({ outcome: 'ready_to_compile', assistantMessage: 'ok', spec: { goal: 'g', steps: [] } }),
+    validateImpl: (spec) => { throw new Error('final step must produce declared output fields'); },
+  });
+  const r = await controller.start('solo', 'x');
+  assert.equal(r.outcome, 'unsafe_plan_rejected');
+  assert.equal(r.view.planSpec, null);
+});
+
+test('confirm fails closed if re-resolution is stale/unknown (not ready/setup_required/needs_choice)', async () => {
+  let call = 0;
+  const created = [];
+  const { controller } = make({
+    credsImpl: async () => { call += 1; return call === 1 ? { requirements: [], overall: 'ready', createDisposition: 'bind_and_create' } : { requirements: [], overall: 'stale' }; },
+    createImpl: async (s, res) => { created.push(res); return { status: 200, payload: {} }; },
+  });
+  const r = await controller.start('solo', 'x');
+  const c = await controller.confirm('solo', r.conversationId);
+  assert.equal(c.error, 'credential_unresolved');
+  assert.equal(created.length, 0);
 });
 
 test('ready_to_compile with null spec and no prior plan stays planning (not confirmable)', async () => {

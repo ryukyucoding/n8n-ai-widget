@@ -15,19 +15,25 @@
 //        overall ∈ 'ready' | 'needs_choice' | 'setup_required'
 //   compileAndCreate(spec)   -> { status, payload }  (authoritative: full server-side spec)
 
-const { scrubText } = require('./planSpecSanitizer');
+const { scrubText, sanitizePlanSpec, assertNoSecrets } = require('./planSpecSanitizer');
 
 // Status machine (server-side): planning -> ready_to_confirm | awaiting_credential_choice.
-// A non-null valid spec is REQUIRED for ready_to_confirm (a ready_to_compile outcome
-// with no spec and no prior plan must not become confirmable).
+// A non-null valid spec is REQUIRED for ready_to_confirm. Credential overall is an
+// explicit allowlist — only 'ready' (bind) or 'setup_required' (inactive draft) are
+// confirmable; 'needs_choice' awaits a choice; anything else (stale/unknown) FAILS
+// CLOSED to planning.
 function computeStatus(outcome, credentials, hasSpec) {
   if (!hasSpec) return 'planning';
   if (outcome === 'clarification_required' || outcome === 'unsupported_capability') return 'planning';
-  if (credentials && credentials.overall === 'needs_choice') return 'awaiting_credential_choice';
-  return 'ready_to_confirm';
+  const overall = credentials && credentials.overall;
+  if (overall === 'needs_choice') return 'awaiting_credential_choice';
+  if (overall === 'ready' || overall === 'setup_required') return 'ready_to_confirm';
+  return 'planning'; // fail-closed: stale/unknown/missing credential state is never confirmable
 }
 
-function createConversationController({ store, redact, plan, resolveCredentials, compileAndCreate }) {
+// validatePlanSpec is optional (real wiring injects the compiler's validateSpecification
+// for canonical structural validation); assertNoSecrets is always enforced here.
+function createConversationController({ store, redact, plan, resolveCredentials, compileAndCreate, validatePlanSpec }) {
   async function turn(callerId, conversationId, message) {
     const s = store.get(conversationId, callerId);
     if (!s) return { error: 'conversation_not_found' };
@@ -40,7 +46,20 @@ function createConversationController({ store, redact, plan, resolveCredentials,
       planSpec: s.planSpec,
       credentialRequirements: (s.credentials && s.credentials.requirements) || [],
     });
-    const result = await plan({ message: safeMessage, previousSpec: s.planSpec, redactedContext });
+    // The planner NEVER receives the raw server spec — only the sanitized projection,
+    // so a planner implementation cannot forward unredacted state to qwen.
+    const result = await plan({ message: safeMessage, previousSpec: sanitizePlanSpec(s.planSpec), redactedContext });
+    // Model output is untrusted: reject any spec carrying a secret/forbidden field or
+    // failing canonical validation BEFORE it is stored / resolved / compiled.
+    if (result.spec) {
+      try {
+        assertNoSecrets(result.spec);
+        if (typeof validatePlanSpec === 'function') validatePlanSpec(result.spec);
+      } catch (err) {
+        store.update(conversationId, callerId, { status: computeStatus('clarification_required', s.credentials, Boolean(s.planSpec)), history: [...s.history, { role: 'user', inputRedacted: redacted }, { role: 'assistant', rejected: true }] });
+        return { conversationId, outcome: 'unsafe_plan_rejected', assistantMessage: '這個計畫無法使用（內容不合規或無法驗證），請換個說法再試。', inputRedacted: redacted, view: store.publicView(conversationId, callerId) };
+      }
+    }
     const spec = result.spec || s.planSpec;
     let credentials = s.credentials;
     if (result.spec) credentials = await resolveCredentials(result.spec);
@@ -91,6 +110,11 @@ function createConversationController({ store, redact, plan, resolveCredentials,
     if (resolution.overall === 'needs_choice') {
       store.update(conversationId, callerId, { credentials: resolution, status: 'awaiting_credential_choice' });
       return { error: 'credential_choice_required', view: store.publicView(conversationId, callerId) };
+    }
+    // Fail-closed: only a fresh ready/setup_required resolution may create; stale/unknown blocks.
+    if (resolution.overall !== 'ready' && resolution.overall !== 'setup_required') {
+      store.update(conversationId, callerId, { credentials: resolution, status: 'planning' });
+      return { error: 'credential_unresolved', overall: resolution.overall, view: store.publicView(conversationId, callerId) };
     }
     // Authoritative compile uses the FULL server-side spec (never the sanitized view)
     // + the freshly-resolved credential binding.
