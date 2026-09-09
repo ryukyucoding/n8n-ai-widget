@@ -25,7 +25,8 @@ function pickDefault(candidates) {
   return [...pool].sort((a, b) => {
     if (primary(b) !== primary(a)) return primary(b) - primary(a);
     if (created(b) !== created(a)) return created(b) - created(a);
-    return String(a.handle).localeCompare(String(b.handle));
+    const ha = String(a.handle); const hb = String(b.handle); // locale-independent, deterministic
+    return ha < hb ? -1 : (ha > hb ? 1 : 0);
   })[0];
 }
 

@@ -17,19 +17,38 @@ test('projects only structural fields (goal/expectedOutput.fields/steps.{id,capa
   assert.equal(out.steps[0].configuration.url.reference, 'https://jsonplaceholder.typicode.com/users/1');
 });
 
-test('deep-drops forbidden keys anywhere in the spec (credential/token/secret/handle/boundName)', () => {
+test('configuration is an ALLOWLIST: only known nodewise keys survive; credential/unknown dropped', () => {
   const out = sanitizePlanSpec({
     goal: 'g',
     steps: [{ id: 's', capability: 'http_request', configuration: {
       operation: 'getAll',
-      credentials: { googleCalendarOAuth2Api: { id: 'REALID', name: 'My Cal' } },
-      nested: { token: 'abc', boundName: 'My Cal', keep: 'firstItems' },
+      field: 'completed',
+      url: { reference: 'https://jsonplaceholder.typicode.com/todos', cardinality: 'items' },
+      credentials: { googleCalendarOAuth2Api: { id: 'REALID', name: 'My Cal' } }, // forbidden key
+      nested: { token: 'abc', boundName: 'My Cal', keep: 'firstItems' },          // unknown key -> whole subtree dropped
     } }],
   });
-  const json = JSON.stringify(out);
-  assert.doesNotMatch(json, /credentials|REALID|My Cal|token|boundName/);
-  assert.equal(out.steps[0].configuration.operation, 'getAll'); // structural kept
-  assert.equal(out.steps[0].configuration.nested.keep, 'firstItems'); // non-forbidden kept
+  const cfg = out.steps[0].configuration;
+  assert.deepEqual(Object.keys(cfg).sort(), ['field', 'operation', 'url']);
+  assert.equal(cfg.operation, 'getAll');
+  assert.equal(cfg.field, 'completed');
+  assert.equal(cfg.url.reference, 'https://jsonplaceholder.typicode.com/todos');
+  assert.doesNotMatch(JSON.stringify(out), /REALID|My Cal|token|boundName|nested/);
+});
+
+test('innocuous-key private data (query/filter/value/description/PII) is dropped by the allowlist', () => {
+  const out = sanitizePlanSpec({
+    goal: 'g',
+    steps: [{ id: 's', capability: 'http_request', configuration: {
+      operation: 'getAll',
+      description: 'private note SSN 123-45-6789',
+      filter: { email: 'alice@example.com' },
+      value: 'some private value',
+      query: 'q=confidential',
+    } }],
+  });
+  assert.deepEqual(Object.keys(out.steps[0].configuration), ['operation']);
+  assert.doesNotMatch(JSON.stringify(out), /123-45-6789|alice@example\.com|private|confidential/);
 });
 
 test('assertNoSecrets throws on JWT / bearer / long token values', () => {
