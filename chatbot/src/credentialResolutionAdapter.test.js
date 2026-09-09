@@ -89,3 +89,20 @@ test('needs_choice present (no setup_required) -> overall needs_choice, draft un
   assert.equal(out.overall, 'needs_choice');
   assert.equal(out.createDisposition, 'create_inactive_draft');
 });
+
+test('default tie-break is deterministic: equal lastUsedAt -> createdAt -> handle', async () => {
+  const r = await resolveCredentialType('t', async () => ([
+    { handle: 'zzz', displayName: 'Z', createdAt: 5, lastUsedAt: 100 },
+    { handle: 'aaa', displayName: 'A', createdAt: 5, lastUsedAt: 100 },
+    { handle: 'mmm', displayName: 'M', createdAt: 9, lastUsedAt: 100 },
+  ]));
+  assert.equal(r.default, 'mmm'); // higher createdAt breaks the lastUsedAt tie
+});
+
+test('non-finite lastUsedAt (NaN/undefined) is treated as unused', async () => {
+  const r = await resolveCredentialType('t', async () => ([
+    { handle: 'a', displayName: 'A', createdAt: 1, lastUsedAt: NaN },
+    { handle: 'b', displayName: 'B', createdAt: 2, lastUsedAt: undefined },
+  ]));
+  assert.equal(r.default, 'b'); // none used -> most-recently-created
+});

@@ -9,6 +9,7 @@
 // solo); a durable store is a later concern. Clock injected for tests.
 
 const crypto = require('node:crypto');
+const { sanitizePlanSpec } = require('./planSpecSanitizer');
 
 function createConversationStore({ now = Date.now, ttlMs = 30 * 60 * 1000 } = {}) {
   const map = new Map();
@@ -26,6 +27,11 @@ function createConversationStore({ now = Date.now, ttlMs = 30 * 60 * 1000 } = {}
   }
 
   function create(callerId) {
+    // Require an explicit non-empty caller binding (solo callers pass a fixed
+    // sentinel like 'solo'); never create generic state for null/undefined.
+    if (typeof callerId !== 'string' || callerId.trim() === '') {
+      throw new Error('callerId (non-empty string) is required to create a conversation');
+    }
     const conversationId = opaqueId();
     const t = now();
     const state = {
@@ -69,7 +75,7 @@ function createConversationStore({ now = Date.now, ttlMs = 30 * 60 * 1000 } = {}
     return {
       conversationId: s.conversationId,
       status: s.status,
-      planSpec: s.planSpec,
+      planSpec: sanitizePlanSpec(s.planSpec), // deep sanitize before it reaches the browser
       credentials: reqs.map((r) => ({ credentialType: r.credentialType, status: r.status })),
     };
   }

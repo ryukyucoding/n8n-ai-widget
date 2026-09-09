@@ -74,3 +74,21 @@ test('publicView exposes only conversationId + status + plan + sanitized credent
   assert.equal(view.credentials[0].credentialType, 't');
   assert.equal(view.credentials[0].status, 'ready');
 });
+
+test('create requires a non-empty caller binding', () => {
+  const store = createConversationStore({ now: () => 0, ttlMs: 1000 });
+  assert.throws(() => store.create(''), /caller/i);
+  assert.throws(() => store.create(null), /caller/i);
+  assert.throws(() => store.create(undefined), /caller/i);
+});
+
+test('publicView deep-sanitizes planSpec (embedded credential never reaches browser)', () => {
+  const store = createConversationStore({ now: () => 0, ttlMs: 10000 });
+  const { conversationId } = store.create('c');
+  store.update(conversationId, 'c', { planSpec: { goal: 'g', steps: [{ id: 's', capability: 'http_request', configuration: { credentials: { x: { name: 'My Cal', id: 'REALID' } } } }] } });
+  const view = store.publicView(conversationId, 'c');
+  // The leaked credential VALUES must be absent; ("credentials" is a legit
+  // sanitized top-level summary field, so don't match the bare word.)
+  assert.doesNotMatch(JSON.stringify(view), /My Cal|REALID/);
+  assert.deepEqual(view.planSpec.steps[0].configuration, {}); // forbidden subtree dropped
+});

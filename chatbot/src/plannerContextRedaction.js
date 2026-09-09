@@ -8,13 +8,15 @@
 // response content. This prevents secrets/private data leaking into the model
 // context or being echoed back.
 
+const { sanitizePlanSpec, assertNoSecrets } = require('./planSpecSanitizer');
+
 const ALLOWED_TOP_KEYS = ['planSpec', 'credentialRequirements'];
 const ALLOWED_REQ_KEYS = ['credentialType', 'status'];
 
 // Build the redacted context by CONSTRUCTING the allowed shape from input —
 // unknown fields are simply never copied (allowlist, not blocklist).
 function redactForPlannerContext(input = {}) {
-  const planSpec = input && typeof input.planSpec === 'object' ? input.planSpec : null;
+  const planSpec = sanitizePlanSpec(input && input.planSpec); // deep structural projection + secret scan
   const reqs = Array.isArray(input && input.credentialRequirements) ? input.credentialRequirements : [];
   const credentialRequirements = reqs.map((r) => ({
     credentialType: r && r.credentialType,
@@ -35,6 +37,7 @@ function assertPlannerContextClean(ctx) {
       if (!ALLOWED_REQ_KEYS.includes(key)) throw new Error(`planner context requirement has forbidden key: ${key}`);
     }
   }
+  assertNoSecrets(ctx.planSpec); // deep: no forbidden keys / secret values in the plan spec
   return true;
 }
 

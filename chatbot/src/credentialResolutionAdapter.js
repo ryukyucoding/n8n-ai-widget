@@ -11,12 +11,22 @@
 // no n8n ids, tokens, or secret values reach the caller/browser. The server maps
 // handle -> real credential server-side (out of scope here).
 
+function finite(n) { return typeof n === 'number' && Number.isFinite(n); }
+
+// Deterministic default: most-recently-used (finite lastUsedAt) if any used, else
+// most-recently-created; ties break by createdAt desc, then handle asc (stable).
+// Non-finite/NaN timestamps are treated as absent, never as a winning value.
 function pickDefault(candidates) {
-  // most-recently-used (max lastUsedAt) if any used; else most-recently-created (max createdAt).
-  const used = candidates.filter((c) => typeof c.lastUsedAt === 'number');
-  const pool = used.length ? used : candidates;
-  const key = used.length ? 'lastUsedAt' : 'createdAt';
-  return pool.reduce((best, c) => ((c[key] || 0) > (best[key] || 0) ? c : best), pool[0]);
+  const used = candidates.filter((c) => finite(c.lastUsedAt));
+  const usedMode = used.length > 0;
+  const pool = usedMode ? used : candidates;
+  const primary = (c) => (usedMode ? (finite(c.lastUsedAt) ? c.lastUsedAt : -Infinity) : (finite(c.createdAt) ? c.createdAt : -Infinity));
+  const created = (c) => (finite(c.createdAt) ? c.createdAt : -Infinity);
+  return [...pool].sort((a, b) => {
+    if (primary(b) !== primary(a)) return primary(b) - primary(a);
+    if (created(b) !== created(a)) return created(b) - created(a);
+    return String(a.handle).localeCompare(String(b.handle));
+  })[0];
 }
 
 function sanitize(candidate) {

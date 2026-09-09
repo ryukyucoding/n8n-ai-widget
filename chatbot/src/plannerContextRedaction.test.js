@@ -45,3 +45,13 @@ test('assertPlannerContextClean passes a properly redacted context', () => {
   const ctx = redactForPlannerContext({ planSpec: { goal: 'g' }, credentialRequirements: [{ credentialType: 't', status: 'ready' }] });
   assert.doesNotThrow(() => assertPlannerContextClean(ctx));
 });
+
+test('planSpec is deep-sanitized: embedded credential/token never reaches planner context', () => {
+  const ctx = redactForPlannerContext({
+    planSpec: { goal: 'g', steps: [{ id: 's', capability: 'http_request', configuration: { token: 'sk-abc', credentials: { name: 'My Cal' }, keep: 'firstItems' } }] },
+    credentialRequirements: [],
+  });
+  assert.doesNotMatch(JSON.stringify(ctx), /token|sk-abc|credentials|My Cal/);
+  assert.equal(ctx.planSpec.steps[0].configuration.keep, 'firstItems'); // structural kept
+  assert.doesNotThrow(() => assertPlannerContextClean(ctx));
+});
