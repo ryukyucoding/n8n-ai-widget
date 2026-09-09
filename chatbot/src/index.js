@@ -42,6 +42,13 @@ const {
   compileApprovedNodewisePlan,
   reviewNodewisePlannerResult,
 } = require('./approvedNodewiseCompiler');
+const { soloAvailability } = require('./soloAvailability');
+const {
+  buildCalendarReadSkeleton,
+  buildCalendarReadManifest,
+  SOLO_CALENDAR_SKILL,
+} = require('./soloCalendarSkeleton');
+const { createAndFinalizeSoloWorkflow, isValidWorkflowId } = require('./soloInactiveGuard');
 const { requestNodewisePlannerResult } = require('./nodewisePlanner');
 const {
   createCandidateLimit,
@@ -112,6 +119,11 @@ const BETA_CHAT_STANDALONE = ['1', 'true', 'yes'].includes(
 const PLAN_FIRST_COMPILER_ENABLED = enabledEnvironmentValue(process.env.PLAN_FIRST_COMPILER_ENABLED);
 const PLANNER_APPROVAL_HMAC_SECRET = process.env.PLANNER_APPROVAL_HMAC_SECRET || '';
 const PLAN_FIRST_PLANNER_MODEL = process.env.PLAN_FIRST_PLANNER_MODEL || 'qwen3.8:27b';
+// Solo-only credential skills (default OFF). Gates the guarded Google Calendar
+// read template path. Single-operator only — NOT multi-user safe. See
+// a2a/skills/SOLO_CALENDAR_READ_DESIGN.md; enable only with the operational
+// preconditions checked (n8n has no other users, endpoint not serving others).
+const SOLO_CREDENTIAL_MODE = enabledEnvironmentValue(process.env.SOLO_CREDENTIAL_MODE);
 
 function timeoutMs(name, fallback) {
   const value = Number.parseInt(process.env[name] || String(fallback), 10);
@@ -451,6 +463,78 @@ async function handleApprovedPlanCompilation(req, res) {
 app.post('/beta/plan-from-request', handlePlanFromRequest);
 app.post('/beta/plan-approve', handlePlanApproval);
 app.post('/beta/compile-approved', handleApprovedPlanCompilation);
+
+// Solo-only Google Calendar read skill: a fixed, guarded template create path
+// OUTSIDE the planner/nodewise compiler (opaque output). Gated by
+// SOLO_CREDENTIAL_MODE (default off). Always creates an INACTIVE draft with a
+// by-name credential (empty id) for Dan to connect + activate in n8n. v1 does
+// NOT look up/bind credentials. Uses a SOLO-OWNED create orchestrator that
+// retains the created id so any post-create failure can clean up. No secret handled.
+function assertWorkflowId(id) { if (!isValidWorkflowId(id)) throw new Error('invalid_workflow_id'); return String(id); }
+async function deactivateN8nWorkflow(id) {
+  const wid = assertWorkflowId(id);
+  const r = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows/${wid}/deactivate`, {
+    method: 'POST', headers: { 'X-N8N-API-KEY': N8N_API_KEY, Connection: 'close' }, dispatcher: DIRECT_FETCH,
+  }, 2);
+  if (!r.ok) throw new Error(`n8n_deactivate_failed_${r.status}`);
+  return true;
+}
+async function getN8nWorkflow(id) {
+  const wid = assertWorkflowId(id);
+  const r = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows/${wid}`, {
+    method: 'GET', headers: { 'X-N8N-API-KEY': N8N_API_KEY, Connection: 'close' }, dispatcher: DIRECT_FETCH,
+  }, 2);
+  if (!r.ok) throw new Error(`n8n_get_failed_${r.status}`);
+  return r.json();
+}
+async function deleteN8nWorkflow(id) {
+  const wid = assertWorkflowId(id);
+  const r = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows/${wid}`, {
+    method: 'DELETE', headers: { 'X-N8N-API-KEY': N8N_API_KEY, Connection: 'close' }, dispatcher: DIRECT_FETCH,
+  }, 2);
+  if (!r.ok) throw new Error(`n8n_delete_failed_${r.status}`);
+  return true;
+}
+async function staticVerifySolo(candidate) {
+  return verifyCandidateWorkflow({ operation: 'create', userRequest: candidate.name, candidateWorkflow: candidate }, { n8nBaseUrl: N8N_BASE_URL, n8nApiKey: N8N_API_KEY });
+}
+async function createWorkflowSolo(workflow) {
+  const n8nRes = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-N8N-API-KEY': N8N_API_KEY, Connection: 'close' },
+    body: JSON.stringify(sanitizeCreateWorkflowPayload(workflow)), dispatcher: DIRECT_FETCH,
+  }, 2);
+  if (!n8nRes.ok) throw new Error(`n8n_create_failed_${n8nRes.status}`);
+  return n8nRes.json();
+}
+async function handleSoloCalendarRead(req, res) {
+  const availability = soloAvailability({
+    soloMode: SOLO_CREDENTIAL_MODE,
+    runtimeCompilerEnabled: RUNTIME_COMPILER_BETA_ENABLED,
+    apiKeyPresent: Boolean(N8N_API_KEY),
+  });
+  if (!availability.available) return res.status(availability.status).json({ error: availability.error });
+  try {
+    const calendar = typeof req.body?.calendar === 'string' ? req.body.calendar : '';
+    const skeleton = buildCalendarReadSkeleton({ limit: req.body?.limit, calendar });
+    const manifest = buildCalendarReadManifest({ calendar });
+    const final = await createAndFinalizeSoloWorkflow({
+      skeleton,
+      publicUrl: process.env.N8N_PUBLIC_URL || 'http://localhost:5678',
+      message: 'Solo Calendar 已建立 workflow（停用草稿）。請在 n8n 連接你的 Google 憑證並啟用。',
+      metadata: { soloOnly: true, skill: SOLO_CALENDAR_SKILL.id, setupManifest: manifest, createDisposition: manifest.createDisposition },
+      staticVerify: staticVerifySolo,
+      createWorkflow: createWorkflowSolo,
+      deactivate: deactivateN8nWorkflow,
+      getWorkflow: getN8nWorkflow,
+      deleteWorkflow: deleteN8nWorkflow,
+    });
+    return res.status(final.status).json(final.payload);
+  } catch (error) {
+    // Bounded-input rejections (e.g. limit/timeMin) surface as 422, never 500.
+    return res.status(422).json({ error: error.message || 'Solo calendar skeleton rejected.', code: 'solo_calendar_rejected' });
+  }
+}
+app.post('/beta/solo/calendar-read', handleSoloCalendarRead);
 
 // ---------------------------------------------------------------------------
 // POST /agent/run — intent decompose + modify/delete/insert station pipelines
@@ -1173,6 +1257,9 @@ if (require.main === module) {
 app.listen(port, () => {
   console.log(`n8n AI widget server running on http://localhost:${port}`);
   console.log(`n8n API base: ${N8N_BASE_URL}`);
+  if (SOLO_CREDENTIAL_MODE) {
+    console.warn('[chatbot] SOLO_CREDENTIAL_MODE active — single-operator credential skills enabled; NOT multi-user safe');
+  }
   void verifyN8nApiKey(N8N_BASE_URL, N8N_API_KEY).then((check) => {
     if (!N8N_API_KEY) {
       console.warn('[chatbot] N8N_API_KEY 未設定 — agent 無法讀寫 workflow');
