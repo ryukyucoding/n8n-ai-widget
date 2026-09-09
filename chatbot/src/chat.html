@@ -244,6 +244,11 @@
     var COMPILE_APPROVED_URL = window.location.origin + '/beta/compile-approved';
     // Solo-only Google Calendar read skill (gated by SOLO_CREDENTIAL_MODE server-side).
     var SOLO_CALENDAR_URL = window.location.origin + '/beta/solo/calendar-read';
+    // Conversational plan flow (Compiler Beta mode).
+    var CONV_START_URL = window.location.origin + '/beta/conversation/start';
+    var CONV_MESSAGE_URL = window.location.origin + '/beta/conversation/message';
+    var CONV_CONFIRM_URL = window.location.origin + '/beta/conversation/confirm';
+    var CONV_CANCEL_URL = window.location.origin + '/beta/conversation/cancel';
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
     var MODE_KEY = 'n8n-widget-active-mode';
@@ -280,12 +285,13 @@
     var soloActions = document.getElementById('solo-actions');
     var soloCalChip = document.getElementById('solo-cal-chip');
     var soloCalendarEnabled = false;
+    var conversationId = null; // active Compiler Beta conversation (null = none yet)
 
     function greeting() {
       return activeMode === 'create'
         ? '👋 描述你想從零建立的 workflow。<br><br>範例：<em>「每天早上 9 點把 Airtable 資料寄到 Slack」</em>'
         : activeMode === 'compiler'
-          ? '👋 用自然語言描述對公開 JSONPlaceholder 資料的處理（排序／取前後 N 筆／去重／改欄位名／計數／選欄位）。系統會先給你「規劃步驟」，你確認後才建立；不支援的需求會明確拒絕，不會硬生 workflow。<br><br>範例：<em>「抓 user 1 的 todos，依 id 排序取前 5 筆，回報總數與未完成數」</em>'
+          ? '👋 用自然語言描述你想要的 workflow，我會跟你討論、逐步把計畫談清楚；你可以隨時說「再加一步」「這裡改成…」。計畫談定後按「✅ 確認並建立」就會生成到 n8n 畫布，之後可在畫布上再增刪節點。不支援的需求我會明確說明，不會硬生 workflow。<br><br>範例：<em>「抓 user 1 的 todos，依 id 排序取前 5 筆，回報總數與未完成數」</em>'
         : '👋 描述要對 <strong>目前開啟的 workflow</strong> 做的插入、刪除或修改。<br><br>範例：<em>「在 HTTP Request 後面加一個 Set」</em>、<em>「刪掉用不到的 Code 節點」</em>';
     }
 
@@ -303,7 +309,7 @@
       modeHint.textContent = activeMode === 'create'
         ? '從零建立新 workflow；不會讀取或修改目前畫布。'
         : activeMode === 'compiler'
-          ? '自然語言 → 規劃 → 你確認 → 建立（受驗證技能組合，未支援需求明確拒絕）。'
+          ? '跟 AI 對話把計畫談定 → 按「確認並建立」生成到畫布（受驗證技能組合，未支援需求明確拒絕）。'
         : '對目前畫布進行插入、刪除或修改；需要先開啟目標 workflow。';
     }
 
@@ -313,6 +319,7 @@
         return;
       }
       activeMode = mode;
+      conversationId = null; // each Compiler Beta session starts a fresh conversation
       try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
       document.querySelectorAll('.mode-btn').forEach(function (button) { button.classList.toggle('active', button.dataset.mode === mode); });
       renderModelOptions();
@@ -533,26 +540,18 @@
         var useCreate = activeMode === 'create';
         var useCompiler = activeMode === 'compiler';
         var wfId = (useCreate || useCompiler) ? null : currentWorkflowId();
-        var body = useCreate
-          ? { message: text, model: modelSelect.value }
-          : useCompiler
-            ? { message: text }
-          : {
-              message: text,
-              sessionId: loadSessionId(),
-              workflowId: wfId,
-              clearSession: false,
-              model: modelSelect.value,
-            };
         var res;
         var data;
         if (useCompiler) {
-          // Compiler Beta = plan-first: request a plan; rendering (and the
-          // confirm-to-create step) happens after typing is removed, below.
-          var planResp = await postJson(PLAN_REQUEST_URL, body);
-          res = { ok: planResp.ok };
-          data = planResp.data;
+          // Compiler Beta = conversational plan flow: start a conversation on the
+          // first message, then continue it. Rendering + Confirm/Cancel happen below.
+          var convResp = conversationId
+            ? await postJson(CONV_MESSAGE_URL, { conversationId: conversationId, message: text })
+            : await postJson(CONV_START_URL, { message: text });
+          res = { ok: convResp.ok };
+          data = convResp.data;
         } else if (useCreate) {
+          var body = { message: text, model: modelSelect.value };
           var generated = await generateWithProgress(body, typing);
           res = { ok: generated.ok };
           data = generated.data;
@@ -560,14 +559,14 @@
           res = await fetch(AGENT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify({ message: text, sessionId: loadSessionId(), workflowId: wfId, clearSession: false, model: modelSelect.value }),
           });
           data = await res.json();
         }
         typing.remove();
 
         if (useCompiler) {
-          renderPlanFirstReview(data, res.ok);
+          renderConversationTurn(data, res.ok);
           return;
         }
 
@@ -770,6 +769,90 @@
       if (data.workflow) notifyParentCanvasRefresh(data.workflow);
     }
 
+    // --- Conversational plan flow (Compiler Beta) ---------------------------
+    function renderPlanTextHtml(spec, credentials) {
+      var steps = ((spec && spec.steps) || []).map(function (s) {
+        var op = (s.configuration && s.configuration.operation) || s.capability || '?';
+        return '<li>' + escHtml(op) + '</li>';
+      }).join('');
+      var goal = escHtml((spec && spec.goal) || '');
+      var fields = (((spec && spec.expectedOutput) || {}).fields || []).map(escHtml).join(', ');
+      var meta = 'font-size:12px;opacity:.8';
+      var credLine = (credentials && credentials.length)
+        ? '<div style="' + meta + '">需要憑證：' + credentials.map(function (c) { return escHtml(c.credentialType) + '（' + escHtml(c.status) + '）'; }).join('、') + '</div>'
+        : '';
+      return '📋 <b>目前的計畫</b>'
+        + (goal ? '<div style="' + meta + ';margin:2px 0">' + goal + '</div>' : '')
+        + '<ol style="margin:6px 0 6px 18px;padding:0">' + steps + '</ol>'
+        + (fields ? '<div style="' + meta + '">輸出欄位：' + fields + '</div>' : '')
+        + credLine;
+    }
+
+    function renderConversationTurn(data, httpOk) {
+      data = data || {};
+      if (!httpOk || data.error) {
+        var msg = data.code === 'conversation_planner_timeout' ? '規劃逾時（模型可能在載入中），請再送一次。'
+          : data.error === 'credential_choice_required' ? '這個計畫需要你選擇要用哪個憑證（選擇介面稍後提供）。'
+          : data.error === 'not_ready_to_confirm' ? '計畫還沒準備好，請先把需求談清楚。'
+          : (typeof data.error === 'string' ? data.error : '對話發生問題，請再試一次。');
+        addBubble('⚠️ ' + escHtml(msg), 'bot error');
+        return;
+      }
+      if (data.conversationId) conversationId = data.conversationId;
+      if (data.assistantMessage) addBubble(escHtml(data.assistantMessage), 'bot');
+      var view = data.view || {};
+      if (view.planSpec) addBubble(renderPlanTextHtml(view.planSpec, view.credentials), 'bot', true);
+      if (view.status === 'ready_to_confirm') {
+        var btns = '<button class="conv-confirm-btn" style="margin:8px 6px 0 0;background:#ff6d5a;color:#fff;border:0;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer">✅ 確認並建立</button>'
+          + '<button class="conv-cancel-btn" style="margin-top:8px;background:#fff;color:#8a3c31;border:1px solid #f3c8c0;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer">取消</button>';
+        var el = addBubble(btns, 'bot', true);
+        var cb = el.querySelector('.conv-confirm-btn'); if (cb) cb.addEventListener('click', function () { confirmConversation(cb); });
+        var xb = el.querySelector('.conv-cancel-btn'); if (xb) xb.addEventListener('click', cancelConversation);
+      } else if (view.status === 'awaiting_credential_choice') {
+        addBubble('這個計畫有多個可用憑證，需要你選擇（選擇介面稍後提供）。', 'bot');
+      }
+    }
+
+    async function confirmConversation(btn) {
+      if (!conversationId) return;
+      if (btn) { btn.disabled = true; btn.textContent = '建立中…'; }
+      var typing = addTyping();
+      try {
+        var resp = await postJson(CONV_CONFIRM_URL, { conversationId: conversationId });
+        typing.remove();
+        var d = resp.data || {};
+        var result = d.result || {};
+        var payload = result.payload || {};
+        if (!resp.ok || d.error || (result.status && result.status !== 200)) {
+          var m = d.error === 'credential_choice_required' ? '需要先選擇憑證。'
+            : d.error === 'not_ready_to_confirm' ? '計畫還沒準備好。'
+            : payload.error || (typeof d.error === 'string' ? d.error : '建立失敗，請再試一次。');
+          addBubble('❌ ' + escHtml(m), 'bot error');
+          if (btn) { btn.disabled = false; btn.textContent = '✅ 確認並建立'; }
+          return;
+        }
+        var wf = payload.workflow;
+        var wfId = payload.workflowId || (wf && (wf.id || wf.workflowId));
+        var okHtml = '🎉 已建立 workflow' + (wfId ? '（id: ' + escHtml(String(wfId)) + '）' : '') + '。';
+        var refresh = wf ? await notifyParentCanvasRefresh(wf) : { ok: false };
+        if (payload.workflowUrl) okHtml += '<br><a href="' + escHtml(payload.workflowUrl) + '" target="_parent">→ 在 n8n 中開啟</a>';
+        else if (!(refresh && refresh.ok)) okHtml += '<br>請在 n8n 開啟此 workflow 並手動 Execute。';
+        addBubble(okHtml, 'bot');
+        conversationId = null; // conversation complete
+      } catch (err) {
+        typing.remove();
+        addBubble('❌ 無法連線到 chatbot 服務：' + escHtml(err.message), 'bot error');
+        if (btn) { btn.disabled = false; btn.textContent = '✅ 確認並建立'; }
+      }
+    }
+
+    async function cancelConversation() {
+      if (!conversationId) return;
+      try { await postJson(CONV_CANCEL_URL, { conversationId: conversationId }); } catch (e) {}
+      addBubble('已取消建立。可以繼續告訴我要怎麼調整計畫。', 'bot');
+      // keep conversationId — the conversation returns to planning, not discarded
+    }
+
     function escHtml(str) {
       return String(str)
         .replace(/&/g, '&amp;')
@@ -782,6 +865,7 @@
 
     clearBtn.addEventListener('click', function () {
       chatHistory = [];
+      conversationId = null; // drop any active Compiler Beta conversation
       try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
       try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
       messagesEl.innerHTML = '<div class="bubble bot">' + greeting() + '</div>';

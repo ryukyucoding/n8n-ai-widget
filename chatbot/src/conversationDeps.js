@@ -68,6 +68,15 @@ function createConversationCompileAndCreate({ approve, compileApproved, createWo
     throw new Error('createConversationCompileAndCreate requires approve, compileApproved, createWorkflow');
   }
   return async function compileAndCreate(spec, resolution, ctx) {
+    // STAGE-4 GAP (fail-closed): credential binding (resolution.requirements) is NOT
+    // yet folded into the approval context or passed to create/bind. Until stage-4
+    // wires bind-by-name + approval-context inclusion, REFUSE any spec that actually
+    // requires a credential — the UI must never claim binding readiness while this
+    // composer ignores it. The current resolver stub returns no requirements, so this
+    // never trips on the public no-credential flow.
+    if (resolution && Array.isArray(resolution.requirements) && resolution.requirements.length > 0) {
+      throw new Error('credential binding not yet supported in conversation confirm (stage-4)');
+    }
     const sessionId = (ctx && ctx.conversationId) || '';
     const approved = approve(spec, { secret, sessionId }); // -> { approvalToken, ... }
     // Re-verifies the token against THIS exact spec + current revisions; throws on mismatch.

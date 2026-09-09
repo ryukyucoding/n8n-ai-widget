@@ -94,3 +94,18 @@ test('compileAndCreate: NO create if approval verification fails (compileApprove
 test('createConversationCompileAndCreate requires all deps', () => {
   assert.throws(() => createConversationCompileAndCreate({ approve: () => {}, compileApproved: () => {} }), /requires/);
 });
+
+test('compileAndCreate FAILS CLOSED (stage-4) if the spec requires a credential', async () => {
+  let created = 0;
+  const compileAndCreate = createConversationCompileAndCreate({
+    approve: () => ({ approvalToken: 'TOK' }),
+    compileApproved: () => ({ workflow: {}, planFingerprint: 'fp' }),
+    createWorkflow: async () => { created += 1; return { status: 200, payload: {} }; },
+    secret: 's',
+  });
+  await assert.rejects(
+    () => compileAndCreate({ goal: 'g' }, { requirements: [{ credentialType: 't', status: 'ready' }], overall: 'ready' }, { conversationId: 'c' }),
+    /credential binding not yet supported/,
+  );
+  assert.equal(created, 0); // never creates a credentialed spec until stage-4
+});
