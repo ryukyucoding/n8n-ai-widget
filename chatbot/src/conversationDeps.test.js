@@ -2,7 +2,16 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createPlannerAdapter, createSetupRequiredResolver } = require('./conversationDeps');
+const {
+  createPlannerAdapter,
+  createSetupRequiredResolver,
+  detectLanguage,
+  resolveEffectiveLanguage,
+  isLanguageMatch,
+  resolveFallbackGoal,
+  formatCapabilityGaps,
+  TEMPLATES,
+} = require('./conversationDeps');
 
 // ---- planner adapter: maps reviewNodewisePlannerResult envelopes -> controller contract ----
 test('planner adapter maps a ready review envelope -> ready_to_compile + spec + message', async () => {
@@ -108,4 +117,256 @@ test('compileAndCreate FAILS CLOSED (stage-4) if the spec requires a credential'
     /credential binding not yet supported/,
   );
   assert.equal(created, 0); // never creates a credentialed spec until stage-4
+});
+
+// ---- bilingual output tests ----
+test('detectLanguage classifies text based on CJK characters', () => {
+  assert.equal(detectLanguage('Fetch JSONPlaceholder todos'), 'en');
+  assert.equal(detectLanguage('抓取 JSONPlaceholder todos'), 'zh');
+  assert.equal(detectLanguage('請幫我做自動化'), 'zh');
+  assert.equal(detectLanguage(''), 'en');
+  assert.equal(detectLanguage(null), 'en');
+});
+
+test('planner adapter produces localized Traditional Chinese assistantMessage for Chinese input', async () => {
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: '抓取使用者 1 並統計未完成項目', steps: [{}, {}] },
+    plan: { goal: '抓取使用者 1 並統計未完成項目', steps: [{}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '請幫我抓取使用者 1 的待辦事項', previousSpec: null });
+  assert.equal(r.outcome, 'ready_to_compile');
+  assert.match(r.assistantMessage, /^已規劃：抓取使用者 1 並統計未完成項目（2 步）。確認即可建立/);
+});
+
+test('planner adapter localizes raw English goal when user message is Chinese (safe fallback)', async () => {
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: 'Fetch JSONPlaceholder user 1 and summarize todos.', steps: [{}, {}] },
+    plan: { goal: 'Fetch JSONPlaceholder user 1 and summarize todos.', steps: [{}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '抓取使用者 1 的待辦清單', previousSpec: null });
+  assert.equal(r.outcome, 'ready_to_compile');
+  // Safe fallback replaces raw English goal with localized user intent
+  assert.equal(r.spec.goal, '抓取使用者 1 的待辦清單');
+  assert.match(r.assistantMessage, /^已規劃：抓取使用者 1 的待辦清單（2 步）。確認即可建立/);
+});
+
+test('planner adapter produces localized English assistantMessage for English input', async () => {
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: 'Fetch user 1 and count todos', steps: [{}, {}] },
+    plan: { goal: 'Fetch user 1 and count todos', steps: [{}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: 'Fetch user 1 and count todos', previousSpec: null });
+  assert.equal(r.outcome, 'ready_to_compile');
+  assert.match(r.assistantMessage, /^Planned: Fetch user 1 and count todos \(2 steps\)\. Confirm to create/);
+});
+
+test('planner adapter produces localized clarification messages for both Chinese and English', async () => {
+  const zhReview = async () => ({ outcome: 'clarification_required', requiredUserInputs: ['哪個日曆', '幾筆'] });
+  const zhPlan = createPlannerAdapter(zhReview);
+  const zhR = await zhPlan({ message: '查詢日曆', previousSpec: null });
+  assert.match(zhR.assistantMessage, /^需要更多資訊：哪個日曆、幾筆/);
+
+  const enReview = async () => ({ outcome: 'clarification_required', requiredUserInputs: ['which calendar', 'how many'] });
+  const enPlan = createPlannerAdapter(enReview);
+  const enR = await enPlan({ message: 'query calendar', previousSpec: null });
+  assert.match(enR.assistantMessage, /^More information needed: which calendar, how many/);
+});
+
+test('planner adapter produces localized unsupported messages for both Chinese and English', async () => {
+  const zhReview = async () => ({ outcome: 'unsupported_capability', capabilityGaps: ['delivery.telegram'] });
+  const zhPlan = createPlannerAdapter(zhReview);
+  const zhR = await zhPlan({ message: '寄送到 Telegram', previousSpec: null });
+  assert.match(zhR.assistantMessage, /^目前不支援此需求：delivery\.telegram/);
+
+  const enReview = async () => ({ outcome: 'unsupported_capability', capabilityGaps: ['delivery.telegram'] });
+  const enPlan = createPlannerAdapter(enReview);
+  const enR = await enPlan({ message: 'Send to Telegram', previousSpec: null });
+  assert.match(enR.assistantMessage, /^This requirement is currently not supported: delivery\.telegram/);
+});
+
+test('isLanguageMatch validates text against target language symmetrically', () => {
+  assert.equal(isLanguageMatch('抓取 todos', 'zh'), true);
+  assert.equal(isLanguageMatch('Fetch todos', 'zh'), false);
+  assert.equal(isLanguageMatch('Fetch todos', 'en'), true);
+  assert.equal(isLanguageMatch('抓取 todos', 'en'), false);
+  assert.equal(isLanguageMatch('', 'zh'), false);
+  assert.equal(isLanguageMatch(null, 'en'), false);
+});
+
+test('planner adapter symmetrically localizes Chinese goal when user message is English (drift fallback)', async () => {
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: '抓取使用者 1 並統計項目', steps: [{}, {}] },
+    plan: { goal: '抓取使用者 1 並統計項目', steps: [{}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: 'Fetch user 1 and count items', previousSpec: null });
+  assert.equal(r.outcome, 'ready_to_compile');
+  // Symmetrically localizes to English user intent
+  assert.equal(r.spec.goal, 'Fetch user 1 and count items');
+  assert.match(r.assistantMessage, /^Planned: Fetch user 1 and count items \(2 steps\)\. Confirm to create/);
+});
+
+test('planner adapter symmetrically drops English clarification questions for Chinese request', async () => {
+  const review = async () => ({
+    outcome: 'clarification_required',
+    requiredUserInputs: ['which calendar to operate on', 'max items count'],
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '查詢日曆活動', previousSpec: null });
+  assert.equal(r.outcome, 'clarification_required');
+  // Mismatched English inputs dropped; localized Chinese default used
+  assert.equal(r.assistantMessage, '請提供更明確的需求。');
+});
+
+test('planner adapter symmetrically drops Chinese clarification questions for English request', async () => {
+  const review = async () => ({
+    outcome: 'clarification_required',
+    requiredUserInputs: ['欲查詢的日曆名稱', '最大數量'],
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: 'Query calendar events', previousSpec: null });
+  assert.equal(r.outcome, 'clarification_required');
+  // Mismatched Chinese inputs dropped; localized English default used
+  assert.equal(r.assistantMessage, 'Please provide more specific requirements.');
+});
+
+test('planner adapter ensures localized spec.goal is canonical and matches review.plan.goal', async () => {
+  const spec = { goal: 'English goal from model', steps: [{}, {}] };
+  const planObj = { goal: 'English goal from model', steps: [{}, {}] };
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: spec,
+    plan: planObj,
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '抓取代辦事項清單', previousSpec: null });
+  // The adapter output spec is the new canonical spec; both spec.goal and plan.goal are updated
+  assert.equal(r.spec.goal, '抓取代辦事項清單');
+  assert.equal(planObj.goal, '抓取代辦事項清單');
+  assert.match(r.assistantMessage, /已規劃：抓取代辦事項清單/);
+});
+
+test('resolveFallbackGoal preserves previous canonical goal during refinement rather than clobbering with delta command', () => {
+  const prevSpec = { goal: '抓取使用者 1 的待辦事項並統計未完成數量', steps: [{}, {}] };
+  // Turn 2 refinement: user says short delta "改成降序"
+  const goal = resolveFallbackGoal('改成降序', prevSpec, 'zh', '依需求規劃的工作流');
+  // Must preserve canonical overall goal!
+  assert.equal(goal, '抓取使用者 1 的待辦事項並統計未完成數量');
+
+  // English refinement: user says "sort descending", prevSpec has English goal
+  const prevEnSpec = { goal: 'Fetch user 1 todos and count incomplete', steps: [{}, {}] };
+  const enGoal = resolveFallbackGoal('sort descending', prevEnSpec, 'en', 'Planned workflow');
+  assert.equal(enGoal, 'Fetch user 1 todos and count incomplete');
+});
+
+test('planner adapter preserves previous canonical goal during refinement when model drifts to wrong language', async () => {
+  const prevSpec = { goal: '抓取使用者 1 的待辦事項並統計未完成數量', steps: [{}, {}] };
+  // Turn 2 refinement: user says "改成降序", model returns English goal
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: 'Sort todos descending and count incomplete', steps: [{}, {}, {}] },
+    plan: { goal: 'Sort todos descending and count incomplete', steps: [{}, {}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '改成降序', previousSpec: prevSpec });
+  // The canonical overall goal is preserved from prevSpec, NOT clobbered by "改成降序"!
+  assert.equal(r.spec.goal, '抓取使用者 1 的待辦事項並統計未完成數量');
+  assert.match(r.assistantMessage, /^已規劃：抓取使用者 1 的待辦事項並統計未完成數量（3 步）。確認即可建立/);
+});
+
+test('formatCapabilityGaps preserves technical IDs while filtering language-mismatched human prose', () => {
+  // Chinese request: preserve technical ID 'delivery.telegram', keep Chinese prose, drop English prose
+  const zhGaps = formatCapabilityGaps(['delivery.telegram', '不支援外部寫入', 'raw english prose should be dropped'], 'zh', '、');
+  assert.equal(zhGaps, 'delivery.telegram、不支援外部寫入');
+
+  // English request: preserve technical ID 'delivery.telegram', keep English prose, drop Chinese prose
+  const enGaps = formatCapabilityGaps(['delivery.telegram', 'external writes not supported', '這段中文應被過濾'], 'en', ', ');
+  assert.equal(enGaps, 'delivery.telegram, external writes not supported');
+});
+
+test('formatCapabilityGaps drops suspicious tokens (e.g. sk-secret) and enforces dotted skill ID grammar', () => {
+  // Tokens like 'sk-secret', 'ghp_token', or un-dotted strings are dropped
+  const gapsWithSecrets = formatCapabilityGaps(['delivery.telegram', 'sk-ant-api03-secret', 'ghp_myfaketoken', 'not_dotted_id'], 'en', ', ');
+  assert.equal(gapsWithSecrets, 'delivery.telegram');
+
+  // Dotted skill IDs are kept
+  const validDotted = formatCapabilityGaps(['transform.pivot', 'database.mysql_query'], 'en', ', ');
+  assert.equal(validDotted, 'transform.pivot, database.mysql_query');
+});
+
+test('formatCapabilityGaps drops human prose carrying embedded secret tokens (unanchored check)', () => {
+  // English prose with embedded secret tokens anywhere in the sentence
+  const enEmbedded = formatCapabilityGaps([
+    'needs sk-ant-api03-secret to operate',
+    'please use bearer MY_SECRET_TOKEN_HERE',
+    'external writes not supported',
+  ], 'en', ', ');
+  // Only the clean prose without secrets survives!
+  assert.equal(enEmbedded, 'external writes not supported');
+
+  // Chinese prose with embedded secret tokens anywhere in the sentence
+  const zhEmbedded = formatCapabilityGaps([
+    '需要提供 sk-ant-api03-secret 才能連線',
+    '此服務需要 bearer token-value-12345 授權',
+    '不支援外部寫入服務',
+  ], 'zh', '、');
+  // Only the clean Chinese prose without secrets survives!
+  assert.equal(zhEmbedded, '不支援外部寫入服務');
+});
+
+test('detectLanguage prioritizes explicit language directives over script detection', () => {
+  // Explicit English directive in Chinese sentence -> 'en'
+  assert.equal(detectLanguage('請用英文規劃這個流程'), 'en');
+  assert.equal(detectLanguage('請以英文回答'), 'en');
+  assert.equal(detectLanguage('Please respond in English'), 'en');
+  assert.equal(detectLanguage('in english please: fetch user 1'), 'en');
+
+  // Explicit Chinese directive in English sentence -> 'zh'
+  assert.equal(detectLanguage('用中文回答'), 'zh');
+  assert.equal(detectLanguage('respond in Chinese please: fetch user 1'), 'zh');
+  assert.equal(detectLanguage('請用繁中說明'), 'zh');
+
+  // Mixed CJK + Latin technical input without directive -> 'zh'
+  assert.equal(detectLanguage('抓取 JSONPlaceholder todos 並用 count_false_boolean 統計'), 'zh');
+});
+
+test('cross-turn language switching preserves previous macro goal while adapting assistantMessage language', async () => {
+  const prevZhSpec = { goal: '抓取使用者 1 的待辦事項並統計未完成數量', steps: [{}, {}] };
+
+  // Turn 2: User gives English delta "sort descending", model drifts
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: 'Sort todos descending and count incomplete', steps: [{}, {}, {}] },
+    plan: { goal: 'Sort todos descending and count incomplete', steps: [{}, {}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: 'sort descending', previousSpec: prevZhSpec });
+
+  // 1. Assistant message preserves Chinese conversation base language for short English delta
+  assert.match(r.assistantMessage, /^已規劃：/);
+  // 2. Canonical macro goal is preserved, NOT clobbered by "sort descending"
+  assert.equal(r.spec.goal, '抓取使用者 1 的待辦事項並統計未完成數量');
+});
+
+test('explicit directive in Turn 2 switches assistantMessage language cleanly', async () => {
+  const prevZhSpec = { goal: '抓取使用者 1 的待辦事項並統計未完成數量', steps: [{}, {}] };
+
+  // Turn 2: User types Chinese characters requesting English: "請用英文說明"
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: 'Fetch user 1 todos and summarize', steps: [{}, {}] },
+    plan: { goal: 'Fetch user 1 todos and summarize', steps: [{}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '請用英文說明', previousSpec: prevZhSpec });
+
+  // Directive overrides script detection -> assistantMessage is English!
+  assert.match(r.assistantMessage, /^Planned: /);
 });

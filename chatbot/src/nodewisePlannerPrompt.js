@@ -79,6 +79,11 @@ Operation selection (strict):
 - Final-step rules. sort_items, limit_items, remove_duplicates, and rename_keys output item lists and are always intermediate, never the final step. count_false_boolean outputs one_object but must NOT be the final step; follow it with a set_output step. join_object_and_count_false_boolean and select_fields produce one_object and MAY be the final step only when the fields they produce exactly equal expectedOutput.fields in the same order; otherwise append a final set_output step. When unsure, end with a set_output step whose input references the immediately prior step with cardinality one_object and whose mappings project EXACTLY expectedOutput.fields (each as { from, to, valueType }). Example final set_output step after a count named summary:
 { "id": "output", "capability": "set_output", "requiredUserSetup": [], "configuration": { "input": { "kind": "prior_step", "reference": "summary.response", "cardinality": "one_object" }, "mappings": [{ "from": "totalTodos", "to": "totalTodos", "valueType": "number" }, { "from": "incompleteTodos", "to": "incompleteTodos", "valueType": "number" }] } }
 
+Language mirroring rule:
+All human-readable descriptive fields — including "goal", "requiredUserInputs", and "capabilityGaps" — MUST be written in the same language as the user's request (e.g. Traditional Chinese when the user asks in Chinese, English when the user asks in English).
+Do NOT blindly copy the English example goal when the user's request is in Chinese.
+All JSON schema structure, outcome values ("ready_to_compile", "clarification_required", "unsupported_capability"), capability names, operation names, and registered field identifiers must remain in English.
+
 Never use type, stepId, description, nodes, credentials, or raw n8n JSON. Never invent credentials, IDs, API schemas, permissions, or an unsupported workaround.`;
 
 module.exports = { NODEWISE_PLANNER_RESULT_PROMPT };

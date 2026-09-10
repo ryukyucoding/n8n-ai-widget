@@ -43,6 +43,13 @@ test('planner prompt documents the rename_keys transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /never a one_object input/);
 });
 
+test('planner prompt enforces language mirroring rule for human-readable fields', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Language mirroring rule/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /same language as the user's request/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Traditional Chinese when the user asks in Chinese/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Do NOT blindly copy the English example goal/);
+});
+
 test('planner prompt documents strict operation selection (count vs join, set_output final)', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Operation selection \(strict\)/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Prefer count_false_boolean for pure counting/);
