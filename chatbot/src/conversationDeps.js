@@ -19,6 +19,15 @@ function detectLanguage(text) {
   return /[一-龥]/.test(str) ? 'zh' : 'en';
 }
 
+const ZH_DELTA_REGEX = /^(改成|加上|設為|移除|調整|只留|排序|限制|改名)/;
+const EN_DELTA_REGEX = /^(sort|order|change|set|remove|limit|descending|ascending)\b/i;
+
+function isDeltaInstruction(str) {
+  const s = String(str || '').trim();
+  if (s.length === 0 || s.length >= 25) return false;
+  return ZH_DELTA_REGEX.test(s) || EN_DELTA_REGEX.test(s);
+}
+
 // Effective conversation language resolver:
 // 1. Explicit language directive takes absolute precedence ('請用英文' -> 'en', 'respond in Chinese' -> 'zh').
 // 2. Short delta refinements (e.g. 'sort descending' or '改成降序') preserve the conversation base language
@@ -30,7 +39,7 @@ function resolveEffectiveLanguage(message, previousSpec) {
   if (EN_DIRECTIVE.test(str)) return 'en';
   if (ZH_DIRECTIVE.test(str)) return 'zh';
 
-  const isShortDelta = str.length < 25 && /^(改成|加上|設為|移除|sort|order|change|set|remove|limit|descending|ascending)\b/i.test(str);
+  const isShortDelta = isDeltaInstruction(str);
   if (previousSpec && isShortDelta && previousSpec.goal) {
     return isLanguageMatch(previousSpec.goal, 'zh') ? 'zh' : 'en';
   }
@@ -71,7 +80,7 @@ const TEMPLATES = {
 // clobbering it with a short delta command (e.g. 「改成降序」 or "sort descending").
 function resolveFallbackGoal(message, previousSpec, lang, defaultGoal) {
   const cleanMsg = typeof message === 'string' ? message.trim() : '';
-  const isShortDelta = cleanMsg.length < 25 && /^(改成|加上|設為|移除|sort|order|change|set|remove|limit|descending|ascending)\b/i.test(cleanMsg);
+  const isShortDelta = isDeltaInstruction(cleanMsg);
 
   if (previousSpec && previousSpec.goal) {
     // Short delta commands never replace the macro goal
@@ -164,7 +173,7 @@ function createPlannerAdapter(reviewFromMessage) {
     let goal = (review.plan && review.plan.goal) || (spec && spec.goal) || '';
 
     // If model goal is a short delta (e.g. "sort descending", "改成降序"), NEVER use it as macro goal
-    const isGoalDelta = typeof goal === 'string' && goal.trim().length < 25 && /^(改成|加上|設為|移除|sort|order|change|set|remove|limit|descending|ascending)\b/i.test(goal.trim());
+    const isGoalDelta = isDeltaInstruction(goal);
 
     // Symmetric language verification: if model goal mismatches caller language or is a delta,
     // safely localize using previous canonical goal (for refinement) or scrubbed message/default.
@@ -242,6 +251,7 @@ module.exports = {
   resolveEffectiveLanguage,
   isLanguageMatch,
   resolveFallbackGoal,
+  isDeltaInstruction,
   formatCapabilityGaps,
   TEMPLATES,
 };

@@ -9,6 +9,7 @@ const {
   resolveEffectiveLanguage,
   isLanguageMatch,
   resolveFallbackGoal,
+  isDeltaInstruction,
   formatCapabilityGaps,
   TEMPLATES,
 } = require('./conversationDeps');
@@ -369,4 +370,56 @@ test('explicit directive in Turn 2 switches assistantMessage language cleanly', 
 
   // Directive overrides script detection -> assistantMessage is English!
   assert.match(r.assistantMessage, /^Planned: /);
+});
+
+test('isDeltaInstruction correctly identifies Chinese and English deltas across spacing and punctuation', () => {
+  // Chinese short deltas without ASCII word boundaries
+  assert.equal(isDeltaInstruction('改成降序'), true);
+  assert.equal(isDeltaInstruction('改成 降序'), true);
+  assert.equal(isDeltaInstruction('改成：降序'), true);
+  assert.equal(isDeltaInstruction('加上排序'), true);
+  assert.equal(isDeltaInstruction('移除步驟'), true);
+
+  // English short deltas with word boundaries
+  assert.equal(isDeltaInstruction('sort descending'), true);
+  assert.equal(isDeltaInstruction('limit 10'), true);
+  assert.equal(isDeltaInstruction('order by id'), true);
+
+  // Complete macro goals must NOT be classified as deltas
+  assert.equal(isDeltaInstruction('抓取使用者 1 的待辦事項並統計未完成數量'), false);
+  assert.equal(isDeltaInstruction('Fetch user 1 todos and summarize incomplete items'), false);
+});
+
+test('planner adapter prevents a model-generated Chinese short delta from overwriting prior macro goal', async () => {
+  const prevZhSpec = { goal: '抓取使用者 1 的待辦事項並統計未完成數量', steps: [{}, {}] };
+
+  // Turn 2: User says "改成降序", model emits a Chinese short delta as goal: "改成降序"
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: '改成降序', steps: [{}, {}, {}] },
+    plan: { goal: '改成降序', steps: [{}, {}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '改成降序', previousSpec: prevZhSpec });
+
+  // isDeltaInstruction catches Chinese delta without word boundary!
+  // Preserves prior macro goal instead of clobbering with "改成降序"
+  assert.equal(r.spec.goal, '抓取使用者 1 的待辦事項並統計未完成數量');
+  assert.match(r.assistantMessage, /^已規劃：抓取使用者 1 的待辦事項並統計未完成數量（3 步）。確認即可建立/);
+});
+
+test('planner adapter handles Chinese delta with mixed punctuation and spacing correctly', async () => {
+  const prevZhSpec = { goal: '抓取使用者 1 的待辦事項並統計未完成數量', steps: [{}, {}] };
+
+  // Turn 2: User says "改成：降序", model echoes "改成：降序"
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: '改成：降序', steps: [{}, {}, {}] },
+    plan: { goal: '改成：降序', steps: [{}, {}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '改成：降序', previousSpec: prevZhSpec });
+
+  assert.equal(r.spec.goal, '抓取使用者 1 的待辦事項並統計未完成數量');
+  assert.match(r.assistantMessage, /^已規劃：抓取使用者 1 的待辦事項並統計未完成數量（3 步）。確認即可建立/);
 });
