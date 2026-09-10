@@ -19,13 +19,22 @@ function detectLanguage(text) {
   return /[一-龥]/.test(str) ? 'zh' : 'en';
 }
 
-const ZH_DELTA_REGEX = /^(改成|加上|設為|移除|調整|只留|排序|限制|改名)/;
-const EN_DELTA_REGEX = /^(sort|order|change|set|remove|limit|descending|ascending)\b/i;
+const REFINEMENT_PREFIX_ZH = /^(改成|加上|設為|移除|調整|只留)/;
 
-function isDeltaInstruction(str) {
+// Refinement delta identifier:
+// 1. Explicit refinement markers ('改成', '加上', '設為', '移除', '調整', '只留') are ALWAYS deltas.
+// 2. Short operation phrases ('排序...', '限制...', '改名...', 'sort...', 'limit...') are treated as deltas
+//    ONLY when in a refinement context (isRefinementContext = true, i.e. previousSpec exists).
+//    On a fresh conversation (turn 1), a valid request like '排序 todos' or '限制取前5筆' is a legitimate macro goal!
+function isDeltaInstruction(str, isRefinementContext = false) {
   const s = String(str || '').trim();
   if (s.length === 0 || s.length >= 25) return false;
-  return ZH_DELTA_REGEX.test(s) || EN_DELTA_REGEX.test(s);
+  if (REFINEMENT_PREFIX_ZH.test(s)) return true;
+  if (isRefinementContext) {
+    if (/^(排序|限制|改名)/.test(s)) return true;
+    if (/^(sort|order|change|set|remove|limit|descending|ascending)\b/i.test(s)) return true;
+  }
+  return false;
 }
 
 // Effective conversation language resolver:
@@ -39,8 +48,9 @@ function resolveEffectiveLanguage(message, previousSpec) {
   if (EN_DIRECTIVE.test(str)) return 'en';
   if (ZH_DIRECTIVE.test(str)) return 'zh';
 
-  const isShortDelta = isDeltaInstruction(str);
-  if (previousSpec && isShortDelta && previousSpec.goal) {
+  const isRefinement = Boolean(previousSpec && previousSpec.goal);
+  const isShortDelta = isDeltaInstruction(str, isRefinement);
+  if (isRefinement && isShortDelta) {
     return isLanguageMatch(previousSpec.goal, 'zh') ? 'zh' : 'en';
   }
 
@@ -79,12 +89,13 @@ const TEMPLATES = {
 // If this is a refinement, preserve the previous canonical macro goal rather than
 // clobbering it with a short delta command (e.g. 「改成降序」 or "sort descending").
 function resolveFallbackGoal(message, previousSpec, lang, defaultGoal) {
+  const isRefinement = Boolean(previousSpec && previousSpec.goal);
   const cleanMsg = typeof message === 'string' ? message.trim() : '';
-  const isShortDelta = isDeltaInstruction(cleanMsg);
+  const isMsgDelta = isDeltaInstruction(cleanMsg, isRefinement);
 
-  if (previousSpec && previousSpec.goal) {
+  if (isRefinement) {
     // Short delta commands never replace the macro goal
-    if (isShortDelta) {
+    if (isMsgDelta) {
       return previousSpec.goal;
     }
     // If previous goal already matches target language, keep it
@@ -93,10 +104,11 @@ function resolveFallbackGoal(message, previousSpec, lang, defaultGoal) {
     }
   }
 
-  if (isLanguageMatch(cleanMsg, lang) && cleanMsg.length > 5 && !isShortDelta) {
+  // On a fresh conversation, a valid non-refinement request (like '排序 todos') becomes the macro goal!
+  if (isLanguageMatch(cleanMsg, lang) && cleanMsg.length >= 2 && !isMsgDelta) {
     return cleanMsg;
   }
-  return (previousSpec && previousSpec.goal) ? previousSpec.goal : defaultGoal;
+  return isRefinement ? previousSpec.goal : defaultGoal;
 }
 
 const DOTTED_SKILL_ID_REGEX = /^[a-z][a-z0-9_]{0,30}\.[a-z0-9_.-]{1,40}$/i;
@@ -173,7 +185,8 @@ function createPlannerAdapter(reviewFromMessage) {
     let goal = (review.plan && review.plan.goal) || (spec && spec.goal) || '';
 
     // If model goal is a short delta (e.g. "sort descending", "改成降序"), NEVER use it as macro goal
-    const isGoalDelta = isDeltaInstruction(goal);
+    const isRefinement = Boolean(previousSpec && previousSpec.goal);
+    const isGoalDelta = isDeltaInstruction(goal, isRefinement);
 
     // Symmetric language verification: if model goal mismatches caller language or is a delta,
     // safely localize using previous canonical goal (for refinement) or scrubbed message/default.

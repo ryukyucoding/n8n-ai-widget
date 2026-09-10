@@ -373,21 +373,58 @@ test('explicit directive in Turn 2 switches assistantMessage language cleanly', 
 });
 
 test('isDeltaInstruction correctly identifies Chinese and English deltas across spacing and punctuation', () => {
-  // Chinese short deltas without ASCII word boundaries
-  assert.equal(isDeltaInstruction('改成降序'), true);
-  assert.equal(isDeltaInstruction('改成 降序'), true);
-  assert.equal(isDeltaInstruction('改成：降序'), true);
-  assert.equal(isDeltaInstruction('加上排序'), true);
-  assert.equal(isDeltaInstruction('移除步驟'), true);
+  // Explicit refinement markers are always deltas (even on turn 1)
+  assert.equal(isDeltaInstruction('改成降序', false), true);
+  assert.equal(isDeltaInstruction('改成 降序', false), true);
+  assert.equal(isDeltaInstruction('改成：降序', false), true);
+  assert.equal(isDeltaInstruction('加上排序', false), true);
+  assert.equal(isDeltaInstruction('移除步驟', false), true);
 
-  // English short deltas with word boundaries
-  assert.equal(isDeltaInstruction('sort descending'), true);
-  assert.equal(isDeltaInstruction('limit 10'), true);
-  assert.equal(isDeltaInstruction('order by id'), true);
+  // Operation phrases are NOT deltas on Turn 1 (fresh conversation)
+  assert.equal(isDeltaInstruction('排序 todos', false), false);
+  assert.equal(isDeltaInstruction('限制取前5筆', false), false);
+  assert.equal(isDeltaInstruction('sort descending', false), false);
+
+  // Operation phrases ARE deltas in a refinement context (Turn 2+)
+  assert.equal(isDeltaInstruction('排序 todos', true), true);
+  assert.equal(isDeltaInstruction('限制取前5筆', true), true);
+  assert.equal(isDeltaInstruction('sort descending', true), true);
+  assert.equal(isDeltaInstruction('limit 10', true), true);
 
   // Complete macro goals must NOT be classified as deltas
-  assert.equal(isDeltaInstruction('抓取使用者 1 的待辦事項並統計未完成數量'), false);
-  assert.equal(isDeltaInstruction('Fetch user 1 todos and summarize incomplete items'), false);
+  assert.equal(isDeltaInstruction('抓取使用者 1 的待辦事項並統計未完成數量', false), false);
+  assert.equal(isDeltaInstruction('抓取使用者 1 的待辦事項並統計未完成數量', true), false);
+  assert.equal(isDeltaInstruction('Fetch user 1 todos and summarize incomplete items', false), false);
+});
+
+test('planner adapter preserves meaningful initial goal for fresh conversation (Turn 1) starting with operation phrase', async () => {
+  // Turn 1 fresh conversation (previousSpec === null): user asks "排序 todos"
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: '排序 todos', steps: [{}, {}] },
+    plan: { goal: '排序 todos', steps: [{}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '排序 todos', previousSpec: null });
+
+  // On Turn 1, "排序 todos" is the legitimate macro goal, NOT clobbered with generic default!
+  assert.equal(r.spec.goal, '排序 todos');
+  assert.match(r.assistantMessage, /^已規劃：排序 todos（2 步）。確認即可建立/);
+});
+
+test('planner adapter preserves meaningful initial goal for fresh conversation (Turn 1) starting with 限制', async () => {
+  // Turn 1 fresh conversation: user asks "限制取前5筆"
+  const review = async () => ({
+    outcome: 'ready_to_compile',
+    specification: { goal: '限制取前5筆', steps: [{}, {}] },
+    plan: { goal: '限制取前5筆', steps: [{}, {}] },
+  });
+  const plan = createPlannerAdapter(review);
+  const r = await plan({ message: '限制取前5筆', previousSpec: null });
+
+  // On Turn 1, "限制取前5筆" is preserved as macro goal!
+  assert.equal(r.spec.goal, '限制取前5筆');
+  assert.match(r.assistantMessage, /^已規劃：限制取前5筆（2 步）。確認即可建立/);
 });
 
 test('planner adapter prevents a model-generated Chinese short delta from overwriting prior macro goal', async () => {
