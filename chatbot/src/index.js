@@ -57,6 +57,7 @@ const { createPlannerAdapter, createSetupRequiredResolver, createConversationCom
 const { validateSpecification } = require('./nodewiseCompiler');
 const { requestNodewisePlannerResult } = require('./nodewisePlanner');
 const { applyRefinementDelta } = require('./refinementDelta');
+const { classifySpecialRequest } = require('./requestClassification');
 const {
   createCandidateLimit,
   evaluateCorrectnessFirstRepair,
@@ -378,7 +379,24 @@ function refinementClarification(message, previousSpecification, operation) {
   };
 }
 
+function specialRequestEnvelope(message, classification) {
+  const chinese = /[一-龥]/.test(String(message || ''));
+  const detail = chinese ? classification.detailZh : classification.detailEn;
+  return {
+    schemaVersion: '1.0',
+    kind: 'nodewise_planner_result',
+    outcome: classification.outcome,
+    goal: detail,
+    requiredUserInputs: classification.outcome === 'clarification_required' ? [detail] : [],
+    capabilityGaps: classification.outcome === 'unsupported_capability' ? [detail] : [],
+  };
+}
+
 async function planFromUserRequest(message, previousSpecification, signal) {
+  const classification = classifySpecialRequest(message);
+  if (classification) {
+    return reviewNodewisePlannerResult(specialRequestEnvelope(message, classification), { previousSpecification });
+  }
   const delta = applyRefinementDelta(previousSpecification, message);
   if (delta.matched) {
     try {

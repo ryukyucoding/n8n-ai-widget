@@ -90,7 +90,8 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   /app/src/chatZoom.test.js \
   /app/src/nodewisePlanner.test.js \
   /app/src/nodewisePlannerPrompt.test.js \
-  /app/src/refinementDelta.test.js
+  /app/src/refinementDelta.test.js \
+  /app/src/requestClassification.test.js
 
 docker volume create "$EVIDENCE_VOLUME" >/dev/null
 
