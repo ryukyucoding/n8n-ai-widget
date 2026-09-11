@@ -266,8 +266,11 @@
     var side      = localStorage.getItem('n8n-widget-side') || 'right';
     var btnTopVal = parseInt(localStorage.getItem('n8n-widget-top') || '', 10);
     if (isNaN(btnTopVal)) btnTopVal = window.innerHeight - MARGIN - BTN;
-    var panelW = Math.max(MIN_W, parseInt(localStorage.getItem('n8n-widget-w') || '', 10) || 380);
-    var panelH = Math.max(MIN_H, parseInt(localStorage.getItem('n8n-widget-h') || '', 10) || 520);
+    var SMALL_W = 380;
+    var SMALL_H = 520;
+    var panelW = Math.max(MIN_W, parseInt(localStorage.getItem('n8n-widget-w') || '', 10) || SMALL_W);
+    var panelH = Math.max(MIN_H, parseInt(localStorage.getItem('n8n-widget-h') || '', 10) || SMALL_H);
+    var panelSize = (panelW > SMALL_W || panelH > SMALL_H) ? 'large' : 'small';
 
     // -------------------------------------------------------------------------
     // Styles
@@ -364,9 +367,8 @@
     var windowControls = document.createElement('div');
     windowControls.id = 'n8n-ai-widget-window-controls';
     windowControls.innerHTML = [
-      '<button type="button" data-widget-window-action="shrink" title="縮小視窗" aria-label="縮小視窗">−</button>',
-      '<button type="button" data-widget-window-action="grow" title="放大視窗" aria-label="放大視窗">＋</button>',
-      '<button type="button" data-widget-window-action="maximize" title="最大化／還原視窗" aria-label="最大化／還原視窗">⛶</button>',
+      '<button type="button" data-widget-window-action="small" title="小視窗" aria-label="小視窗">小</button>',
+      '<button type="button" data-widget-window-action="large" title="大視窗" aria-label="大視窗">大</button>',
       '<button type="button" data-widget-window-action="close" title="關閉視窗" aria-label="關閉視窗">×</button>',
     ].join('');
 
@@ -374,16 +376,13 @@
     // Open / Close
     // -------------------------------------------------------------------------
     var isOpen = false;
-    var maximized = false;
-    var savedPanelW = panelW;
-    var savedPanelH = panelH;
 
     function openPanel() {
       panel.src = chatIframeUrl();
       isOpen = true;
       panel.classList.remove('hidden');
       backdrop.style.display      = 'block';
-      resizeHandle.style.display  = maximized ? 'none' : 'block';
+      resizeHandle.style.display  = 'none';
       windowControls.style.display = 'flex';
       applyPositions(false);
       // Keep FAB below iframe (99997) so it cannot cover the chat send button (FAB was 99999).
@@ -444,18 +443,25 @@
         ? 'top 0.15s ease, left 0.15s ease, right 0.15s ease, box-shadow 0.2s ease'
         : 'box-shadow 0.2s ease';
 
-      if (maximized) {
+      if (panelSize === 'large') {
         panel.style.top = MARGIN + 'px';
-        panel.style.bottom = MARGIN + 'px';
-        panel.style.left = MARGIN + 'px';
-        panel.style.right = MARGIN + 'px';
-        panel.style.width = (window.innerWidth - (MARGIN * 2)) + 'px';
-        panel.style.height = (window.innerHeight - (MARGIN * 2)) + 'px';
+        panel.style.bottom = '';
+        panel.style.width = Math.max(MIN_W, Math.min(Math.round(window.innerWidth * 0.48), 960)) + 'px';
+        panel.style.height = Math.max(MIN_H, Math.min(Math.round(window.innerHeight * 0.82), 820)) + 'px';
+        panelW = parseInt(panel.style.width, 10);
+        panelH = parseInt(panel.style.height, 10);
         panel.style.transformOrigin = 'center';
         windowControls.style.top = (MARGIN + 8) + 'px';
         windowControls.style.right = (MARGIN + 8) + 'px';
         windowControls.style.left = '';
         resizeHandle.style.display = 'none';
+        if (side === 'right') {
+          panel.style.right = MARGIN + 'px';
+          panel.style.left = '';
+        } else {
+          panel.style.left = MARGIN + 'px';
+          panel.style.right = '';
+        }
         return;
       }
 
@@ -484,27 +490,17 @@
       updateResizeHandle();
     }
 
-    function resizePanelBy(widthDelta, heightDelta) {
-      if (maximized) return;
-      panelW = Math.max(MIN_W, Math.min(window.innerWidth - (MARGIN * 2), panelW + widthDelta));
-      panelH = Math.max(MIN_H, Math.min(window.innerHeight - (MARGIN * 2), panelH + heightDelta));
-      panel.style.width = panelW + 'px';
-      panel.style.height = panelH + 'px';
+    function setPanelSize(size) {
+      panelSize = size === 'large' ? 'large' : 'small';
+      if (panelSize === 'small') {
+        panelW = SMALL_W;
+        panelH = SMALL_H;
+      } else {
+        panelW = Math.max(MIN_W, Math.min(Math.round(window.innerWidth * 0.48), 960));
+        panelH = Math.max(MIN_H, Math.min(Math.round(window.innerHeight * 0.82), 820));
+      }
       localStorage.setItem('n8n-widget-w', String(panelW));
       localStorage.setItem('n8n-widget-h', String(panelH));
-      applyPositions(false);
-    }
-
-    function toggleMaximized() {
-      if (!maximized) {
-        savedPanelW = panelW;
-        savedPanelH = panelH;
-        maximized = true;
-      } else {
-        maximized = false;
-        panelW = savedPanelW;
-        panelH = savedPanelH;
-      }
       applyPositions(false);
     }
 
@@ -514,14 +510,13 @@
       event.preventDefault();
       event.stopPropagation();
       var action = button.getAttribute('data-widget-window-action');
-      if (action === 'shrink') resizePanelBy(-80, -60);
-      if (action === 'grow') resizePanelBy(80, 60);
-      if (action === 'maximize') toggleMaximized();
+      if (action === 'small') setPanelSize('small');
+      if (action === 'large') setPanelSize('large');
       if (action === 'close') closePanel();
     });
 
     window.addEventListener('resize', function () {
-      if (maximized) applyPositions(false);
+      if (panelSize === 'large') setPanelSize('large');
       else applyPositions(false);
     });
 
