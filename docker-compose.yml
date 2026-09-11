@@ -55,8 +55,12 @@ services:
       - all_proxy=
       - NO_PROXY=n8n,localhost,127.0.0.1
       - no_proxy=n8n,localhost,127.0.0.1
+      - CONVERSATION_EVIDENCE_ENABLED=${CONVERSATION_EVIDENCE_ENABLED:-false}
+      - CONVERSATION_EVIDENCE_PATH=/var/lib/n8n-chatbot/evidence/conversations.jsonl
       - WIDGET_INSERT_DEBUG=1
       - WIDGET_MODIFY_DEBUG=1
+    volumes:
+      - chatbot_conversation_evidence:/var/lib/n8n-chatbot/evidence
     networks:
       - n8n-net
     depends_on:
@@ -68,3 +72,4 @@ networks:
 
 volumes:
   n8n_data:
+  chatbot_conversation_evidence:

@@ -50,6 +50,20 @@
       transition: background 0.15s;
     }
     #clear-btn:hover { background: rgba(255,255,255,0.28); }
+    .zoom-controls { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .zoom-btn {
+      min-width: 28px; height: 26px;
+      padding: 2px 6px;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .zoom-btn:hover { background: rgba(255,255,255,0.28); }
+    #zoom-level { min-width: 40px; text-align: center; font-size: 11px; }
 
     .model-panel { padding: 10px 12px; background: #fff7f5; border-bottom: 1px solid #ffe0db; }
     .mode-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
@@ -66,24 +80,28 @@
 
     /* Messages area */
     #messages {
+      --chat-zoom: 1;
       flex: 1;
       min-height: 0; /* critical: lets this column shrink so .input-area stays visible (flex + overflow) */
       overflow-y: auto;
-      padding: 16px 14px;
+      padding: calc(16px * var(--chat-zoom)) calc(14px * var(--chat-zoom));
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: calc(12px * var(--chat-zoom));
     }
     #messages::-webkit-scrollbar { width: 4px; }
     #messages::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
 
     .bubble {
       max-width: 88%;
-      padding: 10px 13px;
-      border-radius: 14px;
+      padding: calc(10px * var(--chat-zoom, 1)) calc(13px * var(--chat-zoom, 1));
+      border-radius: calc(14px * var(--chat-zoom, 1));
       line-height: 1.5;
       word-break: break-word;
-      font-size: 13.5px;
+      font-size: calc(13.5px * var(--chat-zoom, 1));
+    }
+    .bubble [style*="font-size"] {
+      font-size: calc(12px * var(--chat-zoom, 1)) !important;
     }
     .bubble.user {
       align-self: flex-end;
@@ -139,14 +157,14 @@
 
     /* Workflow JSON preview */
     .workflow-preview {
-      margin-top: 8px;
+      margin-top: calc(8px * var(--chat-zoom, 1));
       background: #1a1a2e;
       color: #a8ff78;
-      border-radius: 8px;
-      padding: 10px 12px;
+      border-radius: calc(8px * var(--chat-zoom, 1));
+      padding: calc(10px * var(--chat-zoom, 1)) calc(12px * var(--chat-zoom, 1));
       font-family: 'Menlo', 'Monaco', monospace;
-      font-size: 11px;
-      max-height: 160px;
+      font-size: calc(11px * var(--chat-zoom, 1));
+      max-height: calc(160px * var(--chat-zoom, 1));
       overflow-y: auto;
       white-space: pre;
     }
@@ -167,12 +185,12 @@
       flex: 1;
       resize: none;
       border: 1px solid #e0e0e0;
-      border-radius: 10px;
-      padding: 9px 12px;
-      font-size: 13.5px;
+      border-radius: calc(10px * var(--chat-zoom, 1));
+      padding: calc(9px * var(--chat-zoom, 1)) calc(12px * var(--chat-zoom, 1));
+      font-size: calc(13.5px * var(--chat-zoom, 1));
       font-family: inherit;
       line-height: 1.45;
-      max-height: 100px;
+      max-height: calc(100px * var(--chat-zoom, 1));
       outline: none;
       transition: border-color 0.15s;
     }
@@ -202,6 +220,11 @@
       <div class="header-sub" id="header-sub">建立與畫布編輯使用獨立模型</div>
     </div>
     <div class="header-spacer"></div>
+    <div class="zoom-controls" role="group" aria-label="聊天文字大小">
+      <button id="zoom-out" class="zoom-btn" type="button" title="縮小聊天內容" aria-label="縮小">A−</button>
+      <output id="zoom-level" aria-live="polite">100%</output>
+      <button id="zoom-in" class="zoom-btn" type="button" title="放大聊天內容" aria-label="放大">A+</button>
+    </div>
     <button id="clear-btn" title="清空對話">清空</button>
   </div>
 
@@ -252,6 +275,7 @@
     var HISTORY_KEY = 'n8n-widget-history';
     var SESSION_KEY = 'n8n-widget-agent-session';
     var MODE_KEY = 'n8n-widget-active-mode';
+    var ZOOM_KEY = 'n8n-widget-chat-zoom';
     var WIDGET_MSG_TYPE = 'n8n-ai-widget';
     var MODELS_URL = window.location.origin + '/models';
     // Edit sessions can span iframe reloads. Restore their mode so a pending
@@ -282,10 +306,37 @@
     var modelSelect = document.getElementById('model-select');
     var modelRow = document.getElementById('model-row');
     var modeHint = document.getElementById('mode-hint');
+    var zoomOutBtn = document.getElementById('zoom-out');
+    var zoomInBtn = document.getElementById('zoom-in');
+    var zoomLevelEl = document.getElementById('zoom-level');
     var soloActions = document.getElementById('solo-actions');
     var soloCalChip = document.getElementById('solo-cal-chip');
     var soloCalendarEnabled = false;
     var conversationId = null; // active Compiler Beta conversation (null = none yet)
+
+    var CHAT_ZOOM_LEVELS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
+    var chatZoomIndex = 2;
+
+    function applyChatZoom(index) {
+      chatZoomIndex = Math.max(0, Math.min(CHAT_ZOOM_LEVELS.length - 1, index));
+      var zoom = CHAT_ZOOM_LEVELS[chatZoomIndex];
+      messagesEl.style.setProperty('--chat-zoom', String(zoom));
+      if (zoomLevelEl) zoomLevelEl.textContent = Math.round(zoom * 100) + '%';
+      if (zoomOutBtn) zoomOutBtn.disabled = chatZoomIndex === 0;
+      if (zoomInBtn) zoomInBtn.disabled = chatZoomIndex === CHAT_ZOOM_LEVELS.length - 1;
+      try { localStorage.setItem(ZOOM_KEY, String(zoom)); } catch (e) {}
+    }
+
+    function restoreChatZoom() {
+      var saved = null;
+      try { saved = Number.parseFloat(localStorage.getItem(ZOOM_KEY)); } catch (e) {}
+      var index = CHAT_ZOOM_LEVELS.indexOf(saved);
+      applyChatZoom(index >= 0 ? index : 2);
+    }
+
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', function () { applyChatZoom(chatZoomIndex - 1); });
+    if (zoomInBtn) zoomInBtn.addEventListener('click', function () { applyChatZoom(chatZoomIndex + 1); });
+    restoreChatZoom();
 
     function greeting() {
       return activeMode === 'create'

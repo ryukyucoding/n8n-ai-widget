@@ -7,9 +7,9 @@ const { redactForPlannerContext } = require('./plannerContextRedaction');
 const { createConversationController, computeStatus } = require('./conversationController');
 
 // Build a controller with injected mocks + a real conversation store.
-function make({ planImpl, credsImpl, createImpl, validateImpl } = {}) {
+function make({ planImpl, credsImpl, createImpl, validateImpl, evidence } = {}) {
   const store = createConversationStore({ now: () => 1000, ttlMs: 100000 });
-  const seen = { plannerContexts: [], created: [] };
+  const seen = { plannerContexts: [], created: [], evidence: [] };
   const controller = createConversationController({
     store,
     redact: redactForPlannerContext,
@@ -17,6 +17,7 @@ function make({ planImpl, credsImpl, createImpl, validateImpl } = {}) {
     resolveCredentials: credsImpl || (async () => ({ requirements: [], overall: 'ready', createDisposition: 'bind_and_create' })),
     compileAndCreate: createImpl || (async (spec) => { seen.created.push(spec); return { status: 200, payload: { workflowId: 'wf1' } }; }),
     validatePlanSpec: validateImpl || (() => {}), // real wiring injects the compiler's validateSpecification
+    evidence: evidence || { record: (event) => seen.evidence.push(event) },
   });
   return { store, controller, seen };
 }
@@ -28,6 +29,20 @@ test('start creates a conversation and returns a sanitized view + assistant mess
   assert.equal(r.assistantMessage, 'ok');
   assert.equal(r.view.status, 'ready_to_confirm'); // valid spec + creds ready
   assert.ok(r.view.planSpec);
+});
+
+test('records sanitized evidence for start, refinement, cancel, and confirm actions', async () => {
+  const { controller, seen } = make();
+  const first = await controller.start('solo', 'sort todos');
+  await controller.respond('solo', first.conversationId, 'sort descending');
+  await controller.confirm('solo', first.conversationId);
+  controller.cancel('solo', first.conversationId);
+  assert.deepEqual(seen.evidence.map((event) => event.event), ['turn', 'turn', 'confirm', 'cancel']);
+  assert.deepEqual(seen.evidence.map((event) => event.route), [
+    'conversation/start', 'conversation/message', 'conversation/confirm', 'conversation/cancel',
+  ]);
+  assert.equal(seen.evidence[0].conversationId, first.conversationId);
+  assert.equal(seen.evidence[2].outcome, 'created');
 });
 
 test('planner is always called with a REDACTED context (no raw credential/secret fields)', async () => {

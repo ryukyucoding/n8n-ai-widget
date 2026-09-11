@@ -8,6 +8,8 @@ WORKTREE="${RUNTIME_COMPILER_WORKTREE:-/data/$USER/n8n-worktrees/runtime-compile
 SOURCE_CHATBOT="${SOURCE_CHATBOT_CONTAINER:-n8n-chatbot-1}"
 FORMAL_PORT="${FORMAL_CHATBOT_PORT:-3001}"
 PUBLIC_N8N_URL="${N8N_PUBLIC_URL:-https://widm-n8n.csie.ncu.edu.tw}"
+EVIDENCE_VOLUME="${CONVERSATION_EVIDENCE_VOLUME:-n8n-chatbot-conversation-evidence}"
+EVIDENCE_PATH="/var/lib/n8n-chatbot/evidence/conversations.jsonl"
 REVISION="$(git -C "$WORKTREE" rev-parse --short HEAD)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 CANDIDATE_IMAGE="n8n-chatbot-runtime-compiler:${REVISION}"
@@ -83,7 +85,11 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   /app/src/conversationState.test.js \
   /app/src/credentialResolutionAdapter.test.js \
   /app/src/conversationController.test.js \
-  /app/src/conversationDeps.test.js
+  /app/src/conversationDeps.test.js \
+  /app/src/conversationEvidence.test.js \
+  /app/src/chatZoom.test.js
+
+docker volume create "$EVIDENCE_VOLUME" >/dev/null
 
 OLD_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$SOURCE_CHATBOT")"
 docker tag "$OLD_IMAGE" "$ROLLBACK_TAG"
@@ -107,6 +113,9 @@ docker run -d --name "$SOURCE_CHATBOT" --restart unless-stopped \
   -e BETA_CHAT_STANDALONE=false \
   -e N8N_PUBLIC_URL="$PUBLIC_N8N_URL" \
   -e SOLO_CREDENTIAL_MODE="${SOLO_CREDENTIAL_MODE:-false}" \
+  -e CONVERSATION_EVIDENCE_ENABLED="${CONVERSATION_EVIDENCE_ENABLED:-true}" \
+  -e CONVERSATION_EVIDENCE_PATH="$EVIDENCE_PATH" \
+  --mount "type=volume,source=${EVIDENCE_VOLUME},destination=/var/lib/n8n-chatbot/evidence" \
   "$CANDIDATE_IMAGE" >/dev/null
 NEW_STARTED=true
 for index in "${!NETWORKS[@]}"; do

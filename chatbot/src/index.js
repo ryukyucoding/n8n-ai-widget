@@ -50,6 +50,7 @@ const {
 } = require('./soloCalendarSkeleton');
 const { createAndFinalizeSoloWorkflow, isValidWorkflowId } = require('./soloInactiveGuard');
 const { createConversationStore } = require('./conversationState');
+const { createConversationEvidenceLogger } = require('./conversationEvidence');
 const { redactForPlannerContext } = require('./plannerContextRedaction');
 const { createConversationController } = require('./conversationController');
 const { createPlannerAdapter, createSetupRequiredResolver, createConversationCompileAndCreate } = require('./conversationDeps');
@@ -545,6 +546,9 @@ app.post('/beta/solo/calendar-read', handleSoloCalendarRead);
 // ---- Conversational plan flow (single-user; caller-auth deferred) ----
 // Multi-turn: describe -> qwen refines an editable plan (credentials inline) ->
 // Confirm compiles the FULL server-side spec onto the n8n canvas / Cancel keeps talking.
+const conversationEvidence = createConversationEvidenceLogger({
+  enabled: enabledEnvironmentValue(process.env.CONVERSATION_EVIDENCE_ENABLED),
+});
 const conversationStore = createConversationStore({ ttlMs: 30 * 60 * 1000 });
 async function conversationReviewFromMessage(message, previousSpec) {
   return runTimedStage({
@@ -568,6 +572,7 @@ const conversationController = createConversationController({
     secret: PLANNER_APPROVAL_HMAC_SECRET,
   }),
   validatePlanSpec: validateSpecification,
+  evidence: conversationEvidence,
 });
 const CONVERSATION_CALLER = 'solo';
 function conversationPlannerError(res, error) {

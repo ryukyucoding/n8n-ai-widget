@@ -34,11 +34,17 @@ function computeStatus(outcome, credentials, hasSpec) {
 // validatePlanSpec (the compiler's validateSpecification) is REQUIRED — canonical
 // structural validation of untrusted model output must never be silently skipped.
 // assertNoSecrets is also always enforced.
-function createConversationController({ store, redact, plan, resolveCredentials, compileAndCreate, validatePlanSpec }) {
+function createConversationController({ store, redact, plan, resolveCredentials, compileAndCreate, validatePlanSpec, evidence = null }) {
   if (typeof validatePlanSpec !== 'function') {
     throw new Error('createConversationController requires validatePlanSpec (canonical validateSpecification)');
   }
-  async function turn(callerId, conversationId, message) {
+  const recordEvidence = typeof evidence?.record === 'function'
+    ? (event) => {
+      try { evidence.record(event); } catch (_) { /* evidence is best-effort */ }
+    }
+    : () => {};
+
+  async function turn(callerId, conversationId, message, route = 'conversation/message') {
     const s = store.get(conversationId, callerId);
     if (!s) return { error: 'conversation_not_found' };
     // The current user turn is NOT covered by context redaction — scrub it here so
@@ -61,7 +67,15 @@ function createConversationController({ store, redact, plan, resolveCredentials,
         validatePlanSpec(result.spec); // required canonical validation
       } catch (err) {
         store.update(conversationId, callerId, { status: computeStatus('clarification_required', s.credentials, Boolean(s.planSpec)), history: [...s.history, { role: 'user', inputRedacted: redacted }, { role: 'assistant', rejected: true }] });
-        return { conversationId, outcome: 'unsafe_plan_rejected', assistantMessage: '這個計畫無法使用（內容不合規或無法驗證），請換個說法再試。', inputRedacted: redacted, view: store.publicView(conversationId, callerId) };
+        const unsafeMessage = '這個計畫無法使用（內容不合規或無法驗證），請換個說法再試。';
+        const unsafeView = store.publicView(conversationId, callerId);
+        recordEvidence({
+          event: 'turn', route, conversationId, turn: Math.floor(s.history.length / 2) + 1,
+          userMessage: safeMessage, assistantMessage: unsafeMessage,
+          outcome: 'unsafe_plan_rejected', status: unsafeView && unsafeView.status,
+          inputRedacted: redacted, planSpec: s.planSpec,
+        });
+        return { conversationId, outcome: 'unsafe_plan_rejected', assistantMessage: unsafeMessage, inputRedacted: redacted, view: unsafeView };
       }
     }
     const spec = result.spec || s.planSpec;
@@ -76,29 +90,43 @@ function createConversationController({ store, redact, plan, resolveCredentials,
       // NOT fed back to the planner (see context contract above).
       history: [...s.history, { role: 'user', inputRedacted: redacted }, { role: 'assistant' }],
     });
+    const view = store.publicView(conversationId, callerId);
+    recordEvidence({
+      event: 'turn', route, conversationId, turn: Math.floor(s.history.length / 2) + 1,
+      userMessage: safeMessage, assistantMessage: result.assistantMessage,
+      outcome: result.outcome, status: view && view.status,
+      inputRedacted: redacted, planSpec: spec,
+    });
     return {
       conversationId,
       outcome: result.outcome,
       assistantMessage: result.assistantMessage,
       inputRedacted: redacted,
-      view: store.publicView(conversationId, callerId),
+      view,
     };
   }
 
   async function start(callerId, message) {
     const { conversationId } = store.create(callerId); // throws on empty caller
-    return turn(callerId, conversationId, message);
+    return turn(callerId, conversationId, message, 'conversation/start');
   }
 
   async function respond(callerId, conversationId, message) {
     if (!store.get(conversationId, callerId)) return { error: 'conversation_not_found' };
-    return turn(callerId, conversationId, message);
+    return turn(callerId, conversationId, message, 'conversation/message');
   }
 
   function cancel(callerId, conversationId) {
-    if (!store.get(conversationId, callerId)) return { error: 'conversation_not_found' };
+    const s = store.get(conversationId, callerId);
+    if (!s) return { error: 'conversation_not_found' };
     store.cancel(conversationId, callerId); // back to planning, keeps plan + history
-    return { conversationId, view: store.publicView(conversationId, callerId) };
+    const view = store.publicView(conversationId, callerId);
+    recordEvidence({
+      event: 'cancel', route: 'conversation/cancel', conversationId,
+      turn: Math.floor(s.history.length / 2), outcome: 'cancelled',
+      status: view && view.status, planSpec: s.planSpec,
+    });
+    return { conversationId, view };
   }
 
   async function confirm(callerId, conversationId) {
@@ -113,19 +141,38 @@ function createConversationController({ store, redact, plan, resolveCredentials,
     const resolution = await resolveCredentials(s.planSpec);
     if (resolution.overall === 'needs_choice') {
       store.update(conversationId, callerId, { credentials: resolution, status: 'awaiting_credential_choice' });
-      return { error: 'credential_choice_required', view: store.publicView(conversationId, callerId) };
+      const view = store.publicView(conversationId, callerId);
+      recordEvidence({
+        event: 'confirm', route: 'conversation/confirm', conversationId,
+        outcome: 'credential_choice_required', status: view && view.status,
+        planSpec: s.planSpec,
+      });
+      return { error: 'credential_choice_required', view };
     }
     // Fail-closed: only a fresh ready/setup_required resolution may create; stale/unknown blocks.
     if (resolution.overall !== 'ready' && resolution.overall !== 'setup_required') {
       store.update(conversationId, callerId, { credentials: resolution, status: 'planning' });
-      return { error: 'credential_unresolved', overall: resolution.overall, view: store.publicView(conversationId, callerId) };
+      const view = store.publicView(conversationId, callerId);
+      recordEvidence({
+        event: 'confirm', route: 'conversation/confirm', conversationId,
+        outcome: 'credential_unresolved', status: view && view.status,
+        planSpec: s.planSpec,
+      });
+      return { error: 'credential_unresolved', overall: resolution.overall, view };
     }
     // Authoritative compile uses the FULL server-side spec (never the sanitized view)
     // + the freshly-resolved credential binding, through the approval gate bound to
     // this conversation (compileAndCreate = approve -> compileApproved -> create).
     const result = await compileAndCreate(s.planSpec, resolution, { conversationId, callerId });
-    store.update(conversationId, callerId, { credentials: resolution, status: result.status === 200 ? 'done' : 'planning' });
-    return { conversationId, result, view: store.publicView(conversationId, callerId) };
+    const nextStatus = result.status === 200 ? 'done' : 'planning';
+    store.update(conversationId, callerId, { credentials: resolution, status: nextStatus });
+    const view = store.publicView(conversationId, callerId);
+    recordEvidence({
+      event: 'confirm', route: 'conversation/confirm', conversationId,
+      outcome: result.status === 200 ? 'created' : 'create_failed', status: nextStatus,
+      planSpec: s.planSpec,
+    });
+    return { conversationId, result, view };
   }
 
   return { start, respond, cancel, confirm };
