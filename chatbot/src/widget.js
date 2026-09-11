@@ -306,6 +306,19 @@
       '#n8n-ai-widget-panel.hidden {',
       '  transform: scale(0.85); opacity: 0; pointer-events: none;',
       '}',
+      '#n8n-ai-widget-window-controls {',
+      '  position: fixed; z-index: 100001; display: none;',
+      '  align-items: center; gap: 4px; padding: 4px;',
+      '  border-radius: 8px; background: rgba(26,26,46,0.82);',
+      '}',
+      '#n8n-ai-widget-window-controls button {',
+      '  min-width: 28px; height: 26px; padding: 2px 7px;',
+      '  border: 1px solid rgba(255,255,255,0.28); border-radius: 5px;',
+      '  background: rgba(255,255,255,0.12); color: #fff;',
+      '  font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
+      '  cursor: pointer;',
+      '}',
+      '#n8n-ai-widget-window-controls button:hover { background: rgba(255,255,255,0.28); }',
       '#n8n-ai-widget-resize {',
       '  position: fixed;',
       '  width: 22px; height: 22px;',
@@ -348,17 +361,31 @@
     var resizeHandle = document.createElement('div');
     resizeHandle.id = 'n8n-ai-widget-resize';
 
+    var windowControls = document.createElement('div');
+    windowControls.id = 'n8n-ai-widget-window-controls';
+    windowControls.innerHTML = [
+      '<button type="button" data-widget-window-action="shrink" title="縮小視窗" aria-label="縮小視窗">−</button>',
+      '<button type="button" data-widget-window-action="grow" title="放大視窗" aria-label="放大視窗">＋</button>',
+      '<button type="button" data-widget-window-action="maximize" title="最大化／還原視窗" aria-label="最大化／還原視窗">⛶</button>',
+      '<button type="button" data-widget-window-action="close" title="關閉視窗" aria-label="關閉視窗">×</button>',
+    ].join('');
+
     // -------------------------------------------------------------------------
     // Open / Close
     // -------------------------------------------------------------------------
     var isOpen = false;
+    var maximized = false;
+    var savedPanelW = panelW;
+    var savedPanelH = panelH;
 
     function openPanel() {
       panel.src = chatIframeUrl();
       isOpen = true;
       panel.classList.remove('hidden');
       backdrop.style.display      = 'block';
-      resizeHandle.style.display  = 'block';
+      resizeHandle.style.display  = maximized ? 'none' : 'block';
+      windowControls.style.display = 'flex';
+      applyPositions(false);
       // Keep FAB below iframe (99997) so it cannot cover the chat send button (FAB was 99999).
       btn.style.zIndex = '99990';
     }
@@ -368,6 +395,7 @@
       panel.classList.add('hidden');
       backdrop.style.display      = 'none';
       resizeHandle.style.display  = 'none';
+      windowControls.style.display = 'none';
       btn.style.zIndex = '';
     }
 
@@ -416,23 +444,86 @@
         ? 'top 0.15s ease, left 0.15s ease, right 0.15s ease, box-shadow 0.2s ease'
         : 'box-shadow 0.2s ease';
 
+      if (maximized) {
+        panel.style.top = MARGIN + 'px';
+        panel.style.bottom = MARGIN + 'px';
+        panel.style.left = MARGIN + 'px';
+        panel.style.right = MARGIN + 'px';
+        panel.style.width = (window.innerWidth - (MARGIN * 2)) + 'px';
+        panel.style.height = (window.innerHeight - (MARGIN * 2)) + 'px';
+        panel.style.transformOrigin = 'center';
+        windowControls.style.top = (MARGIN + 8) + 'px';
+        windowControls.style.right = (MARGIN + 8) + 'px';
+        windowControls.style.left = '';
+        resizeHandle.style.display = 'none';
+        return;
+      }
+
       btn.style.top    = c.top + 'px';
       btn.style.bottom = '';
       panel.style.top  = c.panelTop + 'px';
       panel.style.bottom = '';
+      panel.style.width = panelW + 'px';
+      panel.style.height = panelH + 'px';
 
       if (side === 'right') {
         btn.style.right   = MARGIN + 'px'; btn.style.left    = '';
         panel.style.right = MARGIN + 'px'; panel.style.left  = '';
         panel.style.transformOrigin = (c.flipped ? 'top' : 'bottom') + ' right';
+        windowControls.style.right = (MARGIN + 8) + 'px';
+        windowControls.style.left = '';
       } else {
         btn.style.left    = MARGIN + 'px'; btn.style.right   = '';
         panel.style.left  = MARGIN + 'px'; panel.style.right = '';
         panel.style.transformOrigin = (c.flipped ? 'top' : 'bottom') + ' left';
+        windowControls.style.left = (MARGIN + 8) + 'px';
+        windowControls.style.right = '';
       }
-
+      windowControls.style.top = (c.panelTop + 8) + 'px';
+      resizeHandle.style.display = isOpen ? 'block' : 'none';
       updateResizeHandle();
     }
+
+    function resizePanelBy(widthDelta, heightDelta) {
+      if (maximized) return;
+      panelW = Math.max(MIN_W, Math.min(window.innerWidth - (MARGIN * 2), panelW + widthDelta));
+      panelH = Math.max(MIN_H, Math.min(window.innerHeight - (MARGIN * 2), panelH + heightDelta));
+      panel.style.width = panelW + 'px';
+      panel.style.height = panelH + 'px';
+      localStorage.setItem('n8n-widget-w', String(panelW));
+      localStorage.setItem('n8n-widget-h', String(panelH));
+      applyPositions(false);
+    }
+
+    function toggleMaximized() {
+      if (!maximized) {
+        savedPanelW = panelW;
+        savedPanelH = panelH;
+        maximized = true;
+      } else {
+        maximized = false;
+        panelW = savedPanelW;
+        panelH = savedPanelH;
+      }
+      applyPositions(false);
+    }
+
+    windowControls.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-widget-window-action]');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      var action = button.getAttribute('data-widget-window-action');
+      if (action === 'shrink') resizePanelBy(-80, -60);
+      if (action === 'grow') resizePanelBy(80, 60);
+      if (action === 'maximize') toggleMaximized();
+      if (action === 'close') closePanel();
+    });
+
+    window.addEventListener('resize', function () {
+      if (maximized) applyPositions(false);
+      else applyPositions(false);
+    });
 
     applyPositions(false);
 
@@ -540,6 +631,7 @@
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
     document.body.appendChild(resizeHandle);
+    document.body.appendChild(windowControls);
     document.body.appendChild(btn);
   }
 

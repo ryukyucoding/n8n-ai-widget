@@ -125,6 +125,16 @@
       text-decoration: none;
     }
     .bubble.bot a:hover { text-decoration: underline; }
+    .conversation-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .conversation-actions button {
+      border-radius: 8px;
+      padding: 7px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .conv-confirm-btn { border: 0; background: #ff6d5a; color: #fff; }
+    .conv-cancel-btn { border: 1px solid #f3c8c0; background: #fff; color: #8a3c31; }
+    .conversation-actions button:disabled { opacity: .65; cursor: default; }
 
     /* Typing indicator */
     .typing {
@@ -839,6 +849,21 @@
         + credLine;
     }
 
+    function conversationActionHtml() {
+      return '<div class="conversation-actions">'
+        + '<button class="conv-confirm-btn" type="button">✅ 確認並建立</button>'
+        + '<button class="conv-cancel-btn" type="button">取消</button>'
+        + '</div>';
+    }
+
+    function wireConversationActions(element) {
+      if (!element) return;
+      var cb = element.querySelector('.conv-confirm-btn');
+      if (cb) cb.addEventListener('click', function () { confirmConversation(cb); });
+      var xb = element.querySelector('.conv-cancel-btn');
+      if (xb) xb.addEventListener('click', cancelConversation);
+    }
+
     function renderConversationTurn(data, httpOk) {
       data = data || {};
       if (!httpOk || data.error) {
@@ -852,13 +877,15 @@
       if (data.conversationId) conversationId = data.conversationId;
       if (data.assistantMessage) addBubble(escHtml(data.assistantMessage), 'bot');
       var view = data.view || {};
-      if (view.planSpec) addBubble(renderPlanTextHtml(view.planSpec, view.credentials), 'bot', true);
-      if (view.status === 'ready_to_confirm') {
-        var btns = '<button class="conv-confirm-btn" style="margin:8px 6px 0 0;background:#ff6d5a;color:#fff;border:0;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer">✅ 確認並建立</button>'
-          + '<button class="conv-cancel-btn" style="margin-top:8px;background:#fff;color:#8a3c31;border:1px solid #f3c8c0;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer">取消</button>';
-        var el = addBubble(btns, 'bot', true);
-        var cb = el.querySelector('.conv-confirm-btn'); if (cb) cb.addEventListener('click', function () { confirmConversation(cb); });
-        var xb = el.querySelector('.conv-cancel-btn'); if (xb) xb.addEventListener('click', cancelConversation);
+      var ready = view.status === 'ready_to_confirm';
+      var planElement = view.planSpec
+        ? addBubble(renderPlanTextHtml(view.planSpec, view.credentials) + (ready ? conversationActionHtml() : ''), 'bot', true)
+        : null;
+      if (ready) {
+        // Keep actions in the same bubble as the newly rendered plan so every
+        // successful refinement visibly has Confirm and Cancel controls.
+        if (!planElement) planElement = addBubble(conversationActionHtml(), 'bot', true);
+        wireConversationActions(planElement);
       } else if (view.status === 'awaiting_credential_choice') {
         addBubble('這個計畫有多個可用憑證，需要你選擇（選擇介面稍後提供）。', 'bot');
       }

@@ -14,7 +14,7 @@ if [ "$COMMAND" = "diagnose" ]; then
   SSH_ORIGINAL_COMMAND="$COMMAND" exec "$ORIGINAL"
 
 elif [ "$COMMAND" = "test" ]; then
-  exec docker exec n8n-chatbot-1 node --test /app/src/runtimeCompilerBeta.test.js /app/src/workflowCreatePayload.test.js /app/src/planSpecSanitizer.test.js /app/src/plannerContextRedaction.test.js /app/src/conversationState.test.js /app/src/credentialResolutionAdapter.test.js /app/src/conversationController.test.js /app/src/conversationDeps.test.js /app/src/conversationEvidence.test.js /app/src/chatZoom.test.js /app/src/nodewisePlanner.test.js /app/src/nodewisePlannerPrompt.test.js /app/src/refinementDelta.test.js /app/src/requestClassification.test.js
+  exec docker exec n8n-chatbot-1 node --test /app/src/runtimeCompilerBeta.test.js /app/src/workflowCreatePayload.test.js /app/src/planSpecSanitizer.test.js /app/src/plannerContextRedaction.test.js /app/src/conversationState.test.js /app/src/credentialResolutionAdapter.test.js /app/src/conversationController.test.js /app/src/conversationDeps.test.js /app/src/conversationEvidence.test.js /app/src/chatZoom.test.js /app/src/nodewisePlanner.test.js /app/src/nodewisePlannerPrompt.test.js /app/src/refinementDelta.test.js /app/src/requestClassification.test.js /app/src/conversationActions.test.js /app/src/widgetWindowControls.test.js
 
 elif [ "$COMMAND" = "conversation-report" ]; then
   exec docker exec n8n-chatbot-1 node /app/src/conversationEvidenceReport.js
