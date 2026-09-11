@@ -93,7 +93,8 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   /app/src/refinementDelta.test.js \
   /app/src/requestClassification.test.js \
   /app/src/conversationActions.test.js \
-  /app/src/widgetWindowControls.test.js
+  /app/src/widgetWindowControls.test.js \
+  /app/src/conversationAcceptance.test.js
 
 docker volume create "$EVIDENCE_VOLUME" >/dev/null
 
