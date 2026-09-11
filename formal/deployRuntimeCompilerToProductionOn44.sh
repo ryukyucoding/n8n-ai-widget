@@ -87,7 +87,10 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   /app/src/conversationController.test.js \
   /app/src/conversationDeps.test.js \
   /app/src/conversationEvidence.test.js \
-  /app/src/chatZoom.test.js
+  /app/src/chatZoom.test.js \
+  /app/src/nodewisePlanner.test.js \
+  /app/src/nodewisePlannerPrompt.test.js \
+  /app/src/refinementDelta.test.js
 
 docker volume create "$EVIDENCE_VOLUME" >/dev/null
 

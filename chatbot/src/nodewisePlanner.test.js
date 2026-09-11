@@ -37,3 +37,35 @@ test('uses the canonical prompt and validates the returned envelope', async () =
   assert.match(calls[0].request.messages[0].content, /final step must produce exactly expectedOutput\.fields/);
   assert.equal(calls[0].options.signal, 'test-signal');
 });
+
+test('passes only a sanitized previous specification as refinement context', async () => {
+  const calls = [];
+  const client = { chat: { completions: { create: async (request) => {
+    calls.push(request);
+    return { choices: [{ message: { content: clarification } }] };
+  } } } };
+  await requestNodewisePlannerResult({
+    client,
+    model: 'qwen3.8:27b',
+    userRequest: 'Change the limit to 10.',
+    previousSpecification: {
+      schemaVersion: '1.0',
+      kind: 'nodewise_step_specification',
+      goal: 'Keep this goal',
+      steps: [{
+        id: 'limited',
+        capability: 'data_transform',
+        configuration: {
+          operation: 'limit_items',
+          input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' },
+          limit: 5,
+          secret: 'must-drop',
+        },
+      }],
+    },
+  });
+  const content = calls[0].messages[1].content;
+  assert.match(content, /Change the limit to 10/);
+  assert.match(content, /Keep this goal/);
+  assert.doesNotMatch(content, /must-drop|secret/);
+});

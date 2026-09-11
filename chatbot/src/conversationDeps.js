@@ -57,11 +57,16 @@ function resolveEffectiveLanguage(message, previousSpec) {
   return /[一-龥]/.test(str) ? 'zh' : 'en';
 }
 
+const OBVIOUS_SIMPLIFIED_MARKERS = /数据|字段|依据|信息|列表|简体|请提供|更多信息/;
+
 // Symmetric language matcher: verifies human-facing text matches target language.
+// CJK presence alone accepts Simplified Chinese, so reject a small set of
+// unambiguous Simplified markers before accepting Chinese human-facing prose.
 function isLanguageMatch(text, lang) {
   if (typeof text !== 'string' || !text.trim()) return false;
   const hasCJK = /[一-龥]/.test(text);
-  return lang === 'zh' ? hasCJK : !hasCJK;
+  if (lang === 'zh') return hasCJK && !OBVIOUS_SIMPLIFIED_MARKERS.test(text);
+  return !hasCJK;
 }
 
 const TEMPLATES = {

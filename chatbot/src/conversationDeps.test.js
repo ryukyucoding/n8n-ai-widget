@@ -198,6 +198,8 @@ test('isLanguageMatch validates text against target language symmetrically', () 
   assert.equal(isLanguageMatch('抓取 todos', 'en'), false);
   assert.equal(isLanguageMatch('', 'zh'), false);
   assert.equal(isLanguageMatch(null, 'en'), false);
+  assert.equal(isLanguageMatch('需要更多資訊：請提供資料來源與欄位', 'zh'), true);
+  assert.equal(isLanguageMatch('需要更多信息：请提供数据来源和字段', 'zh'), false);
 });
 
 test('planner adapter symmetrically localizes Chinese goal when user message is English (drift fallback)', async () => {

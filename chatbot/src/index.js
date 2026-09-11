@@ -56,6 +56,7 @@ const { createConversationController } = require('./conversationController');
 const { createPlannerAdapter, createSetupRequiredResolver, createConversationCompileAndCreate } = require('./conversationDeps');
 const { validateSpecification } = require('./nodewiseCompiler');
 const { requestNodewisePlannerResult } = require('./nodewisePlanner');
+const { applyRefinementDelta } = require('./refinementDelta');
 const {
   createCandidateLimit,
   evaluateCorrectnessFirstRepair,
@@ -362,16 +363,49 @@ function planReviewUnavailable(res) {
   return true;
 }
 
+function refinementClarification(message, previousSpecification, operation) {
+  const chinese = /[一-龥]/.test(String(message || ''));
+  const detail = chinese
+    ? `目前計畫沒有可安全調整的${operation}步驟，請先說明要調整的既有步驟。`
+    : `The current plan has no single safe ${operation} step to adjust; identify the existing step to change.`;
+  return {
+    schemaVersion: '1.0',
+    kind: 'nodewise_planner_result',
+    outcome: 'clarification_required',
+    goal: previousSpecification && previousSpecification.goal ? previousSpecification.goal : detail,
+    requiredUserInputs: [detail],
+    capabilityGaps: [],
+  };
+}
+
 async function planFromUserRequest(message, previousSpecification, signal) {
+  const delta = applyRefinementDelta(previousSpecification, message);
+  if (delta.matched) {
+    try {
+      validateSpecification(delta.specification);
+      return reviewNodewisePlannerResult({
+        schemaVersion: '1.0',
+        kind: 'nodewise_planner_result',
+        outcome: 'ready_to_compile',
+        goal: delta.specification.goal,
+        specification: delta.specification,
+      }, { previousSpecification });
+    } catch (_) {
+      return reviewNodewisePlannerResult(refinementClarification(message, previousSpecification, delta.operation), { previousSpecification });
+    }
+  }
+  if (delta.recognized) {
+    return reviewNodewisePlannerResult(refinementClarification(message, previousSpecification, delta.operation), { previousSpecification });
+  }
   const plannerResult = await requestNodewisePlannerResult({
     client: openaiLocal,
     model: PLAN_FIRST_PLANNER_MODEL,
     userRequest: message,
+    previousSpecification,
     signal,
   });
   return reviewNodewisePlannerResult(plannerResult, { previousSpecification });
 }
-
 // Natural-language plan-first entrypoint. It deliberately stops at a rendered
 // review; only an explicit approved-plan request can create a workflow.
 async function handlePlanFromRequest(req, res) {
