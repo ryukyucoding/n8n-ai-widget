@@ -7,7 +7,9 @@
 // Invariants:
 // 1. Never replaces cryptographic hashes in planBinding HMAC signatures.
 // 2. Fallback candidate version is configurable via environment variable `PRODUCT_RELEASE_VERSION`.
-// 3. Produces consistent, deterministic metadata for `/health` and `/models`.
+// 3. Leaves `/health` and `/models` unwired until authorized.
+// 4. Safe against JS number precision loss for huge numeric identifiers (keeps string representation).
+// 5. Strict Git SHA validation (7-40 hex chars).
 
 const crypto = require('node:crypto');
 const runtimeSnapshot = require('../schemas/runtime_node_schemas.json');
@@ -15,30 +17,75 @@ const { SKILLS } = require('./runtimeSkillRegistry');
 const { schemaRevision } = require('./runtimeSchemaRevision');
 const { sourceRegistryRevision } = require('./sourceSchemaRegistry');
 
-// Semantic versioning pattern (SemVer 2.0.0 compliant)
-const SEMVER_REGEX = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+// Strict SemVer 2.0.0 pattern without leading zeros for numeric components
+const SEMVER_STRICT_REGEX = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
-// Candidate default release label proposed for Brain/Dan decision.
-// Default candidate label is unpromoted/candidate status until Dan promotes.
+// Git SHA regex: 7 to 40 hexadecimal characters
+const GIT_SHA_REGEX = /^[0-9a-f]{7,40}$/i;
+
+// Supported lifecycle states
+const LIFECYCLE_STATES = Object.freeze(['candidate', 'stable', 'not-live']);
+
+// Proposed default candidate version for Brain/Dan decision
 const PROPOSED_DEFAULT_RELEASE_VERSION = '0.4.0-rc.1';
 
+// Maximum safe string length for version inputs to prevent ReDoS/overflow
+const MAX_VERSION_INPUT_LEN = 128;
+
+// Parse and validate SemVer string strictly:
+// - Disallow internal whitespace
+// - Strip single leading 'v' or 'V' only
+// - Disallow leading zeros in numeric components (e.g. '01.2.3' is invalid)
+// - Preserve numeric strings to avoid JS Number (IEEE-754) precision truncation
 function parseSemVer(versionStr) {
   if (typeof versionStr !== 'string') return null;
-  const trimmed = versionStr.trim().replace(/^v/i, '');
-  if (!SEMVER_REGEX.test(trimmed)) return null;
-  const match = trimmed.match(SEMVER_REGEX);
+  const trimmed = versionStr.trim();
+  if (!trimmed || trimmed.length > MAX_VERSION_INPUT_LEN) return null;
+  // Disallow internal whitespace
+  if (/\s/.test(trimmed)) return null;
+
+  const normalized = trimmed.replace(/^v/i, '');
+  if (!SEMVER_STRICT_REGEX.test(normalized)) return null;
+
+  const match = normalized.match(SEMVER_STRICT_REGEX);
+  const majorStr = match[1];
+  const minorStr = match[2];
+  const patchStr = match[3];
+
   return {
-    raw: trimmed,
-    tag: `v${trimmed}`,
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
+    raw: normalized,
+    tag: `v${normalized}`,
+    major: majorStr,
+    minor: minorStr,
+    patch: patchStr,
+    // Provide safe numbers only when within JavaScript safe integer bounds
+    majorNumber: Number(majorStr) <= Number.MAX_SAFE_INTEGER ? Number(majorStr) : null,
+    minorNumber: Number(minorStr) <= Number.MAX_SAFE_INTEGER ? Number(minorStr) : null,
+    patchNumber: Number(patchStr) <= Number.MAX_SAFE_INTEGER ? Number(patchStr) : null,
     prerelease: match[4] || null,
     build: match[5] || null,
     isPrerelease: Boolean(match[4]),
   };
 }
 
+// Validate supplied Git SHA format strictly
+function validateGitSha(sha) {
+  if (typeof sha !== 'string') return null;
+  const trimmed = sha.trim();
+  return GIT_SHA_REGEX.test(trimmed) ? trimmed.toLowerCase() : null;
+}
+
+// Determine release lifecycle state explicitly
+function resolveLifecycle(parsed, env = process.env) {
+  const explicit = env.RELEASE_LIFECYCLE || env.PRODUCT_LIFECYCLE;
+  if (explicit && LIFECYCLE_STATES.includes(String(explicit).toLowerCase())) {
+    return String(explicit).toLowerCase();
+  }
+  if (!parsed) return 'not-live';
+  return parsed.isPrerelease ? 'candidate' : 'stable';
+}
+
+// Resolve product version from environment with safe fallback
 function resolveProductVersion(env = process.env) {
   const configured = env.PRODUCT_RELEASE_VERSION || env.RELEASE_VERSION;
   if (configured && parseSemVer(configured)) {
@@ -56,6 +103,7 @@ function skillRegistryRevision(skillRegistry = SKILLS) {
   return crypto.createHash('sha256').update(stableStringify(skillRegistry)).digest('hex');
 }
 
+// Produce comprehensive release metadata
 function getReleaseMetadata({
   env = process.env,
   gitSha = null,
@@ -63,16 +111,20 @@ function getReleaseMetadata({
   skillRegistry = SKILLS,
   sourceRegistry,
 } = {}) {
-  const version = resolveProductVersion(env);
-  const parsed = parseSemVer(version);
-  const effectiveGitSha = gitSha || env.GIT_COMMIT_SHA || env.GIT_SHA || env.REVISION || null;
+  const rawVersion = resolveProductVersion(env);
+  const parsed = parseSemVer(rawVersion);
+  const lifecycle = resolveLifecycle(parsed, env);
+
+  const rawSha = gitSha || env.GIT_COMMIT_SHA || env.GIT_SHA || env.REVISION || null;
+  const validatedSha = validateGitSha(rawSha);
 
   return {
-    version: parsed ? parsed.raw : version,
-    tag: parsed ? parsed.tag : `v${version}`,
+    version: parsed ? parsed.raw : rawVersion,
+    tag: parsed ? parsed.tag : `v${rawVersion}`,
     isPrerelease: parsed ? parsed.isPrerelease : true,
+    lifecycle,
     revisions: {
-      gitRevision: effectiveGitSha,
+      gitRevision: validatedSha,
       runtimeSchemaRevision: schemaRevision(snapshot).revision,
       skillRegistryRevision: skillRegistryRevision(skillRegistry),
       sourceRegistryRevision: sourceRegistryRevision(sourceRegistry),
@@ -81,9 +133,13 @@ function getReleaseMetadata({
 }
 
 module.exports = {
-  SEMVER_REGEX,
+  SEMVER_STRICT_REGEX,
+  GIT_SHA_REGEX,
+  LIFECYCLE_STATES,
   PROPOSED_DEFAULT_RELEASE_VERSION,
   parseSemVer,
+  validateGitSha,
+  resolveLifecycle,
   resolveProductVersion,
   getReleaseMetadata,
 };
