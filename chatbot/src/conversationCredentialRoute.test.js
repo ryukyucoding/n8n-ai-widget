@@ -18,6 +18,7 @@ const allowedPolicy = {
   lane: 'solo', soloCredentialMode: true, runtimeCompilerEnabled: true,
   apiKeyPresent: true, privatePerimeterVerified: true,
 };
+const trustedDeploymentEnv = { PRIVATE_PERIMETER_VERIFIED: 'true' };
 
 function fakeResolver(candidates = []) {
   return createFakeCredentialResolver({
@@ -42,13 +43,13 @@ test('live/public route behavior is disabled unless the fake-only seam is explic
 });
 
 test('mode-off and perimeter-off reject before the fake resolver is called', async () => {
-  for (const policy of [
-    { ...allowedPolicy, soloCredentialMode: false },
-    { ...allowedPolicy, privatePerimeterVerified: false },
+  for (const [policy, deploymentEnv] of [
+    [{ ...allowedPolicy, soloCredentialMode: false }, trustedDeploymentEnv],
+    [{ ...allowedPolicy, privatePerimeterVerified: true }, {}],
   ]) {
     let called = 0;
     const handler = createCredentialPreviewHandler({
-      policy, testSeamEnabled: true, fakeOnly: true,
+      policy, deploymentEnv, testSeamEnabled: true, fakeOnly: true,
       resolveCredentials: async () => { called += 1; return {}; },
     });
     const res = response();
@@ -61,7 +62,7 @@ test('mode-off and perimeter-off reject before the fake resolver is called', asy
 test('public lane remains rejected even when the fake test seam is enabled', async () => {
   const handler = createCredentialPreviewHandler({
     policy: { ...allowedPolicy, lane: 'public', callerIdentityVerified: true, ownershipScoped: true, credentialApiVerified: true },
-    testSeamEnabled: true, fakeOnly: true, resolveCredentials: fakeResolver([]),
+    deploymentEnv: trustedDeploymentEnv, testSeamEnabled: true, fakeOnly: true, resolveCredentials: fakeResolver([]),
   });
   const res = response();
   await handler({ body: { spec: {} } }, res);
@@ -74,7 +75,7 @@ test('explicit fake seam returns 0/1/many setup manifests without handles', asyn
     [[{ handle: 'h1', displayName: 'Calendar', createdAt: 1 }], 'ready', 'ready'],
     [[{ handle: 'h1', displayName: 'A', createdAt: 1 }, { handle: 'h2', displayName: 'B', createdAt: 2 }], 'needs_choice', 'setup_required'],
   ]) {
-    const handler = createCredentialPreviewHandler({ policy: allowedPolicy, testSeamEnabled: true, fakeOnly: true, resolveCredentials: fakeResolver(candidates) });
+    const handler = createCredentialPreviewHandler({ policy: allowedPolicy, deploymentEnv: trustedDeploymentEnv, testSeamEnabled: true, fakeOnly: true, resolveCredentials: fakeResolver(candidates) });
     const res = response();
     await handler({ body: { spec: {} } }, res);
     assert.equal(res.statusCode, 200);

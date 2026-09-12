@@ -1,12 +1,13 @@
 'use strict';
 
 const { evaluateCredentialAccess } = require('./credentialModeGate');
+const { withPrivatePerimeterAssertion } = require('./privatePerimeterConfig');
 const { buildSetupManifest } = require('./setupManifest');
 
 // Test-only credential preview route. The real application does not register
 // this route unless an explicit fake-only seam is supplied by its test harness.
 // It never creates workflows and never calls a real n8n credential adapter.
-function createCredentialPreviewHandler({ policy, resolveCredentials, testSeamEnabled = false, fakeOnly = false } = {}) {
+function createCredentialPreviewHandler({ policy, resolveCredentials, deploymentEnv = process.env, testSeamEnabled = false, fakeOnly = false } = {}) {
   if (typeof resolveCredentials !== 'function') {
     throw new Error('createCredentialPreviewHandler requires resolveCredentials');
   }
@@ -15,7 +16,7 @@ function createCredentialPreviewHandler({ policy, resolveCredentials, testSeamEn
     if (testSeamEnabled !== true || fakeOnly !== true) {
       return res.status(404).json({ error: 'credential test seam is disabled', code: 'credential_test_seam_disabled' });
     }
-    const gate = evaluateCredentialAccess(policy);
+    const gate = evaluateCredentialAccess(withPrivatePerimeterAssertion(policy, deploymentEnv));
     // The fake preview is intentionally solo-only. Public/multi-user credential
     // access is not made testable through this route until real auth/scoping exists.
     if (!gate.allowed || gate.lane !== 'solo') {
