@@ -69,7 +69,7 @@ test('public lane remains rejected even when the fake test seam is enabled', asy
 });
 
 test('explicit fake seam returns 0/1/many setup manifests without handles', async () => {
-  for (const [candidates, status, manifestStatus] of [
+  for (const [candidates, _internalStatus, manifestStatus] of [
     [[], 'setup_required', 'setup_required'],
     [[{ handle: 'h1', displayName: 'Calendar', createdAt: 1 }], 'ready', 'ready'],
     [[{ handle: 'h1', displayName: 'A', createdAt: 1 }, { handle: 'h2', displayName: 'B', createdAt: 2 }], 'needs_choice', 'setup_required'],
@@ -78,9 +78,10 @@ test('explicit fake seam returns 0/1/many setup manifests without handles', asyn
     const res = response();
     await handler({ body: { spec: {} } }, res);
     assert.equal(res.statusCode, 200);
-    assert.equal(res.body.status, status);
+    assert.equal(res.body.status, manifestStatus);
+    assert.equal(res.body.createDisposition, res.body.setupManifest.createDisposition);
     assert.equal(res.body.setupManifest.status, manifestStatus);
-    assert.doesNotMatch(JSON.stringify(res.body), /"h[12]"|handle/);
+    assert.doesNotMatch(JSON.stringify(res.body), /needs_choice|"h[12]"|handle/);
   }
 });
 

@@ -31,9 +31,11 @@ function createCredentialPreviewHandler({ policy, resolveCredentials, testSeamEn
           configurationRequirements: manifestSource.configurationRequirements || [],
         })
         : buildSetupManifest({ requirements: resolution && resolution.requirements });
+      // Public route fields must use the canonical manifest projection; never
+      // leak resolver-internal states such as `needs_choice` or raw disposition.
       return res.status(200).json({
-        status: resolution && resolution.overall,
-        createDisposition: resolution && resolution.createDisposition,
+        status: setupManifest.status,
+        createDisposition: setupManifest.createDisposition,
         setupManifest,
       });
     } catch (_) {
