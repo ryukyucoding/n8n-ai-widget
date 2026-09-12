@@ -54,6 +54,7 @@ function skillIdsForSpecification(specification) {
       if (operation === 'limit_items') ids.push('transform.limit_items');
       if (operation === 'slice_items') ids.push('transform.slice_items');
       if (operation === 'set_fields') ids.push('transform.set_fields');
+      if (operation === 'current_date') ids.push('transform.current_date');
       if (operation === 'rename_keys') ids.push('transform.rename_keys');
     }
   }

@@ -132,6 +132,15 @@ test('full canonical spec round-trips losslessly (schemaVersion/kind/deliverySha
   assert.deepEqual(sanitizePlanSpec(spec), spec); // lossless -> recompilable, planner context complete
 });
 
+test('current_date configuration survives sanitization while timezone drops', () => {
+  const out = sanitizePlanSpec({
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'date', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['currentDate'] },
+    steps: [{ id: 'today', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'current_date', includeTime: false, outputFieldName: 'currentDate', timezone: 'UTC' } }],
+  });
+  assert.deepEqual(out.steps[0].configuration, { operation: 'current_date', includeTime: false, outputFieldName: 'currentDate' });
+});
+
 test('set_fields tagged-union mappings survive sanitization while unknown fields drop', () => {
   const out = sanitizePlanSpec({
     schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'set fields', requiredUserSetup: [],

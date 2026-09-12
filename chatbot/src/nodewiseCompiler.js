@@ -10,7 +10,7 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'schedule_trigger', 'http_request', 'data_transform', 'set_output']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'slice_items', 'rename_keys', 'set_fields']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'slice_items', 'rename_keys', 'set_fields', 'current_date']);
 const SCHEDULE_INTERVALS = Object.freeze({ minutes: [1, 59], hours: [1, 23], days: [1, 31], weeks: [1, 52] });
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
@@ -192,6 +192,12 @@ function validateSpecification(value) {
         configuration = { operation: config.operation, input: input.value, mappings: mapped.mappings };
         assert(configuration.input.cardinality === 'one_object', 'select_fields requires one_object input');
         output = mapped.output;
+      } else if (config.operation === 'current_date') {
+        for (const key of Object.keys(config)) assert(['operation', 'includeTime', 'outputFieldName'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        assert(typeof config.includeTime === 'boolean', 'current_date includeTime must be a boolean');
+        const outputFieldName = safeIdentifier(config.outputFieldName, 'current_date outputFieldName');
+        configuration = { operation: config.operation, includeTime: config.includeTime, outputFieldName };
+        output = { cardinality: 'one_object', fields: { [outputFieldName]: 'string' } };
       } else if (config.operation === 'set_fields') {
         for (const key of Object.keys(config)) assert(['operation', 'input', 'mappings'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
         const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
@@ -339,7 +345,9 @@ function validateSpecification(value) {
     ? [...finalStep.configuration.objectMappings.map((mapping) => mapping.to), finalStep.configuration.totalField, finalStep.configuration.falseCountField]
     : finalStep.capability === 'set_output' || (finalStep.capability === 'data_transform' && ['select_fields', 'set_fields'].includes(finalStep.configuration.operation))
       ? finalStep.configuration.mappings.map((mapping) => mapping.to)
-      : [];
+      : finalStep.capability === 'data_transform' && finalStep.configuration.operation === 'current_date'
+        ? [finalStep.configuration.outputFieldName]
+        : [];
   assert(finalFields.length > 0, 'final step must produce declared output fields');
   assert(finalFields.length === expectedOutputFields.length && finalFields.every((field, index) => field === expectedOutputFields[index]), 'final step fields must match expectedOutput.fields');
 
@@ -404,6 +412,10 @@ function compileNodewiseSpecification(specification) {
     if (step.capability === 'data_transform' && config.operation === 'set_fields') {
       type = 'n8n-nodes-base.set';
       parameters = setFieldAssignments(config.mappings);
+    }
+    if (step.capability === 'data_transform' && config.operation === 'current_date') {
+      type = 'n8n-nodes-base.dateTime';
+      parameters = { operation: 'getCurrentDate', includeTime: config.includeTime, outputFieldName: config.outputFieldName, options: { includeInputFields: false } };
     }
     if (step.capability === 'data_transform' && config.operation === 'count_false_boolean') {
       type = 'n8n-nodes-base.code';

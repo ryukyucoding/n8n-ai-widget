@@ -92,6 +92,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'transform.current_date',
+    label: 'Get the current date',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'transform.set_fields',
     label: 'Set fields from input copies or fixed literals',
     maturity: 'implemented',

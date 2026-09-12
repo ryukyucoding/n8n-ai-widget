@@ -78,6 +78,9 @@ function sanitizeConfiguration(config) {
   put('operation', scalar(config.operation));
   put('interval', scalar(config.interval));
   put('intervalValue', scalar(config.intervalValue));
+  put('includeTime', scalar(config.includeTime));
+  put('outputFieldName', scalar(config.outputFieldName));
+  put('format', scalar(config.format));
   put('method', scalar(config.method));
   put('url', refObject(config.url));
   put('input', refObject(config.input));

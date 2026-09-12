@@ -559,6 +559,34 @@ test('schedule trigger rejects invalid bounds, extra keys, and a second trigger'
   assert.throws(() => compileNodewiseSpecification(both), /manual_trigger must be the first empty step|schedule_trigger must be the first step/);
 });
 
+test('compiles schema-verified current_date as a deterministic Date & Time node', () => {
+  const spec = {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Return today.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['currentDate'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'today', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'current_date', includeTime: false, outputFieldName: 'currentDate' } },
+    ],
+  };
+  const workflow = compileNodewiseSpecification(spec);
+  assert.equal(workflow.nodes[1].type, 'n8n-nodes-base.dateTime');
+  assert.equal(workflow.nodes[1].typeVersion, 2);
+  assert.deepEqual(workflow.nodes[1].parameters, { operation: 'getCurrentDate', includeTime: false, outputFieldName: 'currentDate', options: { includeInputFields: false } });
+});
+
+test('current_date rejects extra options, invalid includeTime, and unsafe output names', () => {
+  const base = { schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'date', requiredUserSetup: [], expectedOutput: { deliveryShape: 'one_object', fields: ['currentDate'] }, steps: [
+    { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+    { id: 'today', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'current_date', includeTime: false, outputFieldName: 'currentDate' } },
+  ] };
+  const extra = JSON.parse(JSON.stringify(base)); extra.steps[1].configuration.timezone = 'UTC';
+  assert.throws(() => compileNodewiseSpecification(extra), /unsupported key timezone/);
+  const badBool = JSON.parse(JSON.stringify(base)); badBool.steps[1].configuration.includeTime = 'false';
+  assert.throws(() => compileNodewiseSpecification(badBool), /includeTime must be a boolean/);
+  const badName = JSON.parse(JSON.stringify(base)); badName.steps[1].configuration.outputFieldName = 'current.date';
+  assert.throws(() => compileNodewiseSpecification(badName), /simple field identifier/);
+});
+
 function setFieldsSpec() {
   return {
     schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Map a public user with typed literals.', requiredUserSetup: [],

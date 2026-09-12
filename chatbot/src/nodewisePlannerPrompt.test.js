@@ -43,6 +43,12 @@ test('planner prompt documents the limit_items transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /defaults to "firstItems"/);
 });
 
+test('planner prompt documents the current_date contract', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /current_date/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /getCurrentDate/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /includeTime/);
+});
+
 test('planner prompt documents the set_fields tagged-union contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /set_fields/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /strict tagged union/);

@@ -55,6 +55,9 @@ For unsupported_capability, omit specification completely:
 
 For ready_to_compile, every step must have id, capability, requiredUserSetup, and configuration. Use only these capabilities: manual_trigger, schedule_trigger, http_request, data_transform, set_output. Use only GET public_literal URLs and prior_step references such as user.response.
 
+The current_date transform uses the schema-verified Date & Time getCurrentDate operation. Its configuration is exactly { "operation": "current_date", "includeTime": false | true, "outputFieldName": <simple field identifier> }. It produces one_object with one string field and may be final when that field exactly matches expectedOutput.fields. Do not add timezone or arbitrary options; the runtime instance controls timezone.
+{ "id": "today", "capability": "data_transform", "requiredUserSetup": [], "configuration": { "operation": "current_date", "includeTime": false, "outputFieldName": "currentDate" } }
+
 The schedule_trigger is a credential-free first step only. Its configuration is exactly { "interval": "minutes" | "hours" | "days" | "weeks", "intervalValue": <integer> }, with bounds minutes 1-59, hours 1-23, days 1-31, weeks 1-52. It emits one schedule trigger and must never be combined with a manual_trigger in the same plan.
 
 Important output invariant: join_object_and_count_false_boolean always produces every objectMapping field plus totalField and falseCountField. The final step must produce exactly expectedOutput.fields, in the same order. If the requested final output needs only a subset of a join result, append a final set_output step. Its input must reference the aggregate step as aggregate.response with cardinality one_object, and its mappings must select only the requested fields. For example, after a join named summary, selecting just name and incompleteTodos requires a final set_output mapping those two fields from summary.response.

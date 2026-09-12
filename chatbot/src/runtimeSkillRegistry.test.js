@@ -29,6 +29,15 @@ test('registers limit_items as an implemented read-only nodewise skill', () => {
   assert.equal(result.requiresConfirmation, false);
 });
 
+test('registers current_date as an implemented read-only nodewise skill', () => {
+  const skill = getSkill('transform.current_date');
+  assert.equal(skill.maturity, 'implemented');
+  assert.equal(skill.compiler, 'nodewise');
+  assert.equal(skill.risk, 'read_only');
+  assert.equal(skill.requiresUserSetup, false);
+  assert.equal(resolveSkillRequirements(['transform.current_date']).available, true);
+});
+
 test('registers set_fields as an implemented read-only nodewise skill', () => {
   const skill = getSkill('transform.set_fields');
   assert.equal(skill.maturity, 'implemented');

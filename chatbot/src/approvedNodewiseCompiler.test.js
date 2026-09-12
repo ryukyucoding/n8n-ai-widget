@@ -31,6 +31,11 @@ function specification(userId = 1) {
   };
 }
 
+test('maps current_date to the implemented transform skill', () => {
+  const spec = { steps: [{ capability: 'data_transform', configuration: { operation: 'current_date' } }] };
+  assert.deepEqual(skillIdsForSpecification(spec), ['transform.current_date']);
+});
+
 test('maps set_fields to the implemented transform skill', () => {
   const spec = { steps: [{ capability: 'data_transform', configuration: { operation: 'set_fields' } }] };
   assert.deepEqual(skillIdsForSpecification(spec), ['transform.set_fields']);
