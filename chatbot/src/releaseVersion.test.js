@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   parseSemVer,
-  validateGitSha,
+  classifyGitSha,
   resolveLifecycle,
   resolveProductVersion,
   getReleaseMetadata,
@@ -24,6 +24,7 @@ test('parseSemVer validates compliant SemVer and rejects leading zeros', () => {
   assert.equal(parseSemVer('01.2.3'), null);
   assert.equal(parseSemVer('1.02.3'), null);
   assert.equal(parseSemVer('1.2.03'), null);
+  assert.equal(parseSemVer('00.0.0'), null);
 
   // '0.0.0' is valid
   assert.notEqual(parseSemVer('0.0.0'), null);
@@ -47,46 +48,79 @@ test('parseSemVer preserves string precision for huge numeric components', () =>
   assert.equal(v.majorNumber, null); // Gracefully avoids IEEE-754 precision distortion
 });
 
-test('validateGitSha accepts 7-40 hex chars and rejects invalid formats', () => {
-  assert.equal(validateGitSha('b0d258d'), 'b0d258d');
-  assert.equal(validateGitSha('B0D258D'), 'b0d258d'); // Lowercases
-  assert.equal(validateGitSha('b0d258dbc4dc8a11ccedcf03f526a093e9c2cc23'), 'b0d258dbc4dc8a11ccedcf03f526a093e9c2cc23');
+test('classifyGitSha strictly distinguishes 40-hex release provenance from short diagnostic SHA', () => {
+  const full40 = 'b0d258dbc4dc8a11ccedcf03f526a093e9c2cc23';
+  const classifiedFull = classifyGitSha(full40);
+  assert.equal(classifiedFull.sha, full40);
+  assert.equal(classifiedFull.grade, 'full');
 
-  // Rejects too short, too long, or non-hex
-  assert.equal(validateGitSha('b0d25'), null); // < 7
-  assert.equal(validateGitSha('g0d258d'), null); // non-hex 'g'
-  assert.equal(validateGitSha('b0d258d'.repeat(10)), null); // > 40
-  assert.equal(validateGitSha(null), null);
-  assert.equal(validateGitSha(''), null);
+  const short7 = 'b0d258d';
+  const classifiedShort = classifyGitSha(short7);
+  assert.equal(classifiedShort.sha, 'b0d258d');
+  assert.equal(classifiedShort.grade, 'diagnostic');
+
+  // Case insensitivity
+  assert.equal(classifyGitSha('B0D258D').sha, 'b0d258d');
+
+  // Rejects invalid formats
+  assert.equal(classifyGitSha('b0d25').sha, null); // < 7
+  assert.equal(classifyGitSha('g0d258d').sha, null); // non-hex
+  assert.equal(classifyGitSha(full40 + 'a').sha, null); // > 40
+  assert.equal(classifyGitSha(null).sha, null);
+  assert.equal(classifyGitSha('').sha, null);
 });
 
-test('resolveLifecycle derives explicit candidate, stable, or not-live', () => {
-  // Explicit environment override
-  assert.equal(resolveLifecycle(null, { RELEASE_LIFECYCLE: 'not-live' }), 'not-live');
-  assert.equal(resolveLifecycle(null, { RELEASE_LIFECYCLE: 'candidate' }), 'candidate');
-  assert.equal(resolveLifecycle(null, { RELEASE_LIFECYCLE: 'stable' }), 'stable');
+test('resolveLifecycle derives explicit states and forbids stable override on prerelease', () => {
+  const rc = parseSemVer('0.4.0-rc.1');
 
-  // Derived from parsed SemVer
-  assert.equal(resolveLifecycle(parseSemVer('0.4.0-rc.1'), {}), 'candidate');
-  assert.equal(resolveLifecycle(parseSemVer('0.4.0'), {}), 'stable');
+  // Explicit 'stable' override on a prerelease version is blocked (fail-closed)
+  assert.equal(resolveLifecycle(rc, { RELEASE_LIFECYCLE: 'stable' }), 'candidate');
+
+  // Prerelease version naturally resolves to candidate
+  assert.equal(resolveLifecycle(rc, {}), 'candidate');
+
+  // Stable version resolves to stable, or explicit override
+  const stable = parseSemVer('0.4.0');
+  assert.equal(resolveLifecycle(stable, {}), 'stable');
+  assert.equal(resolveLifecycle(stable, { RELEASE_LIFECYCLE: 'candidate' }), 'candidate');
+  assert.equal(resolveLifecycle(stable, { RELEASE_LIFECYCLE: 'not-live' }), 'not-live');
   assert.equal(resolveLifecycle(null, {}), 'not-live');
 });
 
-test('resolveProductVersion defaults safely and respects valid overrides', () => {
+test('resolveProductVersion fails closed on explicit malformed input', () => {
+  // When unconfigured, returns default candidate version
   assert.equal(resolveProductVersion({}), PROPOSED_DEFAULT_RELEASE_VERSION);
+
+  // Valid environment overrides succeed
   assert.equal(resolveProductVersion({ PRODUCT_RELEASE_VERSION: '0.4.0-rc.2' }), '0.4.0-rc.2');
   assert.equal(resolveProductVersion({ RELEASE_VERSION: 'v1.0.0' }), '1.0.0');
 
-  // Disallows invalid overrides and falls back safely
-  assert.equal(resolveProductVersion({ PRODUCT_RELEASE_VERSION: 'invalid.version' }), PROPOSED_DEFAULT_RELEASE_VERSION);
-  assert.equal(resolveProductVersion({ PRODUCT_RELEASE_VERSION: '01.0.0' }), PROPOSED_DEFAULT_RELEASE_VERSION);
+  // Explicit malformed PRODUCT_RELEASE_VERSION must throw error (fail-closed), never silent fallback
+  assert.throws(
+    () => resolveProductVersion({ PRODUCT_RELEASE_VERSION: 'invalid-semver' }),
+    (err) => err.code === 'invalid_product_release_version' || /Invalid PRODUCT_RELEASE_VERSION/.test(err.message),
+  );
+  assert.throws(
+    () => resolveProductVersion({ PRODUCT_RELEASE_VERSION: '01.0.0' }), // Leading zero
+    (err) => err.code === 'invalid_product_release_version' || /Invalid PRODUCT_RELEASE_VERSION/.test(err.message),
+  );
+
+  // Explicit malformed RELEASE_VERSION must throw error
+  assert.throws(
+    () => resolveProductVersion({ RELEASE_VERSION: 'not.a.version' }),
+    (err) => err.code === 'invalid_release_version' || /Invalid RELEASE_VERSION/.test(err.message),
+  );
+
+  // Empty string does not throw, safely falls through
+  assert.equal(resolveProductVersion({ PRODUCT_RELEASE_VERSION: '', RELEASE_VERSION: 'v1.0.0' }), '1.0.0');
 });
 
-test('getReleaseMetadata produces structured deterministic metadata', () => {
+test('getReleaseMetadata produces structured deterministic metadata with SHA grade', () => {
+  const fullSha = 'b0d258dbc4dc8a11ccedcf03f526a093e9c2cc23';
   const meta = getReleaseMetadata({
     env: {
       PRODUCT_RELEASE_VERSION: '0.4.0-rc.1',
-      GIT_COMMIT_SHA: 'b0d258dbc4dc8a11ccedcf03f526a093e9c2cc23',
+      GIT_COMMIT_SHA: fullSha,
     },
   });
 
@@ -95,10 +129,22 @@ test('getReleaseMetadata produces structured deterministic metadata', () => {
   assert.equal(meta.isPrerelease, true);
   assert.equal(meta.lifecycle, 'candidate');
 
-  assert.equal(meta.revisions.gitRevision, 'b0d258dbc4dc8a11ccedcf03f526a093e9c2cc23');
+  assert.equal(meta.revisions.gitRevision, fullSha);
+  assert.equal(meta.revisions.gitRevisionGrade, 'full');
   assert.match(meta.revisions.runtimeSchemaRevision, /^unknown\+[a-f0-9]{16}$/);
   assert.match(meta.revisions.skillRegistryRevision, /^[a-f0-9]{64}$/);
   assert.match(meta.revisions.sourceRegistryRevision, /^[a-f0-9]{16}$/);
+});
+
+test('getReleaseMetadata tags short SHA as diagnostic grade', () => {
+  const meta = getReleaseMetadata({
+    env: {
+      PRODUCT_RELEASE_VERSION: '0.4.0-rc.1',
+      GIT_COMMIT_SHA: 'b0d258d',
+    },
+  });
+  assert.equal(meta.revisions.gitRevision, 'b0d258d');
+  assert.equal(meta.revisions.gitRevisionGrade, 'diagnostic');
 });
 
 test('getReleaseMetadata safely discards invalid gitRevision in metadata', () => {
@@ -108,4 +154,5 @@ test('getReleaseMetadata safely discards invalid gitRevision in metadata', () =>
     },
   });
   assert.equal(meta.revisions.gitRevision, null);
+  assert.equal(meta.revisions.gitRevisionGrade, null);
 });

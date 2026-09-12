@@ -6,10 +6,11 @@
 //
 // Invariants:
 // 1. Never replaces cryptographic hashes in planBinding HMAC signatures.
-// 2. Fallback candidate version is configurable via environment variable `PRODUCT_RELEASE_VERSION`.
+// 2. Strict fail-closed version parsing: explicit malformed version strings throw or reject.
 // 3. Leaves `/health` and `/models` unwired until authorized.
-// 4. Safe against JS number precision loss for huge numeric identifiers (keeps string representation).
-// 5. Strict Git SHA validation (7-40 hex chars).
+// 4. Safe against JS number precision loss for huge numeric identifiers.
+// 5. Release provenance requires full 40-hex SHA; short SHA (7-39 hex) is classified as diagnostic-only.
+// 6. Explicit stable lifecycle can NEVER override a prerelease version or default candidate.
 
 const crypto = require('node:crypto');
 const runtimeSnapshot = require('../schemas/runtime_node_schemas.json');
@@ -20,8 +21,11 @@ const { sourceRegistryRevision } = require('./sourceSchemaRegistry');
 // Strict SemVer 2.0.0 pattern without leading zeros for numeric components
 const SEMVER_STRICT_REGEX = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
-// Git SHA regex: 7 to 40 hexadecimal characters
-const GIT_SHA_REGEX = /^[0-9a-f]{7,40}$/i;
+// Full Git SHA regex: exactly 40 hexadecimal characters
+const FULL_GIT_SHA_REGEX = /^[0-9a-f]{40}$/i;
+
+// Short / Diagnostic Git SHA regex: 7 to 39 hexadecimal characters
+const SHORT_GIT_SHA_REGEX = /^[0-9a-f]{7,39}$/i;
 
 // Supported lifecycle states
 const LIFECYCLE_STATES = Object.freeze(['candidate', 'stable', 'not-live']);
@@ -58,7 +62,6 @@ function parseSemVer(versionStr) {
     major: majorStr,
     minor: minorStr,
     patch: patchStr,
-    // Provide safe numbers only when within JavaScript safe integer bounds
     majorNumber: Number(majorStr) <= Number.MAX_SAFE_INTEGER ? Number(majorStr) : null,
     minorNumber: Number(minorStr) <= Number.MAX_SAFE_INTEGER ? Number(minorStr) : null,
     patchNumber: Number(patchStr) <= Number.MAX_SAFE_INTEGER ? Number(patchStr) : null,
@@ -68,29 +71,71 @@ function parseSemVer(versionStr) {
   };
 }
 
-// Validate supplied Git SHA format strictly
-function validateGitSha(sha) {
-  if (typeof sha !== 'string') return null;
-  const trimmed = sha.trim();
-  return GIT_SHA_REGEX.test(trimmed) ? trimmed.toLowerCase() : null;
+// Validate Git SHA with explicit classification:
+// - full: 40 hex chars (provenance-grade)
+// - short: 7-39 hex chars (diagnostic-only)
+// - null: invalid
+function classifyGitSha(sha) {
+  if (typeof sha !== 'string') return { sha: null, grade: null };
+  const trimmed = sha.trim().toLowerCase();
+  if (FULL_GIT_SHA_REGEX.test(trimmed)) {
+    return { sha: trimmed, grade: 'full' };
+  }
+  if (SHORT_GIT_SHA_REGEX.test(trimmed)) {
+    return { sha: trimmed, grade: 'diagnostic' };
+  }
+  return { sha: null, grade: null };
 }
 
-// Determine release lifecycle state explicitly
+// Determine release lifecycle state explicitly:
+// Rule: Explicit 'stable' can NEVER override a prerelease version (e.g. 0.4.0-rc.1) or unverified candidate.
 function resolveLifecycle(parsed, env = process.env) {
+  if (!parsed) return 'not-live';
+
   const explicit = env.RELEASE_LIFECYCLE || env.PRODUCT_LIFECYCLE;
   if (explicit && LIFECYCLE_STATES.includes(String(explicit).toLowerCase())) {
-    return String(explicit).toLowerCase();
+    const desired = String(explicit).toLowerCase();
+    // Safety guard: if version is prerelease, reject override to 'stable' (fail-closed)
+    if (desired === 'stable' && parsed.isPrerelease) {
+      return 'candidate';
+    }
+    return desired;
   }
-  if (!parsed) return 'not-live';
+
   return parsed.isPrerelease ? 'candidate' : 'stable';
 }
 
-// Resolve product version from environment with safe fallback
+// Resolve product version with fail-closed semantics:
+// - If PRODUCT_RELEASE_VERSION is set:
+//     * Valid SemVer -> use it.
+//     * Invalid non-empty string -> throw Error (fail-closed, do not silently fallback and mask bad config!).
+// - If PRODUCT_RELEASE_VERSION is unset/empty, check RELEASE_VERSION:
+//     * Valid SemVer -> use it.
+//     * Invalid non-empty string -> throw Error (fail-closed).
+// - If both unset/empty -> return PROPOSED_DEFAULT_RELEASE_VERSION.
 function resolveProductVersion(env = process.env) {
-  const configured = env.PRODUCT_RELEASE_VERSION || env.RELEASE_VERSION;
-  if (configured && parseSemVer(configured)) {
-    return parseSemVer(configured).raw;
+  const hasProduct = typeof env.PRODUCT_RELEASE_VERSION === 'string' && env.PRODUCT_RELEASE_VERSION.trim() !== '';
+  if (hasProduct) {
+    const parsed = parseSemVer(env.PRODUCT_RELEASE_VERSION);
+    if (!parsed) {
+      const err = new Error(`Invalid PRODUCT_RELEASE_VERSION: "${env.PRODUCT_RELEASE_VERSION}" is not a valid SemVer string`);
+      err.code = 'invalid_product_release_version';
+      throw err;
+    }
+    return parsed.raw;
   }
+
+  const hasRelease = typeof env.RELEASE_VERSION === 'string' && env.RELEASE_VERSION.trim() !== '';
+  if (hasRelease) {
+    const parsed = parseSemVer(env.RELEASE_VERSION);
+    if (!parsed) {
+      const err = new Error(`Invalid RELEASE_VERSION: "${env.RELEASE_VERSION}" is not a valid SemVer string`);
+      err.code = 'invalid_release_version';
+      throw err;
+    }
+    return parsed.raw;
+  }
+
   return PROPOSED_DEFAULT_RELEASE_VERSION;
 }
 
@@ -116,7 +161,7 @@ function getReleaseMetadata({
   const lifecycle = resolveLifecycle(parsed, env);
 
   const rawSha = gitSha || env.GIT_COMMIT_SHA || env.GIT_SHA || env.REVISION || null;
-  const validatedSha = validateGitSha(rawSha);
+  const { sha: validatedSha, grade: shaGrade } = classifyGitSha(rawSha);
 
   return {
     version: parsed ? parsed.raw : rawVersion,
@@ -125,6 +170,7 @@ function getReleaseMetadata({
     lifecycle,
     revisions: {
       gitRevision: validatedSha,
+      gitRevisionGrade: shaGrade, // 'full' (40-hex release grade) | 'diagnostic' (7-39 hex) | null
       runtimeSchemaRevision: schemaRevision(snapshot).revision,
       skillRegistryRevision: skillRegistryRevision(skillRegistry),
       sourceRegistryRevision: sourceRegistryRevision(sourceRegistry),
@@ -134,11 +180,12 @@ function getReleaseMetadata({
 
 module.exports = {
   SEMVER_STRICT_REGEX,
-  GIT_SHA_REGEX,
+  FULL_GIT_SHA_REGEX,
+  SHORT_GIT_SHA_REGEX,
   LIFECYCLE_STATES,
   PROPOSED_DEFAULT_RELEASE_VERSION,
   parseSemVer,
-  validateGitSha,
+  classifyGitSha,
   resolveLifecycle,
   resolveProductVersion,
   getReleaseMetadata,
