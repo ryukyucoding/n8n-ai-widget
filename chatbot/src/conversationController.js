@@ -80,11 +80,16 @@ function createConversationController({ store, redact, plan, resolveCredentials,
     }
     const spec = result.spec || s.planSpec;
     let credentials = s.credentials;
-    if (result.spec) credentials = await resolveCredentials(result.spec);
+    let setupManifest = s.setupManifest;
+    if (result.spec) {
+      credentials = await resolveCredentials(result.spec);
+      setupManifest = credentials && credentials.setupManifest ? credentials.setupManifest : null;
+    }
     const status = computeStatus(result.outcome, credentials, Boolean(spec));
     store.update(conversationId, callerId, {
       planSpec: spec,
       credentials,
+      setupManifest,
       status,
       // history is an audit trail of turns only (role + input-redaction flag); it is
       // NOT fed back to the planner (see context contract above).
@@ -140,7 +145,11 @@ function createConversationController({ store, redact, plan, resolveCredentials,
     // resolution. This never trusts the plan-time credential snapshot.
     const resolution = await resolveCredentials(s.planSpec);
     if (resolution.overall === 'needs_choice') {
-      store.update(conversationId, callerId, { credentials: resolution, status: 'awaiting_credential_choice' });
+      store.update(conversationId, callerId, {
+        credentials: resolution,
+        setupManifest: resolution.setupManifest || null,
+        status: 'awaiting_credential_choice',
+      });
       const view = store.publicView(conversationId, callerId);
       recordEvidence({
         event: 'confirm', route: 'conversation/confirm', conversationId,
@@ -151,7 +160,11 @@ function createConversationController({ store, redact, plan, resolveCredentials,
     }
     // Fail-closed: only a fresh ready/setup_required resolution may create; stale/unknown blocks.
     if (resolution.overall !== 'ready' && resolution.overall !== 'setup_required') {
-      store.update(conversationId, callerId, { credentials: resolution, status: 'planning' });
+      store.update(conversationId, callerId, {
+        credentials: resolution,
+        setupManifest: resolution.setupManifest || null,
+        status: 'planning',
+      });
       const view = store.publicView(conversationId, callerId);
       recordEvidence({
         event: 'confirm', route: 'conversation/confirm', conversationId,

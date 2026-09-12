@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   createPlannerAdapter,
+  createFakeCredentialResolver,
   createSetupRequiredResolver,
   detectLanguage,
   resolveEffectiveLanguage,
@@ -49,6 +50,59 @@ test('planner adapter forwards previousSpec to the review fn', async () => {
   await plan({ message: 'm', previousSpec: { goal: 'prev' } });
   assert.equal(seen[0].message, 'm');
   assert.deepEqual(seen[0].previousSpec, { goal: 'prev' });
+});
+
+// ---- dependency-injected fake-only credential path (never live by default) ----
+test('fake credential resolver: mode-off blocks before candidate listing', async () => {
+  let listed = 0;
+  const resolve = createFakeCredentialResolver({
+    policy: { lane: 'solo', soloCredentialMode: false, runtimeCompilerEnabled: true, apiKeyPresent: true, privatePerimeterVerified: true },
+    requiredTypesForSpec: () => ['googleCalendarOAuth2Api'],
+    listCandidates: async () => { listed += 1; return []; },
+    callerId: 'solo',
+  });
+  const result = await resolve({});
+  assert.equal(result.overall, 'unauthenticated');
+  assert.equal(result.createDisposition, 'review_only');
+  assert.equal(result.setupManifest.status, 'unauthenticated');
+  assert.equal(listed, 0);
+});
+
+test('fake credential resolver: perimeter-off blocks before candidate listing', async () => {
+  let listed = 0;
+  const resolve = createFakeCredentialResolver({
+    policy: { lane: 'solo', soloCredentialMode: true, runtimeCompilerEnabled: true, apiKeyPresent: true, privatePerimeterVerified: false },
+    requiredTypesForSpec: () => ['googleCalendarOAuth2Api'],
+    listCandidates: async () => { listed += 1; return [{ handle: 'h', displayName: 'hidden' }]; },
+    callerId: 'solo',
+  });
+  const result = await resolve({});
+  assert.equal(result.overall, 'unauthenticated');
+  assert.equal(result.setupManifest.createDisposition, 'review_only');
+  assert.equal(listed, 0);
+});
+
+test('fake credential resolver: 0/1/many become setup manifest states', async () => {
+  const policy = { lane: 'solo', soloCredentialMode: true, runtimeCompilerEnabled: true, apiKeyPresent: true, privatePerimeterVerified: true };
+  const resolveFor = (candidates) => createFakeCredentialResolver({
+    policy, requiredTypesForSpec: () => ['googleCalendarOAuth2Api'],
+    listCandidates: async () => candidates, callerId: 'solo',
+  })({});
+  const missing = await resolveFor([]);
+  assert.equal(missing.overall, 'setup_required');
+  assert.equal(missing.setupManifest.status, 'setup_required');
+  const one = await resolveFor([{ handle: 'h1', displayName: 'My Calendar', createdAt: 1 }]);
+  assert.equal(one.overall, 'ready');
+  assert.equal(one.setupManifest.status, 'ready');
+  assert.equal(one.setupManifest.credentialRequirements[0].status, 'resolved');
+  const many = await resolveFor([
+    { handle: 'h1', displayName: 'Old', createdAt: 1 },
+    { handle: 'h2', displayName: 'New', createdAt: 2 },
+  ]);
+  assert.equal(many.overall, 'needs_choice');
+  assert.equal(many.setupManifest.status, 'setup_required');
+  assert.equal(many.setupManifest.credentialRequirements[0].candidateCount, 2);
+  assert.doesNotMatch(JSON.stringify(many.setupManifest), /"h[12]"|handle/);
 });
 
 // ---- setup_required credential resolver STUB (no n8n probe until API verified) ----

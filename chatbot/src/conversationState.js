@@ -10,6 +10,7 @@
 
 const crypto = require('node:crypto');
 const { sanitizePlanSpec } = require('./planSpecSanitizer');
+const { buildSetupManifest } = require('./setupManifest');
 
 function createConversationStore({ now = Date.now, ttlMs = 30 * 60 * 1000 } = {}) {
   const map = new Map();
@@ -40,6 +41,7 @@ function createConversationStore({ now = Date.now, ttlMs = 30 * 60 * 1000 } = {}
       planSpec: null,
       history: [],
       credentials: null,
+      setupManifest: null,
       createdAt: t, updatedAt: t,
     };
     map.set(conversationId, state);
@@ -54,7 +56,7 @@ function createConversationStore({ now = Date.now, ttlMs = 30 * 60 * 1000 } = {}
     const s = map.get(conversationId);
     if (!s || s.callerId !== callerId) throw new Error('conversation not found for caller');
     if (now() - s.updatedAt > ttlMs) { map.delete(conversationId); throw new Error('conversation expired'); }
-    for (const key of ['planSpec', 'history', 'credentials', 'status']) {
+    for (const key of ['planSpec', 'history', 'credentials', 'setupManifest', 'status']) {
       if (key in patch) s[key] = patch[key];
     }
     s.updatedAt = now();
@@ -72,12 +74,19 @@ function createConversationStore({ now = Date.now, ttlMs = 30 * 60 * 1000 } = {}
     const s = live(conversationId, callerId);
     if (!s) return null;
     const reqs = (s.credentials && s.credentials.requirements) || [];
-    return {
+    const view = {
       conversationId: s.conversationId,
       status: s.status,
       planSpec: sanitizePlanSpec(s.planSpec), // deep sanitize before it reaches the browser
       credentials: reqs.map((r) => ({ credentialType: r.credentialType, status: r.status })),
     };
+    if (s.setupManifest) {
+      view.setupManifest = buildSetupManifest({
+        requirements: s.setupManifest.credentialRequirements || s.setupManifest.requirements || [],
+        configurationRequirements: s.setupManifest.configurationRequirements || [],
+      });
+    }
+    return view;
   }
 
   return { create, get, update, cancel, publicView, _size: () => map.size };

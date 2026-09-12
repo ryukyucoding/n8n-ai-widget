@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { createConversationStore } = require('./conversationState');
 const { redactForPlannerContext } = require('./plannerContextRedaction');
 const { createConversationController, computeStatus } = require('./conversationController');
+const { createFakeCredentialResolver } = require('./conversationDeps');
 
 // Build a controller with injected mocks + a real conversation store.
 function make({ planImpl, credsImpl, createImpl, validateImpl, evidence } = {}) {
@@ -224,4 +225,35 @@ test('controller construction FAILS CLOSED without a validatePlanSpec (canonical
     compileAndCreate: async () => ({ status: 200, payload: {} }),
     // validatePlanSpec intentionally omitted
   }), /validatePlanSpec|required/i);
+});
+
+test('controller stores the fake setup manifest but publicView strips credential handles', async () => {
+  const resolve = createFakeCredentialResolver({
+    policy: { lane: 'solo', soloCredentialMode: true, runtimeCompilerEnabled: true, apiKeyPresent: true, privatePerimeterVerified: true },
+    requiredTypesForSpec: () => ['googleCalendarOAuth2Api'],
+    listCandidates: async () => [{ handle: 'h1', displayName: 'My Calendar', createdAt: 1 }],
+    callerId: 'solo',
+  });
+  const { controller } = make({ credsImpl: resolve });
+  const result = await controller.start('solo', 'read calendar');
+  assert.equal(result.view.setupManifest.status, 'ready');
+  assert.equal(result.view.setupManifest.credentialRequirements[0].status, 'resolved');
+  assert.doesNotMatch(JSON.stringify(result.view), /h1/);
+});
+
+test('controller remains planning when fake credential lane is mode-off or perimeter-off', async () => {
+  for (const policy of [
+    { lane: 'solo', soloCredentialMode: false, runtimeCompilerEnabled: true, apiKeyPresent: true, privatePerimeterVerified: true },
+    { lane: 'solo', soloCredentialMode: true, runtimeCompilerEnabled: true, apiKeyPresent: true, privatePerimeterVerified: false },
+  ]) {
+    const resolve = createFakeCredentialResolver({
+      policy, requiredTypesForSpec: () => ['googleCalendarOAuth2Api'],
+      listCandidates: async () => { throw new Error('must not list when blocked'); }, callerId: 'solo',
+    });
+    const { controller } = make({ credsImpl: resolve });
+    const result = await controller.start('solo', 'read calendar');
+    assert.equal(result.view.status, 'planning');
+    assert.equal(result.view.setupManifest.status, 'unauthenticated');
+    assert.equal(result.view.setupManifest.createDisposition, 'review_only');
+  }
 });

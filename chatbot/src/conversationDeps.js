@@ -1,5 +1,9 @@
 'use strict';
 
+const { evaluateCredentialAccess } = require('./credentialModeGate');
+const { resolveCredentialRequirements } = require('./credentialResolutionAdapter');
+const { buildSetupManifest } = require('./setupManifest');
+
 // Stage-3b dependency adapters that bind the conversation controller to the real
 // nodewise planner/compiler — kept as small, testable factories. The credential
 // resolver here is an explicit STUB (setup_required) until the target n8n
@@ -210,6 +214,56 @@ function createPlannerAdapter(reviewFromMessage) {
   };
 }
 
+// Dependency-injected fake-only credential path. It is intentionally not wired
+// into index.js: callers must provide trusted server-side policy and caller scope.
+// The resolver adds a sanitized setupManifest for the controller/public view while
+// keeping candidate handles in the server-side resolution only.
+function createFakeCredentialResolver({
+  policy = {},
+  requiredTypesForSpec,
+  listCandidates,
+  callerId,
+  scope = null,
+} = {}) {
+  if (typeof requiredTypesForSpec !== 'function' || typeof listCandidates !== 'function') {
+    throw new Error('createFakeCredentialResolver requires requiredTypesForSpec and listCandidates');
+  }
+  return async function resolveCredentials(spec) {
+    const requiredTypes = [...new Set((requiredTypesForSpec(spec) || []).filter((type) => typeof type === 'string' && type.trim()))];
+    const gate = evaluateCredentialAccess(policy);
+    if (!gate.allowed) {
+      const requirements = requiredTypes.map((credentialType) => ({
+        credentialType, status: 'unauthenticated', selected: null,
+      }));
+      return {
+        requirements,
+        overall: 'unauthenticated',
+        createDisposition: 'review_only',
+        setupManifest: buildSetupManifest({ requirements }),
+        gate,
+      };
+    }
+    const resolution = await resolveCredentialRequirements(
+      requiredTypes,
+      (credentialType) => listCandidates(credentialType, { callerId, scope }),
+    );
+    const manifestRequirements = resolution.requirements.map((requirement) => {
+      const selected = requirement.candidates && requirement.candidates.find((candidate) => candidate.handle === requirement.selected);
+      return {
+        credentialType: requirement.credentialType,
+        status: requirement.status,
+        candidateCount: requirement.count,
+        selectedDisplayName: selected && selected.displayName,
+      };
+    });
+    return {
+      ...resolution,
+      setupManifest: buildSetupManifest({ requirements: manifestRequirements }),
+      gate,
+    };
+  };
+}
+
 // STUB credential resolver: derives required credential TYPES from the spec via the
 // injected `requiredTypesForSpec` (currently no credentialed nodewise skill, so it
 // returns []), and reports setup_required for any type — it does NOT probe n8n or
@@ -263,6 +317,7 @@ function createConversationCompileAndCreate({ approve, compileApproved, createWo
 
 module.exports = {
   createPlannerAdapter,
+  createFakeCredentialResolver,
   createSetupRequiredResolver,
   createConversationCompileAndCreate,
   detectLanguage,
