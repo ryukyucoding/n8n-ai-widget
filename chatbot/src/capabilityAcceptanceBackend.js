@@ -153,8 +153,13 @@ function createCapabilityAcceptanceBackend({ n8n, approve, compileApproved, secr
       return result;
     } finally {
       if (workflowId) {
-        try { await n8n.deactivateWorkflow(workflowId); } catch (_) { /* cleanup continues */ }
-        try { await n8n.deleteWorkflow(workflowId); } catch (_) { result.cleanupWarning = 'cleanup_failed'; }
+        let cleanupFailed = false;
+        try { await n8n.deactivateWorkflow(workflowId); } catch (_) { cleanupFailed = true; }
+        try { await n8n.deleteWorkflow(workflowId); } catch (_) { cleanupFailed = true; }
+        if (cleanupFailed) {
+          result.pass = false;
+          result.cleanupWarning = 'cleanup_failed';
+        }
       }
     }
   }
