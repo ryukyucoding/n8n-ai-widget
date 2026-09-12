@@ -6,11 +6,12 @@
 //
 // Invariants:
 // 1. Never replaces cryptographic hashes in planBinding HMAC signatures.
-// 2. Strict fail-closed version parsing: explicit malformed version strings throw or reject.
-// 3. Leaves `/health` and `/models` unwired until authorized.
-// 4. Safe against JS number precision loss for huge numeric identifiers.
-// 5. Release provenance requires full 40-hex SHA; short SHA (7-39 hex) is classified as diagnostic-only.
-// 6. Explicit stable lifecycle can NEVER override a prerelease version or default candidate.
+// 2. Strict fail-closed version parsing: explicit malformed version strings throw.
+// 3. Strict fail-closed lifecycle parsing: explicit malformed lifecycle strings throw.
+// 4. Stable lifecycle strictly requires a full 40-hex provenance SHA + non-prerelease version.
+// 5. Leaves `/health` and `/models` unwired until authorized.
+// 6. Safe against JS number precision loss for huge numeric identifiers.
+// 7. Strictly separates provenanceGitSha (full 40-hex only) from diagnosticGitSha (7-39 hex).
 
 const crypto = require('node:crypto');
 const runtimeSnapshot = require('../schemas/runtime_node_schemas.json');
@@ -71,38 +72,55 @@ function parseSemVer(versionStr) {
   };
 }
 
-// Validate Git SHA with explicit classification:
-// - full: 40 hex chars (provenance-grade)
-// - short: 7-39 hex chars (diagnostic-only)
-// - null: invalid
+// Strictly separate provenance Git SHA (full 40-hex only) from diagnostic Git SHA (7-39 hex)
 function classifyGitSha(sha) {
-  if (typeof sha !== 'string') return { sha: null, grade: null };
+  if (typeof sha !== 'string') {
+    return { provenanceGitSha: null, diagnosticGitSha: null, grade: null };
+  }
   const trimmed = sha.trim().toLowerCase();
   if (FULL_GIT_SHA_REGEX.test(trimmed)) {
-    return { sha: trimmed, grade: 'full' };
+    return { provenanceGitSha: trimmed, diagnosticGitSha: null, grade: 'full' };
   }
   if (SHORT_GIT_SHA_REGEX.test(trimmed)) {
-    return { sha: trimmed, grade: 'diagnostic' };
+    return { provenanceGitSha: null, diagnosticGitSha: trimmed, grade: 'diagnostic' };
   }
-  return { sha: null, grade: null };
+  return { provenanceGitSha: null, diagnosticGitSha: null, grade: null };
 }
 
 // Determine release lifecycle state explicitly:
-// Rule: Explicit 'stable' can NEVER override a prerelease version (e.g. 0.4.0-rc.1) or unverified candidate.
-function resolveLifecycle(parsed, env = process.env) {
+// - Fail-closed: invalid non-empty lifecycle string throws Error.
+// - Invariant: 'stable' strictly requires:
+//     1. Parsed version is NOT prerelease.
+//     2. Provenance Git SHA is full 40-hex (cannot be stable on short SHA or missing SHA).
+function resolveLifecycle(parsed, env = process.env, provenanceSha = null) {
   if (!parsed) return 'not-live';
 
-  const explicit = env.RELEASE_LIFECYCLE || env.PRODUCT_LIFECYCLE;
-  if (explicit && LIFECYCLE_STATES.includes(String(explicit).toLowerCase())) {
-    const desired = String(explicit).toLowerCase();
-    // Safety guard: if version is prerelease, reject override to 'stable' (fail-closed)
-    if (desired === 'stable' && parsed.isPrerelease) {
+  const rawName = env.RELEASE_LIFECYCLE ? 'RELEASE_LIFECYCLE' : (env.PRODUCT_LIFECYCLE ? 'PRODUCT_LIFECYCLE' : null);
+  const rawValue = rawName ? env[rawName] : null;
+
+  if (typeof rawValue === 'string' && rawValue.trim() !== '') {
+    const trimmed = rawValue.trim().toLowerCase();
+    if (!LIFECYCLE_STATES.includes(trimmed)) {
+      const err = new Error(`Invalid ${rawName}: "${rawValue}" is not one of [candidate, stable, not-live]`);
+      err.code = 'invalid_release_lifecycle';
+      throw err;
+    }
+    // Safety guard: 'stable' can NEVER override a prerelease version (e.g. 0.4.0-rc.1)
+    if (trimmed === 'stable' && parsed.isPrerelease) {
       return 'candidate';
     }
-    return desired;
+    // Safety guard: 'stable' strictly requires a 40-hex provenance SHA
+    if (trimmed === 'stable' && (!provenanceSha || !FULL_GIT_SHA_REGEX.test(provenanceSha))) {
+      return 'candidate'; // Fallback to candidate if missing full provenance SHA
+    }
+    return trimmed;
   }
 
-  return parsed.isPrerelease ? 'candidate' : 'stable';
+  // Derived: stable requires both non-prerelease AND full provenance SHA
+  if (!parsed.isPrerelease && provenanceSha && FULL_GIT_SHA_REGEX.test(provenanceSha)) {
+    return 'stable';
+  }
+  return 'candidate';
 }
 
 // Resolve product version with fail-closed semantics:
@@ -158,10 +176,11 @@ function getReleaseMetadata({
 } = {}) {
   const rawVersion = resolveProductVersion(env);
   const parsed = parseSemVer(rawVersion);
-  const lifecycle = resolveLifecycle(parsed, env);
 
   const rawSha = gitSha || env.GIT_COMMIT_SHA || env.GIT_SHA || env.REVISION || null;
-  const { sha: validatedSha, grade: shaGrade } = classifyGitSha(rawSha);
+  const { provenanceGitSha, diagnosticGitSha, grade: shaGrade } = classifyGitSha(rawSha);
+
+  const lifecycle = resolveLifecycle(parsed, env, provenanceGitSha);
 
   return {
     version: parsed ? parsed.raw : rawVersion,
@@ -169,8 +188,9 @@ function getReleaseMetadata({
     isPrerelease: parsed ? parsed.isPrerelease : true,
     lifecycle,
     revisions: {
-      gitRevision: validatedSha,
-      gitRevisionGrade: shaGrade, // 'full' (40-hex release grade) | 'diagnostic' (7-39 hex) | null
+      provenanceGitSha, // Full 40-hex SHA required for release provenance, else null
+      diagnosticGitSha, // 7-39 hex short SHA for diagnostics only, else null
+      gitRevisionGrade: shaGrade, // 'full' | 'diagnostic' | null
       runtimeSchemaRevision: schemaRevision(snapshot).revision,
       skillRegistryRevision: skillRegistryRevision(skillRegistry),
       sourceRegistryRevision: sourceRegistryRevision(sourceRegistry),
