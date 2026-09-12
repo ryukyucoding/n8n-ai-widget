@@ -2,7 +2,8 @@
 
 // Fake-only release mapping gate. It validates a proposed relationship between
 // a human SemVer, an immutable fake tag record, and sanitized evidence. It does
-// not inspect Git, create/move tags, or prove real deployment state.
+// not inspect Git, create/move tags, or prove real deployment state. A successful
+// result is fixture-level verification only, never cryptographic Dan/A2A auth.
 
 const { parseSemVer, classifyGitSha, FULL_GIT_SHA_REGEX } = require('./releaseVersion');
 
@@ -113,17 +114,20 @@ function verifyReleaseMapping(record, existingMappings = [], { tagStore } = {}) 
     && promotion.approvedBy === 'Dan'
     && promotion.authorizationSource === 'dan_direct';
   const liveEvidence = record.evidence.some((evidence) => evidence.kind === 'live');
-  const stableEligible = !parsed.isPrerelease && danApproved && liveEvidence;
-  if (requestedStatus === 'stable' && !stableEligible) {
-    return fail('stable_gate_incomplete', 'stable requires non-prerelease, live evidence, and Dan promotion');
+  const externalPromotionVerified = promotion.externalRecordVerified === true;
+  const allStableGates = !parsed.isPrerelease && danApproved && liveEvidence && externalPromotionVerified;
+  // Stable is opt-in: evidence must not silently promote a candidate record.
+  if (requestedStatus === 'stable' && !allStableGates) {
+    return fail('stable_gate_incomplete', 'stable requires explicit status, external promotion record, non-prerelease, live evidence, and Dan promotion');
   }
-  if (requestedStatus === 'ready_for_promotion' && stableEligible) {
+  if (requestedStatus === 'ready_for_promotion' && allStableGates) {
     return fail('status_inconsistent', 'a fully promoted mapping must be marked stable');
   }
 
   return {
     verified: true,
-    status: stableEligible ? 'stable' : (requestedStatus === 'not-live' ? 'not-live' : requestedStatus),
+    verificationScope: 'fake_fixture_only',
+    status: requestedStatus === 'stable' ? 'stable' : (requestedStatus === 'not-live' ? 'not-live' : requestedStatus),
     version: parsed.raw,
     targetCommitSha: target.provenanceGitSha,
     tagRef: record.tagRef,

@@ -32,6 +32,18 @@ test('candidate mapping requires canonical SemVer, fake immutable tag, and match
   assert.equal(result.status, 'candidate');
   assert.equal(result.version, '1.2.3');
   assert.equal(result.targetCommitSha, sha);
+  assert.equal(result.verificationScope, 'fake_fixture_only');
+});
+
+test('candidate status is never implicitly promoted by complete-looking evidence', () => {
+  const result = verify({
+    ...base(), liveEvidence: true,
+    evidenceRefs: [...base().evidenceRefs, 'a2a/results/live.md'],
+    evidence: [...base().evidence, { ref: 'a2a/results/live.md', kind: 'live', version: '1.2.3', targetCommitSha: sha, tagRef: 'refs/tags/v1.2.3' }],
+    promotion: { status: 'approved', approvedBy: 'Dan', authorizationSource: 'dan_direct', externalRecordVerified: true },
+  });
+  assert.equal(result.verified, true);
+  assert.equal(result.status, 'candidate');
 });
 
 test('stable requires non-prerelease, live evidence, and explicit Dan promotion source', () => {
@@ -41,7 +53,7 @@ test('stable requires non-prerelease, live evidence, and explicit Dan promotion 
     ...base(), status: 'stable', liveEvidence: true,
     evidence: [...base().evidence, { ref: 'a2a/results/live.md', kind: 'live', version: '1.2.3', targetCommitSha: sha, tagRef: 'refs/tags/v1.2.3' }],
     evidenceRefs: [...base().evidenceRefs, 'a2a/results/live.md'],
-    promotion: { status: 'approved', approvedBy: 'Dan', authorizationSource: 'dan_direct' },
+    promotion: { status: 'approved', approvedBy: 'Dan', authorizationSource: 'dan_direct', externalRecordVerified: true },
   });
   assert.equal(promoted.verified, true);
   assert.equal(promoted.status, 'stable');
@@ -49,7 +61,7 @@ test('stable requires non-prerelease, live evidence, and explicit Dan promotion 
     ...base(), version: '1.2.3-rc.1', tagRef: 'refs/tags/v1.2.3-rc.1', status: 'stable', liveEvidence: true,
     evidenceRefs: ['a2a/results/runtime.md', 'a2a/results/review.md', 'a2a/results/live.md'],
     evidence: base().evidence.map((e) => ({ ...e, version: '1.2.3-rc.1', tagRef: 'refs/tags/v1.2.3-rc.1' })).concat({ ref: 'a2a/results/live.md', kind: 'live', version: '1.2.3-rc.1', targetCommitSha: sha, tagRef: 'refs/tags/v1.2.3-rc.1' }),
-    promotion: { status: 'approved', approvedBy: 'Dan', authorizationSource: 'dan_direct' },
+    promotion: { status: 'approved', approvedBy: 'Dan', authorizationSource: 'dan_direct', externalRecordVerified: true },
   }, [], tagStoreRc);
   assert.equal(prerelease.code, 'stable_gate_incomplete');
 });
@@ -59,7 +71,7 @@ test('stable readiness cannot be mislabeled after all gates are present', () => 
     ...base(), status: 'ready_for_promotion', liveEvidence: true,
     evidenceRefs: [...base().evidenceRefs, 'a2a/results/live.md'],
     evidence: [...base().evidence, { ref: 'a2a/results/live.md', kind: 'live', version: '1.2.3', targetCommitSha: sha, tagRef: 'refs/tags/v1.2.3' }],
-    promotion: { status: 'approved', approvedBy: 'Dan', authorizationSource: 'dan_direct' },
+    promotion: { status: 'approved', approvedBy: 'Dan', authorizationSource: 'dan_direct', externalRecordVerified: true },
   });
   assert.equal(result.code, 'status_inconsistent');
 });
