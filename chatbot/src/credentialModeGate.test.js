@@ -14,6 +14,16 @@ const publicReady = {
   callerIdentityVerified: true, ownershipScoped: true, credentialApiVerified: true,
 };
 
+test('omitted lane never grants solo access even with trusted flags', () => {
+  const result = evaluateCredentialAccess({
+    soloCredentialMode: true, runtimeCompilerEnabled: true,
+    apiKeyPresent: true, privatePerimeterVerified: true,
+  });
+  assert.equal(result.allowed, false);
+  assert.equal(result.lane, 'public');
+  assert.equal(result.code, 'caller_identity_unverified');
+});
+
 test('solo credential access requires the explicit mode flag', () => {
   const result = evaluateCredentialAccess({ ...solo, soloCredentialMode: false });
   assert.equal(result.allowed, false);

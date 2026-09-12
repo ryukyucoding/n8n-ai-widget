@@ -11,7 +11,8 @@ function decision(allowed, lane, code, reason) {
 }
 
 function evaluateCredentialAccess({
-  lane = 'solo',
+  // Omission must fail closed into the public lane; it must never imply solo.
+  lane = 'public',
   soloCredentialMode = false,
   runtimeCompilerEnabled = false,
   apiKeyPresent = false,

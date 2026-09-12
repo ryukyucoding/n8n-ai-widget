@@ -7,6 +7,8 @@
 const MAX_TEXT = 256;
 const MAX_ITEMS = 50;
 const STATUSES = new Set(['resolved', 'ready', 'setup_required', 'needs_choice', 'stale', 'unauthenticated', 'set', 'unset']);
+const PUBLIC_CREDENTIAL_STATUSES = new Set(['resolved', 'setup_required', 'stale', 'unauthenticated']);
+const PUBLIC_DISPOSITIONS = new Set(['review_only', 'create_inactive_draft', 'bind_and_create']);
 const SECRET_SHAPED = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}|\bbearer\s+[A-Za-z0-9._-]{8,}\b|\b(?:sk|ghp|glpat|xoxb|xoxp)-[A-Za-z0-9_-]{8,}\b|\b[A-Fa-f0-9]{40,}\b|[A-Za-z0-9+/]{80,}={0,2}/i;
 
 function text(value, fallback = '') {
@@ -59,7 +61,12 @@ function projectConfigurationRequirement(requirement = {}) {
 }
 
 function normalizedStatus(value) {
-  return value === 'ready' ? 'resolved' : value;
+  // `ready`/`needs_choice` are resolver-internal names. The browser receives
+  // only the canonical public lifecycle statuses; candidateCount conveys that
+  // a setup choice is still required without exposing a credential handle.
+  if (value === 'ready') return 'resolved';
+  if (value === 'needs_choice') return 'setup_required';
+  return PUBLIC_CREDENTIAL_STATUSES.has(value) ? value : 'setup_required';
 }
 
 function overallStatus(requirements) {
@@ -82,6 +89,7 @@ function buildSetupManifest({ requirements = [], configurationRequirements = [] 
   const createDisposition = statusValue === 'unauthenticated'
     ? 'review_only'
     : (statusValue === 'ready' ? 'bind_and_create' : 'create_inactive_draft');
+  if (!PUBLIC_DISPOSITIONS.has(createDisposition)) throw new Error('invalid public setup disposition');
   return {
     version: 'setup_manifest/v1',
     status: statusValue,

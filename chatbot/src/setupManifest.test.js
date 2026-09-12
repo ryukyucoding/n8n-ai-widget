@@ -42,7 +42,7 @@ test('multiple candidates remain a choice and never expose handles', () => {
     credentialType: 'gmailOAuth2', displayName: 'Gmail account', status: 'needs_choice',
     candidateCount: 2, selectedDisplayName: 'Recent Gmail', handle: 'h1', candidates: [{ handle: 'h1' }],
   }] });
-  assert.equal(manifest.status, 'needs_choice');
+  assert.equal(manifest.status, 'setup_required');
   assert.equal(manifest.credentialRequirements[0].candidateCount, 2);
   assert.equal(manifest.credentialRequirements[0].selectedDisplayName, 'Recent Gmail');
   assert.doesNotMatch(JSON.stringify(manifest), /h1|candidates/);
