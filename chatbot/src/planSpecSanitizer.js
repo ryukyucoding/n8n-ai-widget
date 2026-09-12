@@ -54,6 +54,23 @@ function mapList(arr, withValueType) {
 // (nodewiseCompiler.js validateSpecification). Refs (url/input/objectInput/
 // itemsInput) and valueType-bearing mappings are preserved so the plan stays
 // recompilable; every other key is dropped.
+function setFieldMappingList(arr) {
+  if (!Array.isArray(arr)) return undefined;
+  return arr.map((mapping) => {
+    if (!mapping || typeof mapping !== 'object') return null;
+    const out = {};
+    if (scalar(mapping.to) !== undefined) out.to = scalar(mapping.to);
+    if (scalar(mapping.valueType) !== undefined) out.valueType = scalar(mapping.valueType);
+    if (mapping.source && typeof mapping.source === 'object' && !Array.isArray(mapping.source)) {
+      const source = { kind: scalar(mapping.source.kind) };
+      if (source.kind === 'input_field' && scalar(mapping.source.field) !== undefined) source.field = scalar(mapping.source.field);
+      if (source.kind === 'literal' && scalar(mapping.source.value) !== undefined) source.value = scalar(mapping.source.value);
+      out.source = source;
+    }
+    return out.to !== undefined && out.valueType !== undefined && out.source ? out : null;
+  }).filter(Boolean).slice(0, 20);
+}
+
 function sanitizeConfiguration(config) {
   if (!config || typeof config !== 'object') return {};
   const out = {};
@@ -73,7 +90,7 @@ function sanitizeConfiguration(config) {
   put('offset', scalar(config.offset));
   put('keep', scalar(config.keep));
   put('order', scalar(config.order));
-  put('mappings', mapList(config.mappings, true));
+  put('mappings', config.operation === 'set_fields' ? setFieldMappingList(config.mappings) : mapList(config.mappings, true));
   put('objectMappings', mapList(config.objectMappings, true));
   put('renames', mapList(config.renames, false));
   return out;

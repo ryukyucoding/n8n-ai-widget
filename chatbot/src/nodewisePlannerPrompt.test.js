@@ -43,6 +43,12 @@ test('planner prompt documents the limit_items transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /defaults to "firstItems"/);
 });
 
+test('planner prompt documents the set_fields tagged-union contract', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /set_fields/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /strict tagged union/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /Number literals are schema-compiled but remain provisional/);
+});
+
 test('planner prompt documents the slice_items transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /slice_items/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /offset.*0 to 100000/);

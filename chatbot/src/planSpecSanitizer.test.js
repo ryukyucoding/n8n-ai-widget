@@ -132,6 +132,24 @@ test('full canonical spec round-trips losslessly (schemaVersion/kind/deliverySha
   assert.deepEqual(sanitizePlanSpec(spec), spec); // lossless -> recompilable, planner context complete
 });
 
+test('set_fields tagged-union mappings survive sanitization while unknown fields drop', () => {
+  const out = sanitizePlanSpec({
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'set fields', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['name', 'active'] },
+    steps: [{ id: 'mapped', capability: 'data_transform', requiredUserSetup: [], configuration: {
+      operation: 'set_fields', input: { kind: 'prior_step', reference: 'user.response', cardinality: 'one_object' },
+      mappings: [
+        { to: 'name', valueType: 'string', source: { kind: 'literal', value: 'active' }, secret: 'drop' },
+        { to: 'active', valueType: 'boolean', source: { kind: 'literal', value: true } },
+      ],
+    } }],
+  });
+  assert.deepEqual(out.steps[0].configuration.mappings, [
+    { to: 'name', valueType: 'string', source: { kind: 'literal', value: 'active' } },
+    { to: 'active', valueType: 'boolean', source: { kind: 'literal', value: true } },
+  ]);
+});
+
 test('schedule trigger configuration survives planner-context sanitization', () => {
   const out = sanitizePlanSpec({
     schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'schedule', requiredUserSetup: [],

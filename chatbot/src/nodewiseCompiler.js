@@ -10,7 +10,7 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'schedule_trigger', 'http_request', 'data_transform', 'set_output']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'slice_items', 'rename_keys']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'slice_items', 'rename_keys', 'set_fields']);
 const SCHEDULE_INTERVALS = Object.freeze({ minutes: [1, 59], hours: [1, 23], days: [1, 31], weeks: [1, 52] });
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
@@ -65,10 +65,13 @@ function source(value, field, previousSteps, outputs) {
 
 function mappings(value, field) {
   assert(Array.isArray(value) && value.length && value.length <= 20, `${field} must contain 1 to 20 mappings`);
+  const seenTo = new Set();
   return value.map((mapping, index) => {
     assert(mapping && typeof mapping === 'object' && !Array.isArray(mapping), `${field}[${index}] must be an object`);
     const from = safeIdentifier(mapping.from, `${field}[${index}].from`);
     const to = safeIdentifier(mapping.to, `${field}[${index}].to`);
+    assert(!seenTo.has(to), `${field}[${index}].to duplicates an earlier mapping target ${to}`);
+    seenTo.add(to);
     assert(VALUE_TYPES.has(mapping.valueType), `${field}[${index}].valueType is unsupported`);
     return { from, to, valueType: mapping.valueType };
   });
@@ -101,6 +104,43 @@ function validateMappings(input, value, field) {
 
 function mappedOutput(input, value, field) {
   const result = validateMappings(input, value, field);
+  return { mappings: result, output: { cardinality: 'one_object', fields: Object.fromEntries(result.map((item) => [item.to, item.valueType])) } };
+}
+
+function assertLiteralValue(value, valueType, field) {
+  if (valueType === 'string') {
+    assert(typeof value === 'string' && !value.startsWith('='), `${field} must be a non-expression string literal`);
+  } else if (valueType === 'number') {
+    assert(typeof value === 'number' && Number.isFinite(value), `${field} must be a finite number literal`);
+  } else {
+    assert(typeof value === 'boolean', `${field} must be a boolean literal`);
+  }
+}
+
+function setFieldMappings(input, value, field) {
+  assert(Array.isArray(value) && value.length && value.length <= 20, `${field} must contain 1 to 20 mappings`);
+  const seenTo = new Set();
+  const result = value.map((mapping, index) => {
+    const where = `${field}[${index}]`;
+    assert(mapping && typeof mapping === 'object' && !Array.isArray(mapping), `${where} must be an object`);
+    for (const key of Object.keys(mapping)) assert(['to', 'valueType', 'source'].includes(key), `${where} has unsupported key ${key}`);
+    const to = safeIdentifier(mapping.to, `${where}.to`);
+    assert(!seenTo.has(to), `${where}.to duplicates an earlier mapping target ${to}`);
+    seenTo.add(to);
+    assert(VALUE_TYPES.has(mapping.valueType), `${where}.valueType is unsupported`);
+    assert(mapping.source && typeof mapping.source === 'object' && !Array.isArray(mapping.source), `${where}.source must be an object`);
+    const sourceValue = mapping.source;
+    assert(sourceValue.kind === 'input_field' || sourceValue.kind === 'literal', `${where}.source.kind is unsupported`);
+    if (sourceValue.kind === 'input_field') {
+      for (const key of Object.keys(sourceValue)) assert(['kind', 'field'].includes(key), `${where}.source has unsupported key ${key}`);
+      const from = safeIdentifier(sourceValue.field, `${where}.source.field`);
+      assertInputField(input, from, { expectedType: mapping.valueType, usedBy: where });
+      return { to, valueType: mapping.valueType, source: { kind: 'input_field', field: from } };
+    }
+    for (const key of Object.keys(sourceValue)) assert(['kind', 'value'].includes(key), `${where}.source has unsupported key ${key}`);
+    assertLiteralValue(sourceValue.value, mapping.valueType, `${where}.source.value`);
+    return { to, valueType: mapping.valueType, source: { kind: 'literal', value: sourceValue.value } };
+  });
   return { mappings: result, output: { cardinality: 'one_object', fields: Object.fromEntries(result.map((item) => [item.to, item.valueType])) } };
 }
 
@@ -151,6 +191,13 @@ function validateSpecification(value) {
         const mapped = mappedOutput(input.output, config.mappings, `steps[${index}].configuration.mappings`);
         configuration = { operation: config.operation, input: input.value, mappings: mapped.mappings };
         assert(configuration.input.cardinality === 'one_object', 'select_fields requires one_object input');
+        output = mapped.output;
+      } else if (config.operation === 'set_fields') {
+        for (const key of Object.keys(config)) assert(['operation', 'input', 'mappings'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        const mapped = setFieldMappings(input.output, config.mappings, `steps[${index}].configuration.mappings`);
+        configuration = { operation: config.operation, input: input.value, mappings: mapped.mappings };
+        assert(configuration.input.cardinality === 'one_object', 'set_fields requires one_object input');
         output = mapped.output;
       } else if (config.operation === 'count_false_boolean') {
         const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
@@ -290,7 +337,7 @@ function validateSpecification(value) {
   const finalStep = steps.at(-1);
   const finalFields = finalStep.capability === 'data_transform' && finalStep.configuration.operation === 'join_object_and_count_false_boolean'
     ? [...finalStep.configuration.objectMappings.map((mapping) => mapping.to), finalStep.configuration.totalField, finalStep.configuration.falseCountField]
-    : finalStep.capability === 'set_output' || (finalStep.capability === 'data_transform' && finalStep.configuration.operation === 'select_fields')
+    : finalStep.capability === 'set_output' || (finalStep.capability === 'data_transform' && ['select_fields', 'set_fields'].includes(finalStep.configuration.operation))
       ? finalStep.configuration.mappings.map((mapping) => mapping.to)
       : [];
   assert(finalFields.length > 0, 'final step must produce declared output fields');
@@ -318,6 +365,20 @@ function assignments(items) {
   return { assignments: { assignments: items.map((item) => ({ name: item.to, value: `={{ $json.${item.from} }}`, type: item.valueType })) }, includeOtherFields: false, options: {} };
 }
 
+function setFieldAssignments(items) {
+  return {
+    assignments: {
+      assignments: items.map((item) => ({
+        name: item.to,
+        value: item.source.kind === 'input_field' ? `={{ $json.${item.source.field} }}` : item.source.value,
+        type: item.valueType,
+      })),
+    },
+    includeOtherFields: false,
+    options: {},
+  };
+}
+
 function compileNodewiseSpecification(specification) {
   const spec = validateSpecification(specification);
   const names = Object.fromEntries(spec.steps.map((step, index) => [step.id, `Step ${index + 1}: ${step.id}`]));
@@ -339,6 +400,10 @@ function compileNodewiseSpecification(specification) {
     if (step.capability === 'set_output' || (step.capability === 'data_transform' && config.operation === 'select_fields')) {
       type = 'n8n-nodes-base.set';
       parameters = assignments(config.mappings);
+    }
+    if (step.capability === 'data_transform' && config.operation === 'set_fields') {
+      type = 'n8n-nodes-base.set';
+      parameters = setFieldAssignments(config.mappings);
     }
     if (step.capability === 'data_transform' && config.operation === 'count_false_boolean') {
       type = 'n8n-nodes-base.code';

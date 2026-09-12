@@ -31,6 +31,11 @@ function specification(userId = 1) {
   };
 }
 
+test('maps set_fields to the implemented transform skill', () => {
+  const spec = { steps: [{ capability: 'data_transform', configuration: { operation: 'set_fields' } }] };
+  assert.deepEqual(skillIdsForSpecification(spec), ['transform.set_fields']);
+});
+
 test('maps schedule trigger to the implemented trigger skill', () => {
   const spec = specification();
   spec.steps[0] = { id: 'schedule', capability: 'schedule_trigger', requiredUserSetup: [], configuration: { interval: 'hours', intervalValue: 1 } };

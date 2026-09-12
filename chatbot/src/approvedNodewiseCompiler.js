@@ -53,6 +53,7 @@ function skillIdsForSpecification(specification) {
       if (operation === 'remove_duplicates') ids.push('transform.remove_duplicates');
       if (operation === 'limit_items') ids.push('transform.limit_items');
       if (operation === 'slice_items') ids.push('transform.slice_items');
+      if (operation === 'set_fields') ids.push('transform.set_fields');
       if (operation === 'rename_keys') ids.push('transform.rename_keys');
     }
   }

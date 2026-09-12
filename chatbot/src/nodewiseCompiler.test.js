@@ -559,6 +559,56 @@ test('schedule trigger rejects invalid bounds, extra keys, and a second trigger'
   assert.throws(() => compileNodewiseSpecification(both), /manual_trigger must be the first empty step|schedule_trigger must be the first step/);
 });
 
+function setFieldsSpec() {
+  return {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Map a public user with typed literals.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['name', 'status', 'isActive'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'user', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/users/5', cardinality: 'one_object' } } },
+      { id: 'mapped', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'set_fields', input: { kind: 'prior_step', reference: 'user.response', cardinality: 'one_object' }, mappings: [
+        { to: 'name', valueType: 'string', source: { kind: 'input_field', field: 'name' } },
+        { to: 'status', valueType: 'string', source: { kind: 'literal', value: 'active' } },
+        { to: 'isActive', valueType: 'boolean', source: { kind: 'literal', value: true } },
+      ] } },
+    ],
+  };
+}
+
+test('set_fields emits typed literals and input-field expressions as a final Set node', () => {
+  const workflow = compileNodewiseSpecification(setFieldsSpec());
+  const node = workflow.nodes.at(-1);
+  assert.equal(node.type, 'n8n-nodes-base.set');
+  assert.deepEqual(node.parameters.assignments.assignments, [
+    { name: 'name', value: '={{ $json.name }}', type: 'string' },
+    { name: 'status', value: 'active', type: 'string' },
+    { name: 'isActive', value: true, type: 'boolean' },
+  ]);
+});
+
+test('set_fields rejects duplicate targets, type mismatches, expressions, and unsupported literals', () => {
+  const duplicate = setFieldsSpec(); duplicate.steps[2].configuration.mappings.push({ to: 'name', valueType: 'string', source: { kind: 'literal', value: 'x' } });
+  assert.throws(() => compileNodewiseSpecification(duplicate), /duplicates/);
+  const mismatch = setFieldsSpec(); mismatch.steps[2].configuration.mappings[0].valueType = 'boolean';
+  assert.throws(() => compileNodewiseSpecification(mismatch), /型別是 string.*需要 boolean/);
+  const expression = setFieldsSpec(); expression.steps[2].configuration.mappings[1].source.value = '=bad';
+  assert.throws(() => compileNodewiseSpecification(expression), /non-expression/);
+  const objectLiteral = setFieldsSpec(); objectLiteral.steps[2].configuration.mappings[1].source.value = {};
+  assert.throws(() => compileNodewiseSpecification(objectLiteral), /string literal/);
+});
+
+test('set_fields rejects arbitrary mapping keys and is not an item transform', () => {
+  const extra = setFieldsSpec(); extra.steps[2].configuration.mappings[0].extra = true;
+  assert.throws(() => compileNodewiseSpecification(extra), /unsupported key extra/);
+  const items = setFieldsSpec(); items.steps[1].configuration.url.reference = 'https://jsonplaceholder.typicode.com/todos?userId=1'; items.steps[1].configuration.url.cardinality = 'items'; items.steps[2].configuration.input.cardinality = 'items';
+  items.steps[2].configuration.mappings = [
+    { to: 'name', valueType: 'number', source: { kind: 'input_field', field: 'id' } },
+    { to: 'status', valueType: 'number', source: { kind: 'input_field', field: 'id' } },
+    { to: 'isActive', valueType: 'boolean', source: { kind: 'input_field', field: 'completed' } },
+  ];
+  assert.throws(() => compileNodewiseSpecification(items), /cardinality|set_fields requires one_object input/);
+});
+
 function sliceSpec() {
   return {
     schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Count a page of todos.', requiredUserSetup: [],
