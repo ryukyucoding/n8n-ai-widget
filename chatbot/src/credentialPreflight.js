@@ -3,6 +3,9 @@
 // Pure fake-only validator/classifier for credential_preflight/v1. It consumes
 // already-sanitized facts supplied by a trusted test/operator adapter. It does
 // not inspect the network, n8n, credentials, browser headers, or deployment.
+// `solo_test_ready` means only that the private Dan-controlled test perimeter is
+// ready for inactive-draft-only testing; it never means credential API/binding
+// runtime access is ready. Unknown API facts remain in actionsRequired.
 
 const STATUSES = new Set(['blocked', 'solo_test_ready', 'multi_user_ready']);
 const PERIMETER_STATUSES = new Set(['verified_private', 'verified_authenticated', 'public_or_unknown']);
@@ -57,7 +60,8 @@ function evaluateCredentialPreflight({
   if (c.status !== 'verified') actions.push('verify n8n credential API capability');
   if (c.ownershipScope !== 'verified') actions.push('verify credential ownership scope');
 
-  if (p.status === 'verified_private' && p.evidenceRefs.length > 0 && singleOperatorConfirmed && c.status !== 'failed' && c.ownershipScope !== 'failed') {
+  if (p.status === 'verified_private' && p.evidenceRefs.length > 0 && singleOperatorConfirmed
+    && c.status !== 'failed' && c.readCapability !== 'failed' && c.ownershipScope !== 'failed') {
     a.status = 'not_required_for_solo';
     a.method = 'none';
     return result('solo_test_ready', p, a, c, actions, rejected);

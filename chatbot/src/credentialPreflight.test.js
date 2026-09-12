@@ -18,12 +18,22 @@ test('default preflight is blocked and has the v1 shape', () => {
   assert.doesNotThrow(() => validatePreflightResult(result));
 });
 
-test('private solo facts produce solo_test_ready without implying multi-user auth', () => {
+test('private solo facts mean inactive-draft-only readiness, not credential runtime readiness', () => {
   const result = evaluateCredentialPreflight(privateFacts);
   assert.equal(result.status, 'solo_test_ready');
   assert.equal(result.callerAuth.status, 'not_required_for_solo');
   assert.equal(result.credentialApi.status, 'unknown');
+  assert.match(result.actionsRequired.join(' '), /verify n8n credential API capability/);
+  assert.match(result.actionsRequired.join(' '), /ownership scope/);
   assert.doesNotThrow(() => validatePreflightResult(result));
+});
+
+test('failed credential API facts block even the solo inactive-draft lane', () => {
+  const result = evaluateCredentialPreflight({
+    ...privateFacts,
+    credentialApi: { status: 'failed', readCapability: 'failed', ownershipScope: 'failed' },
+  });
+  assert.equal(result.status, 'blocked');
 });
 
 test('private perimeter without single-operator confirmation remains blocked', () => {
