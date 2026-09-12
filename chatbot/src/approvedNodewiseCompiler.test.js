@@ -31,6 +31,12 @@ function specification(userId = 1) {
   };
 }
 
+test('maps schedule trigger to the implemented trigger skill', () => {
+  const spec = specification();
+  spec.steps[0] = { id: 'schedule', capability: 'schedule_trigger', requiredUserSetup: [], configuration: { interval: 'hours', intervalValue: 1 } };
+  assert.deepEqual(skillIdsForSpecification(spec).sort(), ['http.public_get', 'transform.join_object_and_count', 'trigger.schedule']);
+});
+
 test('renders review from the exact specification later consumed by the compiler', () => {
   const review = proposeNodewisePlan(specification());
   assert.deepEqual(review.plan.externalDomains, ['jsonplaceholder.typicode.com']);

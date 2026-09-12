@@ -131,3 +131,12 @@ test('full canonical spec round-trips losslessly (schemaVersion/kind/deliverySha
   };
   assert.deepEqual(sanitizePlanSpec(spec), spec); // lossless -> recompilable, planner context complete
 });
+
+test('schedule trigger configuration survives planner-context sanitization', () => {
+  const out = sanitizePlanSpec({
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'schedule', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['x'] },
+    steps: [{ id: 'schedule', capability: 'schedule_trigger', requiredUserSetup: [], configuration: { interval: 'minutes', intervalValue: 15, timezone: 'UTC' } }],
+  });
+  assert.deepEqual(out.steps[0].configuration, { interval: 'minutes', intervalValue: 15 });
+});

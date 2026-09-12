@@ -12,6 +12,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'trigger.schedule',
+    label: 'Scheduled trigger (bounded interval)',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'http.public_get',
     label: 'Public HTTPS GET',
     maturity: 'implemented',

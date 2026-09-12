@@ -5,7 +5,7 @@ const { describeForPlanner } = require('./sourceSchemaRegistry');
 const NODEWISE_PLANNER_RESULT_PROMPT = `You are the planning stage for a guarded n8n workflow compiler.
 Return exactly one JSON object and no Markdown. Do not emit raw n8n workflow JSON.
 
-The current compiler supports only: manual trigger; public HTTPS GET; select-fields transforms; boolean false-count transforms; joining one earlier object with one earlier item list; and one-object output. It does not support credentials, private values, POST, dynamic URLs, loops, waits, branches, binary data, notifications, external writes, or raw code from the planner.
+The current compiler supports only: bounded scheduled or manual triggers; public HTTPS GET; select-fields transforms; boolean false-count transforms; joining one earlier object with one earlier item list; and one-object output. It does not support credentials, private values, POST, dynamic URLs, loops, waits, branches, binary data, notifications, external writes, or raw code from the planner.
 
 Use only these registered public response schemas. Do not invent URLs or fields:
 ${describeForPlanner()}
@@ -53,7 +53,9 @@ For unsupported_capability, omit specification completely:
   "capabilityGaps": ["a capability the compiler does not provide"]
 }
 
-For ready_to_compile, every step must have id, capability, requiredUserSetup, and configuration. Use only these capabilities: manual_trigger, http_request, data_transform, set_output. Use only GET public_literal URLs and prior_step references such as user.response.
+For ready_to_compile, every step must have id, capability, requiredUserSetup, and configuration. Use only these capabilities: manual_trigger, schedule_trigger, http_request, data_transform, set_output. Use only GET public_literal URLs and prior_step references such as user.response.
+
+The schedule_trigger is a credential-free first step only. Its configuration is exactly { "interval": "minutes" | "hours" | "days" | "weeks", "intervalValue": <integer> }, with bounds minutes 1-59, hours 1-23, days 1-31, weeks 1-52. It emits one schedule trigger and must never be combined with a manual_trigger in the same plan.
 
 Important output invariant: join_object_and_count_false_boolean always produces every objectMapping field plus totalField and falseCountField. The final step must produce exactly expectedOutput.fields, in the same order. If the requested final output needs only a subset of a join result, append a final set_output step. Its input must reference the aggregate step as aggregate.response with cardinality one_object, and its mappings must select only the requested fields. For example, after a join named summary, selecting just name and incompleteTodos requires a final set_output mapping those two fields from summary.response.
 

@@ -525,3 +525,36 @@ test('rename_keys cannot be the final one_object step', () => {
   };
   assert.throws(() => compileNodewiseSpecification(spec), /final step must produce declared output fields/);
 });
+
+test('compiles a bounded schedule trigger before a public todo summary', () => {
+  const spec = {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Every 15 minutes count incomplete todos.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos', 'incompleteTodos'] },
+    steps: [
+      { id: 'schedule', capability: 'schedule_trigger', requiredUserSetup: [], configuration: { interval: 'minutes', intervalValue: 15 } },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+      { id: 'count', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' } },
+      { id: 'output', capability: 'set_output', requiredUserSetup: [], configuration: { input: { kind: 'prior_step', reference: 'count.response', cardinality: 'one_object' }, mappings: [{ from: 'totalTodos', to: 'totalTodos', valueType: 'number' }, { from: 'incompleteTodos', to: 'incompleteTodos', valueType: 'number' }] } },
+    ],
+  };
+  const workflow = compileNodewiseSpecification(spec);
+  assert.equal(workflow.nodes[0].type, 'n8n-nodes-base.scheduleTrigger');
+  assert.deepEqual(workflow.nodes[0].parameters, { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } });
+  assert.equal(workflow.nodes[1].type, 'n8n-nodes-base.httpRequest');
+});
+
+test('schedule trigger rejects invalid bounds, extra keys, and a second trigger', () => {
+  const base = {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'schedule', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos', 'incompleteTodos'] },
+    steps: [
+      { id: 'schedule', capability: 'schedule_trigger', requiredUserSetup: [], configuration: { interval: 'minutes', intervalValue: 0 } },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+    ],
+  };
+  assert.throws(() => compileNodewiseSpecification(base), /between 1 and 59/);
+  const extra = JSON.parse(JSON.stringify(base)); extra.steps[0].configuration = { interval: 'minutes', intervalValue: 5, timezone: 'UTC' };
+  assert.throws(() => compileNodewiseSpecification(extra), /unsupported key timezone/);
+  const both = JSON.parse(JSON.stringify(base)); both.steps[0].configuration.intervalValue = 5; both.steps.splice(1, 0, { id: 'manual', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} });
+  assert.throws(() => compileNodewiseSpecification(both), /manual_trigger must be the first empty step|schedule_trigger must be the first step/);
+});

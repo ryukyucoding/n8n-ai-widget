@@ -41,6 +41,7 @@ function skillIdsForSpecification(specification) {
   const ids = [];
   for (const step of specification.steps) {
     if (step.capability === 'manual_trigger') ids.push('trigger.manual');
+    if (step.capability === 'schedule_trigger') ids.push('trigger.schedule');
     if (step.capability === 'http_request') ids.push('http.public_get');
     if (step.capability === 'set_output') ids.push('output.one_object');
     if (step.capability === 'data_transform') {

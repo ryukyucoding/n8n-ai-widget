@@ -17,6 +17,12 @@ test('planner prompt defines mutually exclusive readiness outcomes', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"incompleteTodos", "to": "incompleteTodos", "valueType": "number"/);
 });
 
+test('planner prompt documents the bounded schedule trigger contract', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /schedule_trigger/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /minutes 1-59/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /must never be combined with a manual_trigger/);
+});
+
 test('planner prompt documents the sort_items transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /sort_items/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /"ascending" \| "descending"/);

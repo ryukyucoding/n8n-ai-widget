@@ -9,8 +9,9 @@ const {
   assertCardinality,
 } = require('./sourceSchemaRegistry');
 
-const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
+const CAPABILITIES = new Set(['manual_trigger', 'schedule_trigger', 'http_request', 'data_transform', 'set_output']);
 const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys']);
+const SCHEDULE_INTERVALS = Object.freeze({ minutes: [1, 59], hours: [1, 23], days: [1, 31], weeks: [1, 52] });
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
 const CARDINALITIES = new Set(['one_object', 'items']);
@@ -129,6 +130,14 @@ function validateSpecification(value) {
     if (step.capability === 'manual_trigger') {
       assert(index === 0 && Object.keys(config).length === 0, 'manual_trigger must be the first empty step');
       configuration = {};
+    } else if (step.capability === 'schedule_trigger') {
+      assert(index === 0, 'schedule_trigger must be the first step');
+      for (const key of Object.keys(config)) assert(['interval', 'intervalValue'].includes(key), `schedule_trigger configuration has unsupported key ${key}`);
+      assert(typeof config.interval === 'string' && Object.hasOwn(SCHEDULE_INTERVALS, config.interval), 'schedule_trigger interval is unsupported');
+      assert(Number.isInteger(config.intervalValue), 'schedule_trigger intervalValue must be an integer');
+      const [min, max] = SCHEDULE_INTERVALS[config.interval];
+      assert(config.intervalValue >= min && config.intervalValue <= max, `schedule_trigger intervalValue must be between ${min} and ${max}`);
+      configuration = { interval: config.interval, intervalValue: config.intervalValue };
     } else if (step.capability === 'http_request') {
       assert(config.method === 'GET', 'only public GET requests are supported');
       const input = source(config.url, `steps[${index}].configuration.url`, seen, outputs);
@@ -305,6 +314,12 @@ function compileNodewiseSpecification(specification) {
     let type;
     let parameters = {};
     if (step.capability === 'manual_trigger') type = 'n8n-nodes-base.manualTrigger';
+    if (step.capability === 'schedule_trigger') {
+      type = 'n8n-nodes-base.scheduleTrigger';
+      const field = config.interval;
+      const parameterName = `${field}Interval`;
+      parameters = { rule: { interval: [{ field, [parameterName]: config.intervalValue }] } };
+    }
     if (step.capability === 'http_request') {
       type = 'n8n-nodes-base.httpRequest';
       parameters = { method: 'GET', url: config.url.reference, options: {} };

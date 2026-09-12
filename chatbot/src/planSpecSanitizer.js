@@ -59,6 +59,8 @@ function sanitizeConfiguration(config) {
   const out = {};
   const put = (k, v) => { if (v !== undefined) out[k] = v; };
   put('operation', scalar(config.operation));
+  put('interval', scalar(config.interval));
+  put('intervalValue', scalar(config.intervalValue));
   put('method', scalar(config.method));
   put('url', refObject(config.url));
   put('input', refObject(config.input));

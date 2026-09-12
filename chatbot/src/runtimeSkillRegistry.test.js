@@ -9,6 +9,15 @@ test('lists only compiler-owned capabilities as implemented', () => {
   assert.equal(getSkill('http.authenticated_request').maturity, 'planned');
 });
 
+test('registers schedule_trigger as an implemented read-only nodewise skill', () => {
+  const skill = getSkill('trigger.schedule');
+  assert.equal(skill.maturity, 'implemented');
+  assert.equal(skill.compiler, 'nodewise');
+  assert.equal(skill.risk, 'read_only');
+  assert.equal(skill.requiresUserSetup, false);
+  assert.equal(resolveSkillRequirements(['trigger.schedule']).available, true);
+});
+
 test('registers limit_items as an implemented read-only nodewise skill', () => {
   const skill = getSkill('transform.limit_items');
   assert.equal(skill.maturity, 'implemented');
