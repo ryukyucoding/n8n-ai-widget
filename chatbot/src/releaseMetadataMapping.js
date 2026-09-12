@@ -29,15 +29,26 @@ function publicMapping(result) {
   if (!result || !result.verified) {
     return { verified: false, status: 'not-live', code: result && result.code, reason: result && result.reason };
   }
+  // Public projection deliberately omits SHA values, tag refs, and A2A paths.
   return {
     verified: true,
     status: result.status,
     version: result.version,
-    targetCommitSha: result.targetCommitSha,
-    tagRef: result.tagRef,
-    tagObjectSha: result.tagObjectSha,
-    evidenceRefs: [...result.evidenceRefs],
     verificationScope: 'fake_fixture_only',
+  };
+}
+
+function publicMetadata(metadata) {
+  return {
+    version: metadata.version,
+    tag: metadata.tag,
+    isPrerelease: metadata.isPrerelease,
+    lifecycle: metadata.lifecycle,
+    revisions: {
+      runtimeSchemaRevision: metadata.revisions && metadata.revisions.runtimeSchemaRevision,
+      skillRegistryRevision: metadata.revisions && metadata.revisions.skillRegistryRevision,
+      sourceRegistryRevision: metadata.revisions && metadata.revisions.sourceRegistryRevision,
+    },
   };
 }
 
@@ -49,27 +60,27 @@ function getReleaseMetadataWithMapping({
   if (!metadata || typeof metadata !== 'object') throw new Error('metadata is required');
   const version = canonicalVersion(metadata.version);
   if (!version) {
-    return { ...metadata, lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'metadata_version_invalid' } };
+    return { ...publicMetadata(metadata), lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'metadata_version_invalid' } };
   }
   if (!releaseIndex || typeof releaseIndex.get !== 'function' || typeof releaseIndex.list !== 'function') {
-    return { ...metadata, lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'mapping_index_unavailable' } };
+    return { ...publicMetadata(metadata), lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'mapping_index_unavailable' } };
   }
   const record = releaseIndex.get(version);
   if (!record) {
-    return { ...metadata, lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'mapping_missing' } };
+    return { ...publicMetadata(metadata), lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'mapping_missing' } };
   }
   const check = verifyReleaseMapping(record, releaseIndex.list().filter((entry) => entry !== record && entry.version !== record.version), { tagStore });
   if (!check.verified) {
-    return { ...metadata, lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: publicMapping(check) };
+    return { ...publicMetadata(metadata), lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: publicMapping(check) };
   }
   if (check.version !== version) {
-    return { ...metadata, lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'mapping_version_mismatch' } };
+    return { ...publicMetadata(metadata), lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'mapping_version_mismatch' } };
   }
   if (metadata.revisions && metadata.revisions.provenanceGitSha !== check.targetCommitSha) {
-    return { ...metadata, lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'mapping_sha_mismatch' } };
+    return { ...publicMetadata(metadata), lifecycle: 'not-live', releaseMappingVerified: false, releaseMapping: { verified: false, status: 'not-live', code: 'mapping_sha_mismatch' } };
   }
   return {
-    ...metadata,
+    ...publicMetadata(metadata),
     lifecycle: check.status,
     releaseMappingVerified: true,
     releaseMapping: publicMapping(check),
@@ -83,4 +94,4 @@ function resolveReleaseMetadataWithMapping({ getMetadata, releaseIndex, tagStore
   });
 }
 
-module.exports = { createFakeReleaseIndex, getReleaseMetadataWithMapping, resolveReleaseMetadataWithMapping };
+module.exports = { createFakeReleaseIndex, getReleaseMetadataWithMapping, resolveReleaseMetadataWithMapping, publicMetadata };

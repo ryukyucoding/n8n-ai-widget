@@ -23,7 +23,10 @@ test('metadata bridge verifies matching candidate mapping and preserves independ
   assert.equal(out.releaseMappingVerified, true);
   assert.equal(out.lifecycle, 'candidate');
   assert.equal(out.releaseMapping.version, '1.2.3');
-  assert.equal(out.releaseMapping.targetCommitSha, sha);
+  assert.equal(out.releaseMapping.targetCommitSha, undefined);
+  assert.equal(out.releaseMapping.tagRef, undefined);
+  assert.equal(out.releaseMapping.evidenceRefs, undefined);
+  assert.equal(out.revisions.provenanceGitSha, undefined);
   assert.equal(out.revisions.runtimeSchemaRevision !== out.revisions.skillRegistryRevision, true);
 });
 
@@ -51,6 +54,17 @@ test('stable mapping requires explicit stable record and external promotion veri
   const out = getReleaseMetadataWithMapping({ metadata: metadata(), releaseIndex: createFakeReleaseIndex([record]), tagStore: tags });
   assert.equal(out.lifecycle, 'stable');
   assert.equal(out.releaseMappingVerified, true);
+});
+
+test('bridge projects metadata allowlist and drops unallowlisted fields', () => {
+  const out = getReleaseMetadataWithMapping({
+    metadata: { ...metadata(), secret: 'private', internalOnly: 'drop-me' },
+    releaseIndex: createFakeReleaseIndex([mapping()]), tagStore: tags,
+  });
+  assert.equal(out.secret, undefined);
+  assert.equal(out.internalOnly, undefined);
+  assert.equal(out.revisions.provenanceGitSha, undefined);
+  assert.doesNotMatch(JSON.stringify(out), /private|drop-me/);
 });
 
 test('bridge factory uses injected metadata producer and never wires health/models', () => {
