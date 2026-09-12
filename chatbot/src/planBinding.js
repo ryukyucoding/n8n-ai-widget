@@ -44,7 +44,7 @@ function canonicalizeIr(ir) {
 
 function computeFingerprint(
   ir,
-  { runtimeSchemaRevision, skillRegistryRevision, sourceRegistryRevision } = {},
+  { runtimeSchemaRevision, skillRegistryRevision, sourceRegistryRevision, credentialBindingRevision } = {},
 ) {
   assert(typeof runtimeSchemaRevision === 'string' && runtimeSchemaRevision,
     'runtimeSchemaRevision is required — approval must be invalidated when the runtime changes');
@@ -57,8 +57,13 @@ function computeFingerprint(
     assert(typeof sourceRegistryRevision === 'string' && sourceRegistryRevision,
       'sourceRegistryRevision 若提供則不得為空字串');
   }
+  if (credentialBindingRevision !== undefined) {
+    assert(typeof credentialBindingRevision === 'string' && credentialBindingRevision,
+      'credentialBindingRevision 若提供則不得為空字串');
+  }
   const parts = [canonicalizeIr(ir), runtimeSchemaRevision, skillRegistryRevision];
   if (sourceRegistryRevision !== undefined) parts.push(`src:${sourceRegistryRevision}`);
+  if (credentialBindingRevision !== undefined) parts.push(`cred:${credentialBindingRevision}`);
   return crypto.createHash('sha256').update(parts.join(' ')).digest('hex');
 }
 

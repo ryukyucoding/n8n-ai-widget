@@ -206,3 +206,18 @@ test('sourceRegistryRevision 提供空字串視為設定錯誤', () => {
   assert.throws(() => computeFingerprint(ir(), { ...CTX, sourceRegistryRevision: '' }),
     /不得為空字串/);
 });
+
+test('credential binding revision changes the approval fingerprint', () => {
+  const a = { ...CTX, credentialBindingRevision: 'cred-a' };
+  const b = { ...CTX, credentialBindingRevision: 'cred-b' };
+  assert.notEqual(computeFingerprint(ir(), a), computeFingerprint(ir(), b));
+  assert.throws(() => computeFingerprint(ir(), { ...CTX, credentialBindingRevision: '' }), /不得為空字串/);
+});
+
+test('credential display names are hashed into approval context, not stored in the HMAC token body', () => {
+  const context = { ...CTX, credentialBindingRevision: 'cred-a' };
+  const token = issueApprovalToken(ir(), context, OPTS);
+  assert.doesNotMatch(JSON.stringify(token), /Gmail|credential|cred-a/);
+  assert.equal(verifyApprovalToken(token, ir(), context, OPTS).valid, true);
+  assert.equal(verifyApprovalToken(token, ir(), { ...CTX, credentialBindingRevision: 'cred-b' }, OPTS).valid, false);
+});
