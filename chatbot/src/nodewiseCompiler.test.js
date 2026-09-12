@@ -558,3 +558,48 @@ test('schedule trigger rejects invalid bounds, extra keys, and a second trigger'
   const both = JSON.parse(JSON.stringify(base)); both.steps[0].configuration.intervalValue = 5; both.steps.splice(1, 0, { id: 'manual', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} });
   assert.throws(() => compileNodewiseSpecification(both), /manual_trigger must be the first empty step|schedule_trigger must be the first step/);
 });
+
+function sliceSpec() {
+  return {
+    schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Count a page of todos.', requiredUserSetup: [],
+    expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos', 'incompleteTodos'] },
+    steps: [
+      { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+      { id: 'todos', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos?userId=1', cardinality: 'items' } } },
+      { id: 'page', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'slice_items', input: { kind: 'prior_step', reference: 'todos.response', cardinality: 'items' }, offset: 5, limit: 5 } },
+      { id: 'count', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'count_false_boolean', input: { kind: 'prior_step', reference: 'page.response', cardinality: 'items' }, field: 'completed', totalField: 'totalTodos', falseCountField: 'incompleteTodos' } },
+      { id: 'output', capability: 'set_output', requiredUserSetup: [], configuration: { input: { kind: 'prior_step', reference: 'count.response', cardinality: 'one_object' }, mappings: [{ from: 'totalTodos', to: 'totalTodos', valueType: 'number' }, { from: 'incompleteTodos', to: 'incompleteTodos', valueType: 'number' }] } },
+    ],
+  };
+}
+
+test('slice_items emits a deterministic bounded Code window and remains intermediate', () => {
+  const workflow = compileNodewiseSpecification(sliceSpec());
+  const node = workflow.nodes.find((candidate) => candidate.name === 'Step 3: page');
+  assert.equal(node.type, 'n8n-nodes-base.code');
+  assert.equal(node.parameters.jsCode, "const records = $input.all();\nreturn records.slice(5, 10);");
+  assert.equal(workflow.nodes.at(-1).type, 'n8n-nodes-base.set');
+});
+
+test('slice_items preserves item schema and accepts offset/limit boundaries', () => {
+  for (const [offset, limit, end] of [[0, 1, 1], [0, 1000, 1000], [100000, 5, 100005]]) {
+    const spec = sliceSpec(); spec.steps[2].configuration.offset = offset; spec.steps[2].configuration.limit = limit;
+    const node = compileNodewiseSpecification(spec).nodes.find((candidate) => candidate.name === 'Step 3: page');
+    assert.match(node.parameters.jsCode, new RegExp(`slice\\(${offset}, ${end}\\)`));
+  }
+});
+
+test('slice_items rejects invalid ranges, extra keys, and one-object input', () => {
+  for (const offset of [-1, 100001, 2.5, '5']) {
+    const spec = sliceSpec(); spec.steps[2].configuration.offset = offset;
+    assert.throws(() => compileNodewiseSpecification(spec), /offset must be an integer/);
+  }
+  for (const limit of [0, -1, 1001, 2.5, '5']) {
+    const spec = sliceSpec(); spec.steps[2].configuration.limit = limit;
+    assert.throws(() => compileNodewiseSpecification(spec), /limit must be an integer/);
+  }
+  const extra = sliceSpec(); extra.steps[2].configuration.keep = 'firstItems';
+  assert.throws(() => compileNodewiseSpecification(extra), /unsupported key keep/);
+  const one = sliceSpec(); one.steps[1].configuration.url = { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/users/1', cardinality: 'one_object' }; one.steps[2].configuration.input.cardinality = 'one_object';
+  assert.throws(() => compileNodewiseSpecification(one), /slice_items requires items input/);
+});

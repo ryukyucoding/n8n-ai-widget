@@ -43,6 +43,12 @@ test('planner prompt documents the limit_items transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /defaults to "firstItems"/);
 });
 
+test('planner prompt documents the slice_items transform contract', () => {
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /slice_items/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /offset.*0 to 100000/);
+  assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /contiguous window/);
+});
+
 test('planner prompt documents the rename_keys transform contract', () => {
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /rename_keys/);
   assert.match(NODEWISE_PLANNER_RESULT_PROMPT, /renames one or more fields/);

@@ -70,6 +70,7 @@ function sanitizeConfiguration(config) {
   put('totalField', scalar(config.totalField));
   put('falseCountField', scalar(config.falseCountField));
   put('limit', scalar(config.limit));
+  put('offset', scalar(config.offset));
   put('keep', scalar(config.keep));
   put('order', scalar(config.order));
   put('mappings', mapList(config.mappings, true));

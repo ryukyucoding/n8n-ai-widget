@@ -10,7 +10,7 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'schedule_trigger', 'http_request', 'data_transform', 'set_output']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'slice_items', 'rename_keys']);
 const SCHEDULE_INTERVALS = Object.freeze({ minutes: [1, 59], hours: [1, 23], days: [1, 31], weeks: [1, 52] });
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
@@ -171,6 +171,18 @@ function validateSpecification(value) {
         assert(LIMIT_KEEP.has(keep), 'limit_items keep must be firstItems or lastItems');
         // Preserve the input item schema exactly — limit removes items, never invents or drops fields.
         configuration = { operation: config.operation, input: input.value, limit: config.limit, keep };
+        output = { cardinality: 'items', fields: input.output.fields };
+      } else if (config.operation === 'slice_items') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'offset', 'limit'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'slice_items requires items input');
+        assert(Number.isInteger(config.offset) && config.offset >= 0 && config.offset <= 100000,
+          'slice_items offset must be an integer between 0 and 100000');
+        assert(Number.isInteger(config.limit) && config.limit >= 1 && config.limit <= 1000,
+          'slice_items limit must be an integer between 1 and 1000');
+        configuration = { operation: config.operation, input: input.value, offset: config.offset, limit: config.limit };
         output = { cardinality: 'items', fields: input.output.fields };
       } else if (config.operation === 'sort_items') {
         for (const key of Object.keys(config)) {
@@ -335,6 +347,10 @@ function compileNodewiseSpecification(specification) {
     if (step.capability === 'data_transform' && config.operation === 'limit_items') {
       type = 'n8n-nodes-base.limit';
       parameters = { maxItems: config.limit, keep: config.keep === undefined ? 'firstItems' : config.keep };
+    }
+    if (step.capability === 'data_transform' && config.operation === 'slice_items') {
+      type = 'n8n-nodes-base.code';
+      parameters = { jsCode: ['const records = $input.all();', `return records.slice(${config.offset}, ${config.offset + config.limit});`].join('\n') };
     }
     if (step.capability === 'data_transform' && config.operation === 'sort_items') {
       type = 'n8n-nodes-base.sort';
