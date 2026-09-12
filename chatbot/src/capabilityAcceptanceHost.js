@@ -5,6 +5,7 @@
 // bodies, keys, workflow ids, or raw workflow data. No CLI arguments are used.
 
 const { createCapabilityAcceptanceBackend } = require('./capabilityAcceptanceBackend');
+const { createFixedWebhookExecutionAdapter } = require('./capabilityAcceptanceExecution');
 const { approveNodewisePlan, compileApprovedNodewisePlan } = require('./approvedNodewiseCompiler');
 
 const TARGET = 'isolated-chatbot';
@@ -42,8 +43,20 @@ function createN8nAcceptanceApi({ baseUrl, apiKey, fetchImpl = globalThis.fetch 
   return {
     createWorkflow: (workflow) => request('POST', '/api/v1/workflows', workflow),
     getWorkflow: (id) => request('GET', `/api/v1/workflows/${encodeURIComponent(String(id))}`),
+    activateWorkflow: (id) => request('POST', `/api/v1/workflows/${encodeURIComponent(String(id))}/activate`, undefined, true),
     deactivateWorkflow: (id) => request('POST', `/api/v1/workflows/${encodeURIComponent(String(id))}/deactivate`, undefined, true),
     deleteWorkflow: (id) => request('DELETE', `/api/v1/workflows/${encodeURIComponent(String(id))}`, undefined, true),
+    listExecutions: (id) => request('GET', `/api/v1/executions?limit=10&includeData=false&workflowId=${encodeURIComponent(String(id))}`),
+    getExecution: (id) => request('GET', `/api/v1/executions/${encodeURIComponent(String(id))}?includeData=true`),
+    async triggerWebhook(path, publicBaseUrl) {
+      const base = normalizeBase(publicBaseUrl);
+      if (!base || !/^capability-acceptance-[a-z0-9_]+$/.test(path)) throw new Error('fixed webhook target is invalid');
+      const response = await fetchImpl(`${base}/webhook/${encodeURIComponent(path)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Connection: 'close' }, body: '{}',
+      });
+      if (!response.ok) throw new Error(`n8n_acceptance_webhook_http_${response.status}`);
+      return response.status;
+    },
   };
 }
 
@@ -51,11 +64,15 @@ function createCapabilityAcceptanceHost({ env = process.env, fetchImpl = globalT
   // The target is a fixed server-side deployment setting, never a CLI/body arg.
   if (env.CAPABILITY_ACCEPTANCE_TARGET !== TARGET) return { run: async () => unavailable('target_not_authorized') };
   if (REQUIRED_ENV.some((key) => typeof env[key] !== 'string' || !env[key])) return { run: async () => unavailable('required_server_dependency_missing') };
-  if (typeof executeWorkflow !== 'function') return { run: async () => unavailable('verified_execution_adapter_missing') };
   const n8n = createN8nAcceptanceApi({ baseUrl: env.N8N_BASE_URL, apiKey: env.N8N_API_KEY, fetchImpl });
   if (!n8n) return { run: async () => unavailable('n8n_api_adapter_unavailable') };
+  let execution = typeof executeWorkflow === 'function' ? { executeWorkflow } : null;
+  if (!execution && typeof env.N8N_PUBLIC_URL === 'string') {
+    try { execution = createFixedWebhookExecutionAdapter({ n8n, publicBaseUrl: env.N8N_PUBLIC_URL }); } catch (_) { execution = null; }
+  }
+  if (!execution) return { run: async () => unavailable('verified_execution_adapter_missing') };
   const backend = createCapabilityAcceptanceBackend({
-    n8n: { ...n8n, executeWorkflow },
+    n8n: { ...n8n, ...execution },
     approve: approveNodewisePlan,
     compileApproved: compileApprovedNodewisePlan,
     secret: env.PLANNER_APPROVAL_HMAC_SECRET,
