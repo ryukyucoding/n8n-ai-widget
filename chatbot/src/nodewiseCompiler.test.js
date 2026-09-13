@@ -614,6 +614,20 @@ test('set_fields emits typed literals and input-field expressions as a final Set
   ]);
 });
 
+test('set_fields emits a native JSON number literal while retaining provisional runtime status', () => {
+  const spec = setFieldsSpec();
+  spec.expectedOutput.fields = ['name', 'rank'];
+  spec.steps[2].configuration.mappings = [
+    { to: 'name', valueType: 'string', source: { kind: 'input_field', field: 'name' } },
+    { to: 'rank', valueType: 'number', source: { kind: 'literal', value: 1 } },
+  ];
+  const node = compileNodewiseSpecification(spec).nodes.at(-1);
+  assert.deepEqual(node.parameters.assignments.assignments, [
+    { name: 'name', value: '={{ $json.name }}', type: 'string' },
+    { name: 'rank', value: 1, type: 'number' },
+  ]);
+});
+
 test('set_fields rejects duplicate targets, type mismatches, expressions, and unsupported literals', () => {
   const duplicate = setFieldsSpec(); duplicate.steps[2].configuration.mappings.push({ to: 'name', valueType: 'string', source: { kind: 'literal', value: 'x' } });
   assert.throws(() => compileNodewiseSpecification(duplicate), /duplicates/);
