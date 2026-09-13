@@ -6,7 +6,7 @@
 
 const { compileNodewiseSpecification } = require('./nodewiseCompiler');
 
-const FIXTURE_IDS = Object.freeze(['schedule_todo_summary', 'slice_todo_page', 'set_fields_user', 'current_date']);
+const FIXTURE_IDS = Object.freeze(['schedule_todo_summary', 'slice_todo_page', 'set_fields_user', 'set_fields_numeric', 'current_date']);
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function validId(id) { return (typeof id === 'string' || typeof id === 'number') && /^[A-Za-z0-9_-]{1,128}$/.test(String(id)); }
@@ -62,6 +62,18 @@ function fixedSpecifications() {
         ] } },
       ],
     },
+    set_fields_numeric: {
+      schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Add a numeric rank to a public user.', requiredUserSetup: [],
+      expectedOutput: { deliveryShape: 'one_object', fields: ['name', 'rank'] },
+      steps: [
+        { id: 'start', capability: 'manual_trigger', requiredUserSetup: [], configuration: {} },
+        { id: 'user', capability: 'http_request', requiredUserSetup: [], configuration: { method: 'GET', url: source('https://jsonplaceholder.typicode.com/users/5', 'one_object') } },
+        { id: 'mapped', capability: 'data_transform', requiredUserSetup: [], configuration: { operation: 'set_fields', input: prior('user.response', 'one_object'), mappings: [
+          { to: 'name', valueType: 'string', source: { kind: 'input_field', field: 'name' } },
+          { to: 'rank', valueType: 'number', source: { kind: 'literal', value: 1 } },
+        ] } },
+      ],
+    },
     current_date: {
       schemaVersion: '1.0', kind: 'nodewise_step_specification', goal: 'Return the current date.', requiredUserSetup: [],
       expectedOutput: { deliveryShape: 'one_object', fields: ['currentDate'] },
@@ -84,10 +96,11 @@ function readbackChecks(id, workflow) {
     const node = nodes.find((n) => n.name && /page/.test(n.name));
     return { slice_code: Boolean(node && node.type === 'n8n-nodes-base.code' && /records\.slice\(5, 10\)/.test(node.parameters.jsCode || '')), inactive: workflow.active === false };
   }
-  if (id === 'set_fields_user') {
+  if (id === 'set_fields_user' || id === 'set_fields_numeric') {
     const node = nodes.at(-1);
     const assignments = node && node.parameters && node.parameters.assignments && node.parameters.assignments.assignments;
-    return { set_node: Boolean(node && node.type === 'n8n-nodes-base.set'), assignment_count: Array.isArray(assignments) && assignments.length === 3, inactive: workflow.active === false };
+    const expectedCount = id === 'set_fields_numeric' ? 2 : 3;
+    return { set_node: Boolean(node && node.type === 'n8n-nodes-base.set'), assignment_count: Array.isArray(assignments) && assignments.length === expectedCount, inactive: workflow.active === false };
   }
   const node = nodes.find((n) => n.type === 'n8n-nodes-base.dateTime');
   return { date_node: Boolean(node), date_parameters: Boolean(node && node.typeVersion === 2 && node.parameters && node.parameters.operation === 'getCurrentDate' && node.parameters.includeTime === false), inactive: workflow.active === false };
@@ -107,6 +120,9 @@ function executionChecks(id, facts) {
     checks.name_string = typeof facts.name === 'string';
     checks.status_string = facts.status === 'active' && typeof facts.status === 'string';
     checks.active_boolean = facts.isActive === true && typeof facts.isActive === 'boolean';
+  } else if (id === 'set_fields_numeric') {
+    checks.name_string = typeof facts.name === 'string';
+    checks.rank_native_number = facts.rank === 1 && typeof facts.rank === 'number';
   } else {
     checks.date_string = typeof facts.currentDate === 'string' && facts.currentDate.length > 0;
   }
@@ -120,10 +136,11 @@ function safeExecutionFacts(id, facts) {
     if (number(facts && facts.incompleteTodos)) out.incompleteTodos = facts.incompleteTodos;
   }
   if (id === 'slice_todo_page' && Array.isArray(facts && facts.retainedIds) && facts.retainedIds.every((v) => Number.isInteger(v))) out.retainedIds = facts.retainedIds.slice(0, 20);
-  if (id === 'set_fields_user') {
+  if (id === 'set_fields_user' || id === 'set_fields_numeric') {
     if (typeof (facts && facts.name) === 'string') out.name = facts.name.slice(0, 256);
-    if (typeof (facts && facts.status) === 'string') out.status = facts.status.slice(0, 64);
-    if (typeof (facts && facts.isActive) === 'boolean') out.isActive = facts.isActive;
+    if (id === 'set_fields_user' && typeof (facts && facts.status) === 'string') out.status = facts.status.slice(0, 64);
+    if (id === 'set_fields_user' && typeof (facts && facts.isActive) === 'boolean') out.isActive = facts.isActive;
+    if (id === 'set_fields_numeric' && typeof (facts && facts.rank) === 'number' && Number.isFinite(facts.rank)) out.rank = facts.rank;
   }
   if (id === 'current_date' && typeof (facts && facts.currentDate) === 'string') out.currentDate = facts.currentDate.slice(0, 128);
   return out;

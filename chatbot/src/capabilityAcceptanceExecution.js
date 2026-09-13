@@ -11,6 +11,7 @@ const TRIGGER_MODES = Object.freeze({
   schedule_todo_summary: 'webhook_harness_dataflow_verified',
   slice_todo_page: 'webhook_harness_dataflow_verified',
   set_fields_user: 'webhook_harness_dataflow_verified',
+  set_fields_numeric: 'webhook_harness_dataflow_verified',
   current_date: 'webhook_harness_dataflow_verified',
 });
 
@@ -49,7 +50,7 @@ function finishedExecution(executions, workflowId, sinceMs) {
 function extractFacts(fixtureId, runData) {
   const finalName = fixtureId === 'schedule_todo_summary' ? 'Step 4: output'
     : fixtureId === 'slice_todo_page' ? 'Step 5: output'
-      : fixtureId === 'set_fields_user' ? 'Step 3: mapped' : 'Step 2: today';
+      : (fixtureId === 'set_fields_user' || fixtureId === 'set_fields_numeric') ? 'Step 3: mapped' : 'Step 2: today';
   const final = items(runData, finalName)[0] || {};
   if (fixtureId === 'schedule_todo_summary' || fixtureId === 'slice_todo_page') {
     const pageName = fixtureId === 'slice_todo_page' ? 'Step 3: page' : null;
@@ -57,6 +58,7 @@ function extractFacts(fixtureId, runData) {
     return { executed: true, totalTodos: final.totalTodos, incompleteTodos: final.incompleteTodos, retainedIds: page.map((item) => item.id) };
   }
   if (fixtureId === 'set_fields_user') return { executed: true, name: final.name, status: final.status, isActive: final.isActive };
+  if (fixtureId === 'set_fields_numeric') return { executed: true, name: final.name, rank: final.rank };
   return { executed: true, currentDate: final.currentDate };
 }
 

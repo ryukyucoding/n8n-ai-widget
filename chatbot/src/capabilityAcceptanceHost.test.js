@@ -40,5 +40,5 @@ test('n8n API adapter keeps the server key in the request closure and returns no
 test('host only accepts fixed command and exposes fixed fixture ids', () => {
   const env = { CAPABILITY_ACCEPTANCE_TARGET: TARGET, N8N_BASE_URL: 'http://n8n.test', N8N_API_KEY: 'server-only', PLANNER_APPROVAL_HMAC_SECRET: 'a'.repeat(32) };
   const host = createCapabilityAcceptanceHost({ env, fetchImpl: async () => ({ ok: false, status: 500, async json() { return {}; } }), executeWorkflow: async () => ({}) });
-  assert.deepEqual(host.fixtureIds, ['schedule_todo_summary', 'slice_todo_page', 'set_fields_user', 'current_date']);
+  assert.deepEqual(host.fixtureIds, ['schedule_todo_summary', 'slice_todo_page', 'set_fields_user', 'set_fields_numeric', 'current_date']);
 });
