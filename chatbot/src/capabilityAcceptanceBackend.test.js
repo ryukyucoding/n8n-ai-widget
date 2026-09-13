@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { FIXTURE_IDS, fixedSpecifications, createCapabilityAcceptanceBackend } = require('./capabilityAcceptanceBackend');
+const { FIXTURE_IDS, fixedSpecifications, classifyFailure, createCapabilityAcceptanceBackend } = require('./capabilityAcceptanceBackend');
 
 const SECRET = 'test-only-approval-secret-value-32chars';
 const workflows = new Map();
@@ -70,4 +70,25 @@ test('backend requires n8n API and approval dependencies at construction', () =>
   assert.throws(() => createCapabilityAcceptanceBackend({}), /n8n acceptance API/);
   assert.throws(() => createCapabilityAcceptanceBackend({ n8n: fakeN8n() }), /approval dependencies/);
   assert.deepEqual(Object.keys(fixedSpecifications()).sort(), FIXTURE_IDS.slice().sort());
+});
+
+test('failure classification exposes only phase, bounded code, and optional HTTP status', () => {
+  assert.deepEqual(classifyFailure(new Error('n8n_acceptance_http_422'), 'create'), { phase: 'create', code: 'n8n_http_error', httpStatus: 422 });
+  assert.deepEqual(classifyFailure(new Error('private secret should not escape'), 'readback'), { phase: 'readback', code: 'readback_failed' });
+});
+
+test('backend records create failure phase without raw error or identifier', async () => {
+  const n8n = fakeN8n();
+  n8n.createWorkflow = async () => { throw new Error('n8n_acceptance_http_422 private body'); };
+  const backend = createCapabilityAcceptanceBackend({
+    n8n,
+    approve: (spec) => ({ approvalToken: { spec } }),
+    compileApproved: (spec) => ({ workflow: spec }),
+    secret: 'a'.repeat(32),
+  });
+  const result = await backend.runFixture('schedule_todo_summary');
+  assert.equal(result.pass, false);
+  assert.equal(result.phase, 'create');
+  assert.deepEqual(result.failure, { phase: 'create', code: 'n8n_http_error', httpStatus: 422 });
+  assert.doesNotMatch(JSON.stringify(result), /private body|workflowId/);
 });

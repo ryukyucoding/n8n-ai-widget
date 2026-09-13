@@ -13,6 +13,17 @@ function validId(id) { return (typeof id === 'string' || typeof id === 'number')
 function number(value) { return typeof value === 'number' && Number.isFinite(value); }
 function text(value) { return typeof value === 'string' && value.length <= 512; }
 
+const FAILURE_PHASES = Object.freeze(['compile', 'create', 'readback', 'execute', 'cleanup']);
+function boundedHttpStatus(error) {
+  const candidate = error && Number.isInteger(error.status) ? error.status : Number(String(error && error.message || '').match(/http[_ ](\d{3})/i)?.[1]);
+  return Number.isInteger(candidate) && candidate >= 100 && candidate <= 599 ? candidate : null;
+}
+function classifyFailure(error, phase) {
+  const safePhase = FAILURE_PHASES.includes(phase) ? phase : 'execute';
+  const httpStatus = boundedHttpStatus(error);
+  return { phase: safePhase, code: httpStatus ? 'n8n_http_error' : `${safePhase}_failed`, ...(httpStatus ? { httpStatus } : {}) };
+}
+
 function fixedSpecifications() {
   const source = (reference, cardinality) => ({ kind: 'public_literal', reference, cardinality });
   const prior = (reference, cardinality) => ({ kind: 'prior_step', reference, cardinality });
@@ -128,13 +139,18 @@ function createCapabilityAcceptanceBackend({ n8n, approve, compileApproved, secr
     const spec = specs[fixtureId];
     const sessionId = `${sessionPrefix}-${fixtureId}`;
     let workflowId = null;
-    const result = { fixture: fixtureId, readback: { pass: false, checks: {} }, execution: { pass: false, checks: {} }, pass: false };
+    const result = { fixture: fixtureId, phase: 'compile', readback: { pass: false, checks: {} }, execution: { pass: false, checks: {} }, pass: false };
+    let phase = 'compile';
     try {
       const approval = approve(spec, { secret, sessionId });
       const compiled = compileApproved(spec, approval.approvalToken, { secret, sessionId });
+      phase = 'create';
+      result.phase = phase;
       const created = await n8n.createWorkflow(compiled.workflow);
       workflowId = created && created.id;
       assert(validId(workflowId), 'created workflow has no usable id');
+      phase = 'readback';
+      result.phase = phase;
       let readback = await n8n.getWorkflow(workflowId);
       if (readback.active === true) {
         await n8n.deactivateWorkflow(workflowId);
@@ -142,14 +158,22 @@ function createCapabilityAcceptanceBackend({ n8n, approve, compileApproved, secr
       }
       const readChecks = readbackChecks(fixtureId, readback);
       result.readback = { pass: Object.values(readChecks).every(Boolean), checks: readChecks };
-      if (!result.readback.pass) return result;
+      if (!result.readback.pass) {
+        result.failure = { phase, code: 'readback_assertion_failed' };
+        return result;
+      }
+      phase = 'execute';
+      result.phase = phase;
       const facts = await n8n.executeWorkflow(workflowId, fixtureId);
       const sanitized = safeExecutionFacts(fixtureId, facts);
       const execChecks = executionChecks(fixtureId, sanitized);
       result.execution = { pass: Object.values(execChecks).every(Boolean), checks: execChecks };
       result.pass = result.readback.pass && result.execution.pass;
+      if (!result.pass) result.failure = { phase, code: 'execution_assertion_failed' };
       return result;
-    } catch (_) {
+    } catch (error) {
+      result.phase = phase;
+      result.failure = classifyFailure(error, phase);
       return result;
     } finally {
       if (workflowId) {
@@ -158,7 +182,8 @@ function createCapabilityAcceptanceBackend({ n8n, approve, compileApproved, secr
         try { await n8n.deleteWorkflow(workflowId); } catch (_) { cleanupFailed = true; }
         if (cleanupFailed) {
           result.pass = false;
-          result.cleanupWarning = 'cleanup_failed';
+          result.phase = 'cleanup';
+          result.failure = { phase: 'cleanup', code: 'cleanup_failed' };
         }
       }
     }
@@ -177,4 +202,4 @@ function createCapabilityAcceptanceBackend({ n8n, approve, compileApproved, secr
   return { runFixture, runBatch, fixtureIds: FIXTURE_IDS, compileFixture: (id) => compileNodewiseSpecification(specs[id]) };
 }
 
-module.exports = { FIXTURE_IDS, fixedSpecifications, readbackChecks, executionChecks, safeExecutionFacts, createCapabilityAcceptanceBackend };
+module.exports = { FIXTURE_IDS, FAILURE_PHASES, fixedSpecifications, readbackChecks, executionChecks, safeExecutionFacts, classifyFailure, createCapabilityAcceptanceBackend };
