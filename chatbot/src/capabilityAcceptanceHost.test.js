@@ -29,9 +29,11 @@ test('n8n API adapter keeps the server key in the request closure and returns no
     return { ok: true, status: 200, async json() { return { id: 'wf1', active: false }; } };
   };
   const api = createN8nAcceptanceApi({ baseUrl: 'http://n8n.test', apiKey: 'server-only', fetchImpl });
-  const result = await api.createWorkflow({ name: 'fixed' });
+  const result = await api.createWorkflow({ name: 'fixed', active: false, id: 'private-id', secret: 'drop' });
   assert.deepEqual(result, { id: 'wf1', active: false });
   assert.equal(seen.options.headers['X-N8N-API-KEY'], 'server-only');
+  const body = JSON.parse(seen.options.body);
+  assert.deepEqual(body, { name: 'fixed' });
   assert.doesNotMatch(JSON.stringify(api), /server-only/);
 });
 

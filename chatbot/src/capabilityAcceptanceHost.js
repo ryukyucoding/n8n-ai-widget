@@ -5,6 +5,7 @@
 // bodies, keys, workflow ids, or raw workflow data. No CLI arguments are used.
 
 const { createCapabilityAcceptanceBackend } = require('./capabilityAcceptanceBackend');
+const { sanitizeCreateWorkflowPayload } = require('./workflowCreatePayload');
 const { createFixedWebhookExecutionAdapter } = require('./capabilityAcceptanceExecution');
 const { approveNodewisePlan, compileApprovedNodewisePlan } = require('./approvedNodewiseCompiler');
 
@@ -41,7 +42,9 @@ function createN8nAcceptanceApi({ baseUrl, apiKey, fetchImpl = globalThis.fetch 
     return payload;
   }
   return {
-    createWorkflow: (workflow) => request('POST', '/api/v1/workflows', workflow),
+    // Match the shared create contract: root active/id/private fields are not
+    // accepted by n8n Create and must never be sent from the acceptance path.
+    createWorkflow: (workflow) => request('POST', '/api/v1/workflows', sanitizeCreateWorkflowPayload(workflow)),
     getWorkflow: (id) => request('GET', `/api/v1/workflows/${encodeURIComponent(String(id))}`),
     activateWorkflow: (id) => request('POST', `/api/v1/workflows/${encodeURIComponent(String(id))}/activate`, undefined, true),
     deactivateWorkflow: (id) => request('POST', `/api/v1/workflows/${encodeURIComponent(String(id))}/deactivate`, undefined, true),
