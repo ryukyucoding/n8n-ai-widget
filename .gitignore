@@ -4,3 +4,8 @@ node_modules/
 chatbot/node_modules/
 **/__pycache__/
 *.pyc
+
+# Local-only agent/browser runtime residue; not research evidence
+.playwright-mcp/
+*.tmp
+*.log
