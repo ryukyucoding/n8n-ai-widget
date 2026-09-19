@@ -76,6 +76,22 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'branch.branch_if',
+    label: '2-way conditional branch',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
+    id: 'merge.merge_append',
+    label: 'Merge 2 branches (append mode)',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'output.one_object',
     label: 'One object output contract',
     maturity: 'implemented',

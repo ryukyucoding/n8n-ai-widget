@@ -9,7 +9,7 @@ const {
   assertCardinality,
 } = require('./sourceSchemaRegistry');
 
-const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output']);
+const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge']);
 const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
@@ -250,6 +250,33 @@ function validateSpecification(value) {
           [configuration.totalField]: 'number', [configuration.falseCountField]: 'number',
         } };
       }
+    } else if (step.capability === 'data_branch') {
+      assert(config.operation === 'branch_if', `steps[${index}].configuration.operation must be branch_if`);
+      const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+      assert(input.value.cardinality === 'items', 'branch_if requires items input');
+      assert(config.condition && typeof config.condition === 'object', 'branch_if requires condition object');
+      const field = safeIdentifier(config.condition.field, `steps[${index}].configuration.condition.field`);
+      assertInputField(input.output, field, { usedBy: `steps[${index}].configuration.condition.field` });
+      assert(['equals', 'not_equals'].includes(config.condition.operator), 'branch_if operator must be equals or not_equals');
+      assert(Array.isArray(config.branches) && config.branches.length === 2, 'branch_if requires exactly two branch step IDs [trueStep, falseStep]');
+      configuration = {
+        operation: config.operation,
+        input: input.value,
+        condition: { field, operator: config.condition.operator, value: config.condition.value },
+        branches: config.branches.map((b) => {
+          assert(typeof b === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(b), 'branch step ID is invalid');
+          return b;
+        }),
+      };
+      output = { cardinality: 'items', fields: input.output.fields };
+    } else if (step.capability === 'data_merge') {
+      assert(config.operation === 'merge_append', `steps[${index}].configuration.operation must be merge_append`);
+      assert(Array.isArray(config.inputs) && config.inputs.length === 2, 'merge_append requires exactly two input references');
+      const in1 = source(config.inputs[0], `steps[${index}].configuration.inputs[0]`, seen, outputs);
+      const in2 = source(config.inputs[1], `steps[${index}].configuration.inputs[1]`, seen, outputs);
+      assert(in1.value.cardinality === 'items' && in2.value.cardinality === 'items', 'merge_append inputs must both be items');
+      configuration = { operation: config.operation, inputs: [in1.value, in2.value] };
+      output = { cardinality: 'items', fields: in1.output.fields };
     } else {
       const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
       const mapped = mappedOutput(input.output, config.mappings, `steps[${index}].configuration.mappings`);
@@ -347,13 +374,82 @@ function compileNodewiseSpecification(specification) {
       const fields = config.objectMappings.map((item) => `${item.to}: source.${item.from}`).join(', ');
       parameters = { jsCode: [`const source = $('${names[sourceStep]}').first().json;`, 'const records = $input.all().map((item) => item.json);', `const falseCount = records.filter((record) => record.${config.field} === false).length;`, `return [{ json: { ${fields}, ${config.totalField}: records.length, ${config.falseCountField}: falseCount } }];`].join('\n') };
     }
+    if (step.capability === 'data_branch' && config.operation === 'branch_if') {
+      type = 'n8n-nodes-base.if';
+      parameters = {
+        conditions: {
+          options: { caseSensitive: true, leftValue: '', typeValidation: 'strict' },
+          conditions: [
+            {
+              id: 'cond-1',
+              leftValue: `={{ $json.${config.condition.field} }}`,
+              rightValue: config.condition.value,
+              operator: { type: typeof config.condition.value === 'boolean' ? 'boolean' : 'string', operation: config.condition.operator },
+            },
+          ],
+          combinator: 'and',
+        },
+        options: {},
+      };
+    }
+    if (step.capability === 'data_merge' && config.operation === 'merge_append') {
+      type = 'n8n-nodes-base.merge';
+      parameters = { mode: 'append' };
+    }
     return { id: nodeId(step.id), name: names[step.id], ...latestCard(type), parameters, position: [240 + index * 260, 300] };
   });
+
   const connections = {};
-  for (let index = 0; index < nodes.length - 1; index += 1) {
-    connections[nodes[index].name] = { main: [[{ node: nodes[index + 1].name, type: 'main', index: 0 }]] };
+  const hasBranch = spec.steps.some((s) => s.capability === 'data_branch');
+  if (!hasBranch) {
+    for (let index = 0; index < nodes.length - 1; index += 1) {
+      connections[nodes[index].name] = { main: [[{ node: nodes[index + 1].name, type: 'main', index: 0 }]] };
+    }
+  } else {
+    // Non-linear DAG connections supporting 2-way branch output indexing and multi-input merge targeting
+    const stepById = new Map(spec.steps.map((s, i) => [s.id, { step: s, index: i, name: names[s.id] }]));
+    const mergeStep = spec.steps.find((s) => s.capability === 'data_merge');
+    const mergeName = mergeStep ? names[mergeStep.id] : null;
+    const mergeInputs = mergeStep?.configuration?.inputs || [];
+
+    for (let i = 0; i < spec.steps.length; i += 1) {
+      const s = spec.steps[i];
+      const sourceName = names[s.id];
+      if (s.capability === 'data_branch') {
+        const trueTargetId = s.configuration.branches[0];
+        const falseTargetId = s.configuration.branches[1];
+        const trueTargetName = stepById.get(trueTargetId)?.name;
+        const falseTargetName = stepById.get(falseTargetId)?.name;
+        connections[sourceName] = {
+          main: [
+            trueTargetName ? [{ node: trueTargetName, type: 'main', index: 0 }] : [],
+            falseTargetName ? [{ node: falseTargetName, type: 'main', index: 0 }] : [],
+          ],
+        };
+      } else if (s.capability === 'data_merge') {
+        if (i < spec.steps.length - 1) {
+          connections[sourceName] = { main: [[{ node: names[spec.steps[i + 1].id], type: 'main', index: 0 }]] };
+        }
+      } else {
+        // Check if this step is an input to the Merge node
+        const mergeInputIndex = mergeInputs.findIndex((ref) => ref.reference.startsWith(s.id));
+        if (mergeInputIndex >= 0 && mergeName) {
+          connections[sourceName] = { main: [[{ node: mergeName, type: 'main', index: mergeInputIndex }]] };
+        } else if (i < spec.steps.length - 1) {
+          connections[sourceName] = { main: [[{ node: names[spec.steps[i + 1].id], type: 'main', index: 0 }]] };
+        }
+      }
+    }
   }
-  return { name: `Nodewise compiler - ${spec.goal}`, active: false, settings: { executionOrder: 'v1' }, nodes, connections };
+  const goalStr = typeof spec.goal === 'string' ? spec.goal.trim() : '';
+  const goalHash = crypto.createHash('sha256').update(goalStr).digest('hex').slice(0, 8);
+  const rawPrefix = `Nodewise compiler - ${goalStr}`;
+  // Enforce name <= 128 chars while preserving readable prefix and deterministic short hash suffix
+  const workflowName = rawPrefix.length <= 128
+    ? rawPrefix
+    : `${rawPrefix.slice(0, 116)}...-${goalHash}`;
+
+  return { name: workflowName, active: false, settings: { executionOrder: 'v1' }, nodes, connections };
 }
 
 module.exports = { compileNodewiseSpecification, validateSpecification };
