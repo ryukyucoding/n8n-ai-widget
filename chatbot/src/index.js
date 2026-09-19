@@ -42,6 +42,40 @@ const {
   compileApprovedNodewisePlan,
   reviewNodewisePlannerResult,
 } = require('./approvedNodewiseCompiler');
+const { runLangGraphCompilation } = require('./langgraphCompiler');
+const { getDemoFallbackPlannerResult } = require('./demoPlanFallback');
+const { sanitizeWorkflowReadback } = require('./workflowReadback');
+let feasibilityChecker;
+try {
+  const { CatalogFeasibilityChecker } = require('../../n8n-node-catalog/feasibility_checker');
+  feasibilityChecker = new CatalogFeasibilityChecker();
+} catch {
+  const { defaultRegistry } = require('./catalogActionRegistry');
+  feasibilityChecker = {
+    checkPlan(steps = []) {
+      const results = steps.map((s) => {
+        const id = s.cardId || s.operation || s.configuration?.operation || s.capability;
+        const supported = defaultRegistry.isSupported(id);
+        return {
+          cardId: id,
+          classification: supported ? 'can_build_now' : 'unsupported',
+          feasible: supported,
+        };
+      });
+      return {
+        totalSteps: steps.length,
+        overallFeasible: results.every((r) => r.feasible),
+        statusCounts: {
+          can_build_now: results.filter((r) => r.classification === 'can_build_now').length,
+          needs_setup: 0,
+          needs_fixture: 0,
+          unsupported: results.filter((r) => r.classification === 'unsupported').length,
+        },
+        stepResults: results,
+      };
+    },
+  };
+}
 const { requestNodewisePlannerResult } = require('./nodewisePlanner');
 const {
   createCandidateLimit,
@@ -112,6 +146,9 @@ const BETA_CHAT_STANDALONE = ['1', 'true', 'yes'].includes(
 const PLAN_FIRST_COMPILER_ENABLED = enabledEnvironmentValue(process.env.PLAN_FIRST_COMPILER_ENABLED);
 const PLANNER_APPROVAL_HMAC_SECRET = process.env.PLANNER_APPROVAL_HMAC_SECRET || '';
 const PLAN_FIRST_PLANNER_MODEL = process.env.PLAN_FIRST_PLANNER_MODEL || 'qwen3.8:27b';
+const PLAN_FIRST_DEMO_FALLBACK = ['1', 'true', 'yes'].includes(
+  String(process.env.PLAN_FIRST_DEMO_FALLBACK || 'false').toLowerCase()
+);
 
 function timeoutMs(name, fallback) {
   const value = Number.parseInt(process.env[name] || String(fallback), 10);
@@ -344,6 +381,12 @@ function planReviewUnavailable(res) {
 }
 
 async function planFromUserRequest(message, previousSpecification, signal) {
+  if (PLAN_FIRST_DEMO_FALLBACK) {
+    const fallback = getDemoFallbackPlannerResult(message);
+    if (fallback) {
+      return reviewNodewisePlannerResult(fallback, { previousSpecification });
+    }
+  }
   const plannerResult = await requestNodewisePlannerResult({
     client: openaiLocal,
     model: PLAN_FIRST_PLANNER_MODEL,
@@ -425,24 +468,37 @@ function handlePlanApproval(req, res) {
 
 async function handleApprovedPlanCompilation(req, res) {
   if (planReviewUnavailable(res)) return;
-  if (!N8N_API_KEY) return res.status(503).json({ error: 'Runtime Compiler Beta requires an n8n API key.' });
   const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
+  const workflowId = typeof req.body?.workflowId === 'string' ? req.body.workflowId.trim() : '';
   try {
+    const specSteps = Array.isArray(req.body?.specification?.steps) ? req.body.specification.steps : [];
+    const feasibility = feasibilityChecker.checkPlan(specSteps, { offlineMode: true, fixtureAvailable: true, hasCredentials: false });
+    if (!feasibility.overallFeasible) {
+      return res.status(422).json({ error: 'Plan contains infeasible or unsupported actions.', code: 'plan_action_infeasible', feasibility });
+    }
     const compiled = compileApprovedNodewisePlan(req.body?.specification, req.body?.approvalToken, {
       secret: PLANNER_APPROVAL_HMAC_SECRET,
       sessionId,
     });
-    const result = await createVerifiedCompilerWorkflow({
-      userRequest: compiled.workflow.name,
-      candidateWorkflow: compiled.workflow,
-      metadata: {
-        compilerMode: 'plan_first_nodewise',
-        planFingerprint: compiled.planFingerprint,
-        runtimeSchemaRevision: compiled.runtimeSchemaRevision,
-        skillRegistryRevision: compiled.skillRegistryRevision,
-      },
+    const lgResult = await runLangGraphCompilation({
+      specification: req.body?.specification,
+      planFingerprint: compiled.planFingerprint,
+      sessionId,
+      workflowId: workflowId || undefined,
     });
-    return res.status(result.status).json(result.payload);
+    return res.status(200).json({
+      status: 'compiled_not_created',
+      created: false,
+      checkpointState: lgResult.state,
+      resumed: lgResult.resumed === true,
+      workflow: lgResult.compiledWorkflow,
+      staticVerification: lgResult.staticVerification,
+      readbackEvidence: lgResult.readbackEvidence || null,
+      feasibility: feasibility,
+      compilerMode: 'plan_first_nodewise',
+      planFingerprint: compiled.planFingerprint,
+      threadId: lgResult.threadId,
+    });
   } catch (error) {
     return res.status(422).json({ error: error.message || 'Approved plan compilation failed.', code: 'approved_plan_rejected' });
   }
@@ -451,6 +507,74 @@ async function handleApprovedPlanCompilation(req, res) {
 app.post('/beta/plan-from-request', handlePlanFromRequest);
 app.post('/beta/plan-approve', handlePlanApproval);
 app.post('/beta/compile-approved', handleApprovedPlanCompilation);
+
+// ---------------------------------------------------------------------------
+// GET /beta/workflow/:workflowId/readback — read-only structure verification
+// ---------------------------------------------------------------------------
+app.get('/beta/workflow/:workflowId/readback', async (req, res) => {
+  const rawId = req.params?.workflowId;
+  const workflowId = typeof rawId === 'string' ? rawId.trim() : '';
+
+  if (!workflowId || !/^[A-Za-z0-9_-]{1,128}$/.test(workflowId)) {
+    return res.status(400).json({
+      error: 'Invalid or missing workflowId parameter.',
+      code: 'invalid_workflow_id',
+    });
+  }
+
+  if (!N8N_API_KEY) {
+    return res.status(503).json({
+      error: 'Workflow readback requires an n8n API key.',
+      code: 'n8n_api_key_missing',
+    });
+  }
+
+  try {
+    const response = await fetchWithRetry(`${N8N_BASE_URL}/api/v1/workflows/${encodeURIComponent(workflowId)}`, {
+      method: 'GET',
+      headers: {
+        'X-N8N-API-KEY': N8N_API_KEY,
+        Connection: 'close',
+      },
+      dispatcher: DIRECT_FETCH,
+    }, 2);
+
+    if (response.status === 404) {
+      return res.status(404).json({
+        error: `Workflow "${workflowId}" not found.`,
+        code: 'workflow_not_found',
+      });
+    }
+
+    if (!response.ok) {
+      return res.status(502).json({
+        error: `n8n readback returned status ${response.status}`,
+        code: `n8n_readback_failed_${response.status}`,
+      });
+    }
+
+    const rawWorkflow = await response.json();
+    const sanitized = sanitizeWorkflowReadback(rawWorkflow);
+
+    return res.status(200).json({
+      status: 'readback_verified',
+      workflowId: sanitized.workflowId,
+      name: sanitized.name,
+      active: sanitized.active,
+      nodeCount: sanitized.nodeCount,
+      connectionCount: sanitized.connectionCount,
+      nodes: sanitized.nodes,
+      connectionsSummary: sanitized.connectionsSummary,
+      createdAt: sanitized.createdAt,
+      updatedAt: sanitized.updatedAt,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || 'Workflow readback failed.',
+      code: 'workflow_readback_error',
+    });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // POST /agent/run — intent decompose + modify/delete/insert station pipelines
