@@ -10,7 +10,7 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
 const CARDINALITIES = new Set(['one_object', 'items']);
@@ -233,6 +233,27 @@ function validateSpecification(value) {
 
         configuration = { operation: config.operation, input: input.value, renames };
         output = { cardinality: 'items', fields: outputFields };
+      } else if (config.operation === 'format_date') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'field', 'outputFieldName', 'format'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'format_date requires items input');
+        const field = safeIdentifier(config.field, `steps[${index}].configuration.field`);
+        assertInputField(input.output, field, { usedBy: `steps[${index}].configuration.field` });
+        const outputFieldName = safeIdentifier(config.outputFieldName, `steps[${index}].configuration.outputFieldName`);
+        assert(typeof config.format === 'string' && config.format.trim(), 'format_date requires a non-empty format string');
+        configuration = {
+          operation: config.operation,
+          input: input.value,
+          field,
+          outputFieldName,
+          format: config.format.trim(),
+        };
+        output = {
+          cardinality: 'items',
+          fields: { ...input.output.fields, [outputFieldName]: 'string' },
+        };
       } else {
         const objectInput = source(config.objectInput, `steps[${index}].configuration.objectInput`, seen, outputs);
         const itemsInput = source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen, outputs);
@@ -373,6 +394,16 @@ function compileNodewiseSpecification(specification) {
       const sourceStep = config.objectInput.reference.split('.', 1)[0];
       const fields = config.objectMappings.map((item) => `${item.to}: source.${item.from}`).join(', ');
       parameters = { jsCode: [`const source = $('${names[sourceStep]}').first().json;`, 'const records = $input.all().map((item) => item.json);', `const falseCount = records.filter((record) => record.${config.field} === false).length;`, `return [{ json: { ${fields}, ${config.totalField}: records.length, ${config.falseCountField}: falseCount } }];`].join('\n') };
+    }
+    if (step.capability === 'data_transform' && config.operation === 'format_date') {
+      type = 'n8n-nodes-base.dateTime';
+      parameters = {
+        operation: 'formatDate',
+        date: `={{ $json.${config.field} }}`,
+        format: config.format,
+        outputFieldName: config.outputFieldName,
+        options: { includeInputFields: true },
+      };
     }
     if (step.capability === 'data_branch' && config.operation === 'branch_if') {
       type = 'n8n-nodes-base.if';

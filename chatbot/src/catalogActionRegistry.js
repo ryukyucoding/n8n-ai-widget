@@ -24,6 +24,7 @@ const FALLBACK_ACTIONS = [
   { cardId: 'join_object_and_count_false_boolean', capability: 'data_transform', operation: 'join_object_and_count_false_boolean', nodeType: 'n8n-nodes-base.code', version: 2 },
   { cardId: 'branch_if', capability: 'data_branch', operation: 'branch_if', nodeType: 'n8n-nodes-base.if', version: 2.2 },
   { cardId: 'merge_append', capability: 'data_merge', operation: 'merge_append', nodeType: 'n8n-nodes-base.merge', version: 3 },
+  { cardId: 'format_date', capability: 'data_transform', operation: 'format_date', nodeType: 'n8n-nodes-base.dateTime', version: 2 },
   { cardId: 'set_output', capability: 'set_output', nodeType: 'n8n-nodes-base.set', version: 3.4 }
 ];
 

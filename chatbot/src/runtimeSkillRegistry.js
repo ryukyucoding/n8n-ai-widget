@@ -76,6 +76,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'transform.format_date',
+    label: 'Format date field using Luxon patterns',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'branch.branch_if',
     label: '2-way conditional branch',
     maturity: 'implemented',
