@@ -1,100 +1,158 @@
 'use strict';
 
 /**
- * Isolated Credential Capability Boundary Adapter (OVR-1 Milestone)
+ * Hardened Credential Ownership Boundary Adapter (OVR-1 Repaired Milestone)
  *
- * Implements a metadata-only credential boundary that represents Daniel-owned
+ * Implements a metadata-only credential boundary that represents authorized-owner
  * credential references without exposing secret values or admitting an administrator's
  * full inventory to planner/compiler context.
  *
+ * Fixes all 6 independent audit findings:
+ * 1. Exact type + ID binding: query.id resolution strictly verifies record.type === query.type.
+ * 2. Trusted relation-resolved canonical owner policy: binds authorizedOwnerId with provenance in revision hash.
+ * 3. Order-independent duplicate detection: duplicate IDs or duplicate (type, name) pairs fail closed (manifest_collision).
+ * 4. Zero foreign identifier leakage: foreign rejection responses never expose opaque foreign IDs.
+ * 5. Strict scalar validation: malformed manifests, non-scalar owners, and invalid shapes fail closed safely without throwing.
+ * 6. Enforces active state: only state === 'active' can resolve as available_now; inactive/revoked/unknown states reject.
+ *
  * Security Invariants:
- * 1. Values are completely excluded: only opaque references (e.g. "cred-dan-xxx") and types are processed.
- * 2. Credential name alone never proves ownership; explicit ownerUserId matching is required.
- * 3. Unknown, missing, or ambiguous ownership strictly fails closed (ownership: 'unknown' / 'foreign_rejected').
- * 4. Non-Daniel records are rejected from the candidate allowlist.
- * 5. Classifies status as available_now, needs_setup, or unavailable.
- * 6. Manifest fingerprinting hashes only structural metadata, never secret values.
- * 7. Zero live n8n network calls required; 100% offline pure adapter.
+ * - Values excluded 100%: only opaque references and types are processed.
+ * - Credential name alone never proves ownership.
+ * - Unknown, foreign, revoked, or ambiguous ownership strictly fails closed.
+ * - Zero live n8n calls, zero .44 calls, zero network mutation.
  */
 
 const crypto = require('node:crypto');
 
-const AUTHORIZED_OWNER_ID = 'daniel';
-const AUTHORIZED_OWNER_PATTERNS = [
-  /^daniel$/i,
-  /^dan$/i,
-  /^dan0203$/i,
-];
+const DEFAULT_AUTHORIZED_OWNER_ID = 'daniel';
+const VALID_STATES = new Set(['active', 'inactive', 'revoked']);
 
-function isDanielOwner(owner) {
-  if (typeof owner !== 'string' || !owner.trim()) return false;
-  const s = owner.trim();
-  return AUTHORIZED_OWNER_PATTERNS.some((p) => p.test(s));
+function isScalarString(val) {
+  return typeof val === 'string' && val.trim().length > 0;
 }
 
 class CredentialOwnershipBoundary {
   constructor(options = {}) {
-    this.authorizedOwnerId = options.authorizedOwnerId || AUTHORIZED_OWNER_ID;
+    const rawOwner = options.authorizedOwnerId;
+    this.authorizedOwnerId = isScalarString(rawOwner) ? rawOwner.trim() : DEFAULT_AUTHORIZED_OWNER_ID;
+    this.provenance = options.provenance || 'local_manifest';
     this.recordsById = new Map();
     this.recordsByTypeAndName = new Map();
+    this.manifestValid = false;
+    this.manifestError = null;
     this.manifestRevision = '0000000000000000000000000000000000000000000000000000000000000000';
-    if (options.manifestEntries) {
+
+    if (options.manifestEntries !== undefined) {
       this.loadManifest(options.manifestEntries);
     }
   }
 
+  isAuthorizedOwner(owner) {
+    if (!isScalarString(owner)) return false;
+    return owner.trim().toLowerCase() === this.authorizedOwnerId.toLowerCase();
+  }
+
   /**
-   * Load sanitized credential manifest metadata.
-   * Strips any accidental secret fields (passwords, tokens, keys) immediately.
+   * Load and sanitize credential manifest metadata.
+   * Fails closed safely if manifest is malformed or contains duplicate IDs/(type, name) collisions.
+   * Strips all non-metadata fields immediately.
    *
    * @param {Array<Object>} entries
+   * @returns {Object} { valid: boolean, count: number, error?: string }
    */
-  loadManifest(entries = []) {
+  loadManifest(entries) {
     this.recordsById.clear();
     this.recordsByTypeAndName.clear();
+    this.manifestValid = false;
+    this.manifestError = null;
+    this.manifestRevision = '0000000000000000000000000000000000000000000000000000000000000000';
+
+    if (!Array.isArray(entries)) {
+      this.manifestError = 'manifest_not_an_array';
+      return { valid: false, count: 0, error: this.manifestError };
+    }
+
+    const seenIds = new Set();
+    const seenTypeAndNames = new Set();
     const sanitizedList = [];
 
-    for (const entry of entries) {
-      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    for (let i = 0; i < entries.length; i += 1) {
+      const entry = entries[i];
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        this.manifestError = `malformed_entry_at_index_${i}`;
+        return { valid: false, count: 0, error: this.manifestError };
+      }
 
-      // Extract only structural, metadata-safe fields
-      const id = typeof entry.id === 'string' ? entry.id.trim() : '';
-      const credentialType = typeof entry.type === 'string' ? entry.type.trim() : '';
-      const name = typeof entry.name === 'string' ? entry.name.trim() : '';
-      const ownerUserId = typeof entry.ownerUserId === 'string' ? entry.ownerUserId.trim() : (entry.owner || '');
-      const state = typeof entry.state === 'string' ? entry.state.trim() : 'active';
+      const id = isScalarString(entry.id) ? entry.id.trim() : null;
+      const credentialType = isScalarString(entry.type) ? entry.type.trim() : null;
+      const name = isScalarString(entry.name) ? entry.name.trim() : (id || null);
+      const rawOwner = isScalarString(entry.ownerUserId) ? entry.ownerUserId.trim() : (isScalarString(entry.owner) ? entry.owner.trim() : null);
+      const state = isScalarString(entry.state) ? entry.state.trim().toLowerCase() : 'active';
 
-      if (!id || !credentialType) continue;
+      if (!id || !credentialType) {
+        this.manifestError = `missing_id_or_type_at_index_${i}`;
+        return { valid: false, count: 0, error: this.manifestError };
+      }
 
-      // Classify ownership strictly
+      if (!VALID_STATES.has(state)) {
+        this.manifestError = `invalid_state_at_index_${i}`;
+        return { valid: false, count: 0, error: this.manifestError };
+      }
+
+      // Order-independent duplicate ID check
+      if (seenIds.has(id)) {
+        this.manifestError = 'duplicate_credential_id_collision';
+        return { valid: false, count: 0, error: this.manifestError };
+      }
+      seenIds.add(id);
+
+      // Order-independent duplicate (type, name) collision check
+      const typeAndNameKey = `${credentialType}:${name}`;
+      if (seenTypeAndNames.has(typeAndNameKey)) {
+        this.manifestError = 'duplicate_type_and_name_collision';
+        return { valid: false, count: 0, error: this.manifestError };
+      }
+      seenTypeAndNames.add(typeAndNameKey);
+
+      // Ownership classification
       let ownershipClassification = 'unknown';
-      if (isDanielOwner(ownerUserId)) {
+      if (rawOwner && this.isAuthorizedOwner(rawOwner)) {
         ownershipClassification = 'daniel_owned';
-      } else if (ownerUserId) {
+      } else if (rawOwner) {
         ownershipClassification = 'foreign_rejected';
       }
 
+      // Record strictly sanitized metadata without secret fields
       const sanitizedRecord = {
         id,
         type: credentialType,
-        name: name || id,
-        ownerUserId: ownerUserId || 'unspecified',
+        name,
+        ownerUserId: rawOwner || 'unspecified',
         ownership: ownershipClassification,
         state,
       };
 
       this.recordsById.set(id, sanitizedRecord);
-      this.recordsByTypeAndName.set(`${credentialType}:${sanitizedRecord.name}`, sanitizedRecord);
+      this.recordsByTypeAndName.set(typeAndNameKey, sanitizedRecord);
       sanitizedList.push(sanitizedRecord);
     }
 
-    // Compute manifest revision hash over sanitized records
-    const str = JSON.stringify(sanitizedList.sort((a, b) => a.id.localeCompare(b.id)));
-    this.manifestRevision = crypto.createHash('sha256').update(str).digest('hex');
+    // Sort deterministically by ID for reproducible revision hashing
+    sanitizedList.sort((a, b) => a.id.localeCompare(b.id));
+
+    const manifestData = {
+      authorizedOwnerId: this.authorizedOwnerId,
+      provenance: this.provenance,
+      records: sanitizedList,
+    };
+
+    this.manifestRevision = crypto.createHash('sha256').update(JSON.stringify(manifestData)).digest('hex');
+    this.manifestValid = true;
+    return { valid: true, count: sanitizedList.length };
   }
 
   /**
-   * Evaluate a requested credential reference or requirement against Daniel-owned inventory.
+   * Resolve a requested credential reference or requirement against authorized inventory.
    *
    * @param {Object} query
    * @param {string} query.type - Required credential type (e.g. 'googleCalendarOAuth2')
@@ -103,18 +161,27 @@ class CredentialOwnershipBoundary {
    * @returns {Object} Sanitized capability report
    */
   resolveCredentialRequirement(query = {}) {
-    if (!query || typeof query !== 'object') {
+    if (!this.manifestValid) {
       return {
         status: 'unavailable',
         allowed: false,
-        reason: 'invalid_query',
+        reason: this.manifestError || 'manifest_invalid_or_unloaded',
         manifestRevision: this.manifestRevision,
       };
     }
 
-    const type = typeof query.type === 'string' ? query.type.trim() : '';
-    const id = typeof query.id === 'string' ? query.id.trim() : '';
-    const name = typeof query.name === 'string' ? query.name.trim() : '';
+    if (!query || typeof query !== 'object' || Array.isArray(query)) {
+      return {
+        status: 'unavailable',
+        allowed: false,
+        reason: 'invalid_query_object',
+        manifestRevision: this.manifestRevision,
+      };
+    }
+
+    const type = isScalarString(query.type) ? query.type.trim() : '';
+    const id = isScalarString(query.id) ? query.id.trim() : '';
+    const name = isScalarString(query.name) ? query.name.trim() : '';
 
     if (!type) {
       return {
@@ -126,20 +193,36 @@ class CredentialOwnershipBoundary {
     }
 
     let record = null;
-    if (id && this.recordsById.has(id)) {
-      record = this.recordsById.get(id);
-    } else if (name && this.recordsByTypeAndName.has(`${type}:${name}`)) {
-      record = this.recordsByTypeAndName.get(`${type}:${name}`);
+
+    if (id) {
+      // 1. Exact type + ID binding check
+      const candidate = this.recordsById.get(id);
+      if (candidate) {
+        if (candidate.type !== type) {
+          // Reject type mismatch immediately; do not authorize
+          return {
+            status: 'unavailable',
+            allowed: false,
+            type,
+            reason: 'credential_type_mismatch_for_id',
+            manifestRevision: this.manifestRevision,
+          };
+        }
+        record = candidate;
+      }
+    } else if (name) {
+      const typeAndNameKey = `${type}:${name}`;
+      record = this.recordsByTypeAndName.get(typeAndNameKey) || null;
     } else {
-      // Find candidate by type
+      // Find single candidate by type
       const matching = Array.from(this.recordsById.values()).filter((r) => r.type === type);
       if (matching.length === 1) {
         record = matching[0];
       } else if (matching.length > 1) {
-        // Ambiguous ownership or multiple candidates fail closed
         return {
           status: 'unavailable',
           allowed: false,
+          type,
           reason: 'ambiguous_multiple_credentials',
           candidateCount: matching.length,
           manifestRevision: this.manifestRevision,
@@ -157,18 +240,18 @@ class CredentialOwnershipBoundary {
       };
     }
 
-    // Strict ownership enforcement
+    // 4. Foreign rejection: never leak the foreign opaque ID
     if (record.ownership === 'foreign_rejected') {
       return {
         status: 'unavailable',
         allowed: false,
         type: record.type,
-        opaqueId: record.id,
         reason: 'foreign_owner_rejected',
         manifestRevision: this.manifestRevision,
       };
     }
 
+    // Ambiguous or missing owner
     if (record.ownership !== 'daniel_owned') {
       return {
         status: 'unavailable',
@@ -179,7 +262,18 @@ class CredentialOwnershipBoundary {
       };
     }
 
-    // Daniel-owned verified
+    // 6. State enforcement: only active state may resolve as available_now
+    if (record.state !== 'active') {
+      return {
+        status: 'unavailable',
+        allowed: false,
+        type: record.type,
+        reason: `credential_state_${record.state}`,
+        manifestRevision: this.manifestRevision,
+      };
+    }
+
+    // Authorized, active, Daniel-owned resolution
     return {
       status: 'available_now',
       allowed: true,
@@ -199,7 +293,7 @@ class CredentialOwnershipBoundary {
 }
 
 module.exports = {
-  AUTHORIZED_OWNER_ID,
-  isDanielOwner,
+  DEFAULT_AUTHORIZED_OWNER_ID,
+  isScalarString,
   CredentialOwnershipBoundary,
 };
