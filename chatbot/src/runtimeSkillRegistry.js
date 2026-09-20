@@ -100,6 +100,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'loop.loop_items',
+    label: 'Loop over items in batches (splitInBatches v3)',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'output.one_object',
     label: 'One object output contract',
     maturity: 'implemented',

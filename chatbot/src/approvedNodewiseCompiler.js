@@ -45,6 +45,7 @@ function skillIdsForSpecification(specification) {
     if (step.capability === 'set_output') ids.push('output.one_object');
     if (step.capability === 'data_branch' && step.configuration?.operation === 'branch_if') ids.push('branch.branch_if');
     if (step.capability === 'data_merge' && step.configuration?.operation === 'merge_append') ids.push('merge.merge_append');
+    if (step.capability === 'data_loop' && step.configuration?.operation === 'loop_items') ids.push('loop.loop_items');
     if (step.capability === 'data_transform') {
       const operation = step.configuration?.operation;
       if (operation === 'select_fields') ids.push('transform.select_fields');
