@@ -10,7 +10,7 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge', 'data_loop']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date', 'hash_data']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
 const CARDINALITIES = new Set(['one_object', 'items']);
@@ -254,6 +254,31 @@ function validateSpecification(value) {
           cardinality: 'items',
           fields: { ...input.output.fields, [outputFieldName]: 'string' },
         };
+      } else if (config.operation === 'hash_data') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'field', 'algorithm', 'outputFieldName', 'encoding'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'hash_data requires items input');
+        const field = safeIdentifier(config.field, `steps[${index}].configuration.field`);
+        assertInputField(input.output, field, { usedBy: `steps[${index}].configuration.field` });
+        const outputFieldName = safeIdentifier(config.outputFieldName || 'hashValue', `steps[${index}].configuration.outputFieldName`);
+        const algorithm = config.algorithm || 'SHA256';
+        assert(['SHA256', 'MD5', 'SHA512', 'SHA384'].includes(algorithm), 'hash_data algorithm is unsupported');
+        const encoding = config.encoding || 'hex';
+        assert(['hex', 'base64'].includes(encoding), 'hash_data encoding must be hex or base64');
+        configuration = {
+          operation: config.operation,
+          input: input.value,
+          field,
+          algorithm,
+          outputFieldName,
+          encoding,
+        };
+        output = {
+          cardinality: 'items',
+          fields: { ...input.output.fields, [outputFieldName]: 'string' },
+        };
       } else {
         const objectInput = source(config.objectInput, `steps[${index}].configuration.objectInput`, seen, outputs);
         const itemsInput = source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen, outputs);
@@ -421,6 +446,16 @@ function compileNodewiseSpecification(specification) {
         format: config.format,
         outputFieldName: config.outputFieldName,
         options: { includeInputFields: true },
+      };
+    }
+    if (step.capability === 'data_transform' && config.operation === 'hash_data') {
+      type = 'n8n-nodes-base.crypto';
+      parameters = {
+        action: 'hash',
+        type: config.algorithm || 'SHA256',
+        value: `={{ $json.${config.field} }}`,
+        dataPropertyName: config.outputFieldName || 'hashValue',
+        encoding: config.encoding || 'hex',
       };
     }
     if (step.capability === 'data_branch' && config.operation === 'branch_if') {

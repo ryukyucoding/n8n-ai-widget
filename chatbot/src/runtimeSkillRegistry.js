@@ -84,6 +84,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'transform.hash_data',
+    label: 'Hash data field using cryptographic algorithms (SHA256/MD5)',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'branch.branch_if',
     label: '2-way conditional branch',
     maturity: 'implemented',

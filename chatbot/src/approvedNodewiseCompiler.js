@@ -56,6 +56,7 @@ function skillIdsForSpecification(specification) {
       if (operation === 'limit_items') ids.push('transform.limit_items');
       if (operation === 'rename_keys') ids.push('transform.rename_keys');
       if (operation === 'format_date') ids.push('transform.format_date');
+      if (operation === 'hash_data') ids.push('transform.hash_data');
     }
   }
   return [...new Set(ids)];
