@@ -46,9 +46,12 @@ const { runLangGraphCompilation } = require('./langgraphCompiler');
 const { getDemoFallbackPlannerResult } = require('./demoPlanFallback');
 const { sanitizeWorkflowReadback } = require('./workflowReadback');
 let feasibilityChecker;
+let candidateResolver;
 try {
-  const { CatalogFeasibilityChecker } = require('../../n8n-node-catalog/feasibility_checker');
+  const { CatalogFeasibilityChecker } = require('../../../n8n-node-catalog/feasibility_checker');
   feasibilityChecker = new CatalogFeasibilityChecker();
+  const { CatalogFirstCandidateResolver } = require('../../../n8n-node-catalog/catalog_candidate_resolver');
+  candidateResolver = new CatalogFirstCandidateResolver();
 } catch {
   const { defaultRegistry } = require('./catalogActionRegistry');
   feasibilityChecker = {
@@ -75,6 +78,7 @@ try {
       };
     },
   };
+  candidateResolver = null;
 }
 const { requestNodewisePlannerResult } = require('./nodewisePlanner');
 const {
@@ -476,6 +480,21 @@ async function handleApprovedPlanCompilation(req, res) {
     if (!feasibility.overallFeasible) {
       return res.status(422).json({ error: 'Plan contains infeasible or unsupported actions.', code: 'plan_action_infeasible', feasibility });
     }
+
+    // Fail closed against CatalogFirstCandidateResolver diagnostics
+    let resolvedCards = [];
+    if (candidateResolver) {
+      const resolution = candidateResolver.resolvePlan(specSteps);
+      if (!resolution.resolved) {
+        return res.status(422).json({
+          error: 'Catalog candidate resolution failed: plan contains unresolvable actions.',
+          code: 'catalog_candidate_resolution_failed',
+          diagnostics: resolution.diagnostics,
+        });
+      }
+      resolvedCards = resolution.resolvedCards;
+    }
+
     const compiled = compileApprovedNodewisePlan(req.body?.specification, req.body?.approvalToken, {
       secret: PLANNER_APPROVAL_HMAC_SECRET,
       sessionId,
@@ -495,6 +514,7 @@ async function handleApprovedPlanCompilation(req, res) {
       staticVerification: lgResult.staticVerification,
       readbackEvidence: lgResult.readbackEvidence || null,
       feasibility: feasibility,
+      resolvedCapabilities: resolvedCards,
       compilerMode: 'plan_first_nodewise',
       planFingerprint: compiled.planFingerprint,
       threadId: lgResult.threadId,
