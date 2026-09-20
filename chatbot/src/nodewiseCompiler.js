@@ -9,7 +9,7 @@ const {
   assertCardinality,
 } = require('./sourceSchemaRegistry');
 
-const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge']);
+const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge', 'data_loop']);
 const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
@@ -298,6 +298,24 @@ function validateSpecification(value) {
       assert(in1.value.cardinality === 'items' && in2.value.cardinality === 'items', 'merge_append inputs must both be items');
       configuration = { operation: config.operation, inputs: [in1.value, in2.value] };
       output = { cardinality: 'items', fields: in1.output.fields };
+    } else if (step.capability === 'data_loop') {
+      assert(config.operation === 'loop_items', `steps[${index}].configuration.operation must be loop_items`);
+      const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+      assert(input.value.cardinality === 'items', 'loop_items requires items input');
+      const batchSize = config.batchSize !== undefined ? config.batchSize : 1;
+      assert(Number.isInteger(batchSize) && batchSize >= 1 && batchSize <= 100, 'loop_items batchSize must be an integer between 1 and 100');
+      assert(Array.isArray(config.loopBodySteps) && config.loopBodySteps.length >= 1, 'loop_items requires at least one loopBodyStep');
+      const validatedBody = config.loopBodySteps.map((b) => {
+        assert(typeof b === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(b), 'loopBodyStep ID is invalid');
+        return b;
+      });
+      configuration = {
+        operation: config.operation,
+        input: input.value,
+        batchSize,
+        loopBodySteps: validatedBody,
+      };
+      output = { cardinality: 'items', fields: input.output.fields };
     } else {
       const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
       const mapped = mappedOutput(input.output, config.mappings, `steps[${index}].configuration.mappings`);
@@ -427,25 +445,41 @@ function compileNodewiseSpecification(specification) {
       type = 'n8n-nodes-base.merge';
       parameters = { mode: 'append' };
     }
+    if (step.capability === 'data_loop' && config.operation === 'loop_items') {
+      type = 'n8n-nodes-base.splitInBatches';
+      parameters = {
+        batchSize: config.batchSize !== undefined ? config.batchSize : 1,
+        options: {},
+      };
+    }
     return { id: nodeId(step.id), name: names[step.id], ...latestCard(type), parameters, position: [240 + index * 260, 300] };
   });
 
   const connections = {};
   const hasBranch = spec.steps.some((s) => s.capability === 'data_branch');
-  if (!hasBranch) {
+  const hasLoop = spec.steps.some((s) => s.capability === 'data_loop');
+
+  if (!hasBranch && !hasLoop) {
     for (let index = 0; index < nodes.length - 1; index += 1) {
       connections[nodes[index].name] = { main: [[{ node: nodes[index + 1].name, type: 'main', index: 0 }]] };
     }
   } else {
-    // Non-linear DAG connections supporting 2-way branch output indexing and multi-input merge targeting
+    // Non-linear DAG and cyclic loop connection serialization
     const stepById = new Map(spec.steps.map((s, i) => [s.id, { step: s, index: i, name: names[s.id] }]));
     const mergeStep = spec.steps.find((s) => s.capability === 'data_merge');
     const mergeName = mergeStep ? names[mergeStep.id] : null;
     const mergeInputs = mergeStep?.configuration?.inputs || [];
 
+    const loopStep = spec.steps.find((s) => s.capability === 'data_loop');
+    const loopName = loopStep ? names[loopStep.id] : null;
+    const loopBodySteps = loopStep?.configuration?.loopBodySteps || [];
+    const loopBodySet = new Set(loopBodySteps);
+    const loopTailId = loopBodySteps.at(-1);
+
     for (let i = 0; i < spec.steps.length; i += 1) {
       const s = spec.steps[i];
       const sourceName = names[s.id];
+
       if (s.capability === 'data_branch') {
         const trueTargetId = s.configuration.branches[0];
         const falseTargetId = s.configuration.branches[1];
@@ -457,10 +491,27 @@ function compileNodewiseSpecification(specification) {
             falseTargetName ? [{ node: falseTargetName, type: 'main', index: 0 }] : [],
           ],
         };
+      } else if (s.capability === 'data_loop') {
+        // Output 0 = loop iteration body head, Output 1 = done output (next step after loop)
+        const loopHeadId = loopBodySteps[0];
+        const loopHeadName = stepById.get(loopHeadId)?.name;
+        // The done step is the step immediately following the loop body steps in the spec
+        const doneStepIndex = spec.steps.findIndex((st, idx) => idx > i && !loopBodySet.has(st.id));
+        const doneName = doneStepIndex >= 0 ? names[spec.steps[doneStepIndex].id] : null;
+
+        connections[sourceName] = {
+          main: [
+            loopHeadName ? [{ node: loopHeadName, type: 'main', index: 0 }] : [],
+            doneName ? [{ node: doneName, type: 'main', index: 0 }] : [],
+          ],
+        };
       } else if (s.capability === 'data_merge') {
         if (i < spec.steps.length - 1) {
           connections[sourceName] = { main: [[{ node: names[spec.steps[i + 1].id], type: 'main', index: 0 }]] };
         }
+      } else if (hasLoop && s.id === loopTailId && loopName) {
+        // Loop body tail node connects back to splitInBatches Input 0 (cyclic back-edge)
+        connections[sourceName] = { main: [[{ node: loopName, type: 'main', index: 0 }]] };
       } else {
         // Check if this step is an input to the Merge node
         const mergeInputIndex = mergeInputs.findIndex((ref) => ref.reference.startsWith(s.id));
