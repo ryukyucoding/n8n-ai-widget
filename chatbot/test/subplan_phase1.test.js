@@ -198,9 +198,80 @@ const phantomInputSpec = JSON.parse(JSON.stringify(subplanPhase1Spec));
 phantomInputSpec.blocks[0].input.fields = { phantomField: 'string' };
 assert.throws(
   () => validateSubplanSpecification(phantomInputSpec),
-  /block\.input declared phantom input fields \[phantomField\] on a root block that requires no input/,
+  /block\.input declared phantom input field "phantomField" not consumed by block entry step/,
   'Expected phantom input fields on root block to fail closed'
 );
 console.log('Test 12 (Phantom input contract on root block fails closed against vacuous requirement): PASS');
+
+// 13. Contract derivation: non-root block phantom input fails closed (Aegis Probe)
+const nonRootPhantomSpec = {
+  schemaVersion: '1.0',
+  kind: 'nodewise_subplan_specification',
+  goal: 'Non-root block test',
+  blocks: [
+    {
+      id: 'fetch-block',
+      goal: 'Fetch and count block without manual_trigger',
+      input: {
+        cardinality: 'one_object',
+        fields: { totallyMadeUp: 'string' }, // phantom input
+      },
+      output: {
+        cardinality: 'one_object',
+        fields: { totalTodos: 'number' },
+      },
+      steps: [
+        {
+          id: 'fetch',
+          capability: 'http_request',
+          requiredUserSetup: [],
+          configuration: {
+            method: 'GET',
+            url: { kind: 'public_literal', reference: 'https://jsonplaceholder.typicode.com/todos', cardinality: 'items' },
+          },
+        },
+        {
+          id: 'count',
+          capability: 'data_transform',
+          requiredUserSetup: [],
+          configuration: {
+            operation: 'count_false_boolean',
+            input: { kind: 'prior_step', reference: 'fetch.response', cardinality: 'items' },
+            field: 'completed',
+            totalField: 'totalTodos',
+            falseCountField: 'incompleteTodos',
+          },
+        },
+        {
+          id: 'out',
+          capability: 'set_output',
+          requiredUserSetup: [],
+          configuration: {
+            input: { kind: 'prior_step', reference: 'count.response', cardinality: 'one_object' },
+            mappings: [{ from: 'totalTodos', to: 'totalTodos', valueType: 'number' }],
+          },
+        },
+      ],
+    },
+  ],
+  composition: [],
+  expectedOutput: { deliveryShape: 'one_object', fields: ['totalTodos'] },
+};
+assert.throws(
+  () => validateSubplanSpecification(nonRootPhantomSpec),
+  /block\.input declared phantom input field "totallyMadeUp" not consumed by block entry step/,
+  'Expected non-root block phantom input to fail closed'
+);
+console.log('Test 13 (Non-root block phantom input fails closed): PASS');
+
+// 14. Contract derivation: non-root block wrong input cardinality fails closed
+const nonRootWrongCardSpec = JSON.parse(JSON.stringify(nonRootPhantomSpec));
+nonRootWrongCardSpec.blocks[0].input = { cardinality: 'items', fields: {} };
+assert.throws(
+  () => validateSubplanSpecification(nonRootWrongCardSpec),
+  /block\.input cardinality items must match required input cardinality one_object/,
+  'Expected non-root block wrong input cardinality to fail closed'
+);
+console.log('Test 14 (Non-root block wrong input cardinality fails closed): PASS');
 
 console.log('ALL nodewise_subplan_specification PHASE 1 TESTS PASS (100% verified)');

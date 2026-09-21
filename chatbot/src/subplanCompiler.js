@@ -71,12 +71,35 @@ function validateSubplanSpecification(specification) {
 
   // Derive block input requirement from first step
   const firstStep = validatedFlat.steps[0];
+  let derivedInput;
   if (firstStep.capability === 'manual_trigger') {
     // Root block requires vacuous input: no upstream fields consumed
-    const declaredInputKeys = Object.keys(block.input.fields);
+    derivedInput = { cardinality: 'one_object', fields: {} };
+  } else if (firstStep.capability === 'http_request') {
+    // First step is http_request: public GET URL requires no upstream object/items input
+    derivedInput = { cardinality: 'one_object', fields: {} };
+  } else {
+    // In future phases or subplans, steps consuming external input will derive here
+    derivedInput = { cardinality: 'one_object', fields: {} };
+  }
+
+  // Assert declared block.input cardinality matches derived input cardinality
+  assert(
+    block.input.cardinality === derivedInput.cardinality,
+    `block.input cardinality ${block.input.cardinality} must match required input cardinality ${derivedInput.cardinality}`
+  );
+
+  // Assert declared block.input fields do not contain phantom fields not required by first step
+  const declaredInputKeys = Object.keys(block.input.fields);
+  for (const fieldName of declaredInputKeys) {
+    const requiredType = derivedInput.fields[fieldName];
     assert(
-      declaredInputKeys.length === 0,
-      `block.input declared phantom input fields [${declaredInputKeys.join(', ')}] on a root block that requires no input`
+      requiredType !== undefined,
+      `block.input declared phantom input field "${fieldName}" not consumed by block entry step`
+    );
+    assert(
+      block.input.fields[fieldName] === requiredType,
+      `block.input field "${fieldName}" declared type ${block.input.fields[fieldName]} does not match required type ${requiredType}`
     );
   }
 
