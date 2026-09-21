@@ -84,6 +84,14 @@ const SKILLS = Object.freeze([
     risk: 'read_only',
   },
   {
+    id: 'transform.extract_date',
+    label: 'Extract date part (year, month, week, day, hour, minute, second) as numeric value',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
     id: 'transform.hash_data',
     label: 'Hash data field using cryptographic algorithms (SHA256/MD5/SHA512/SHA384)',
     maturity: 'implemented',

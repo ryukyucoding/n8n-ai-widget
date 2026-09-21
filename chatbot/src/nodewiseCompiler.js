@@ -11,9 +11,10 @@ const {
 const { getDeclaredAction } = require('./declaredActions');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge', 'data_loop']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date', 'hash_data', 'render_markdown', 'xml_convert']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date', 'extract_date', 'hash_data', 'render_markdown', 'xml_convert']);
 const MARKDOWN_MODES = new Set(['markdownToHtml', 'htmlToMarkdown']);
 const XML_MODES = new Set(['jsonToxml', 'xmlToJson']);
+const DATE_PARTS = new Set(['year', 'month', 'week', 'day', 'hour', 'minute', 'second']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
 const CARDINALITIES = new Set(['one_object', 'items']);
@@ -258,6 +259,30 @@ function validateSpecification(value) {
           cardinality: 'items',
           fields: { ...input.output.fields, [outputFieldName]: 'string' },
         };
+      } else if (config.operation === 'extract_date') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'field', 'part', 'outputFieldName'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'extract_date requires items input');
+        const field = safeIdentifier(config.field, `steps[${index}].configuration.field`);
+        assertInputField(input.output, field, { expectedType: 'string', usedBy: `steps[${index}].configuration.field` });
+        const part = config.part;
+        assert(DATE_PARTS.has(part), `extract_date part must be one of: ${[...DATE_PARTS].join(', ')}`);
+        const outputFieldName = safeIdentifier(config.outputFieldName, `steps[${index}].configuration.outputFieldName`);
+        assert(!input.output.fields[outputFieldName], `extract_date outputFieldName "${outputFieldName}" collides with an existing input field`);
+        configuration = {
+          operation: config.operation,
+          input: input.value,
+          field,
+          part,
+          outputFieldName,
+        };
+        // Output field type is number per Luxon get(part)/weekNumber offline source verification (DateTimeV2.node.js:191)
+        output = {
+          cardinality: 'items',
+          fields: { ...input.output.fields, [outputFieldName]: 'number' },
+        };
       } else if (config.operation === 'hash_data') {
         for (const key of Object.keys(config)) {
           assert(['operation', 'input', 'field', 'algorithm', 'outputFieldName', 'encoding'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
@@ -498,6 +523,16 @@ function compileNodewiseSpecification(specification) {
         operation: 'formatDate',
         date: `={{ $json.${config.field} }}`,
         format: config.format,
+        outputFieldName: config.outputFieldName,
+        options: { includeInputFields: true },
+      };
+    }
+    if (step.capability === 'data_transform' && config.operation === 'extract_date') {
+      type = 'n8n-nodes-base.dateTime';
+      parameters = {
+        operation: 'extractDate',
+        date: `={{ $json.${config.field} }}`,
+        part: config.part,
         outputFieldName: config.outputFieldName,
         options: { includeInputFields: true },
       };

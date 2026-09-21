@@ -8,14 +8,17 @@ const runtimeSchemas = require('../schemas/runtime_node_schemas.json');
 
 console.log('--- Testing typeVersion Consistency & Authoritative Enforcement Suite ---');
 
-// 1. Test pure in-repo declared actions: exactly 17 capabilities, branch_if is 2.3, merge_append is 3.2
-assert.strictEqual(DECLARED_ACTIONS.length, 17, 'Expected exactly 17 declared actions');
+// 1. Test pure in-repo declared actions: exactly 18 capabilities, branch_if is 2.3, merge_append is 3.2, extract_date is 2
+assert.strictEqual(DECLARED_ACTIONS.length, 18, 'Expected exactly 18 declared actions (including extract_date)');
 const branchIfAction = getDeclaredAction('data_branch', 'branch_if');
 assert.strictEqual(branchIfAction.version, 2.3, 'branch_if must be declared as 2.3');
 
 const mergeAppendAction = getDeclaredAction('data_merge', 'merge_append');
 assert.strictEqual(mergeAppendAction.version, 3.2, 'merge_append must be declared as 3.2');
-console.log('Test 1 (Declared actions catalog corrections branch_if 2.3 and merge_append 3.2): PASS');
+
+const extractDateAction = getDeclaredAction('data_transform', 'extract_date');
+assert.strictEqual(extractDateAction.version, 2, 'extract_date must be declared as 2');
+console.log('Test 1 (Declared actions catalog corrections branch_if 2.3, merge_append 3.2, extract_date 2): PASS');
 
 // 2. Test fallback registry matches declared actions exactly
 const registryBranchIf = defaultRegistry.getAction('branch_if');
