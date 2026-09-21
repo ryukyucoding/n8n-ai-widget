@@ -475,14 +475,22 @@ function compileNodewiseSpecification(specification) {
       };
     }
     if (step.capability === 'data_transform' && config.operation === 'hash_data') {
-      type = 'n8n-nodes-base.crypto';
-      parameters = {
-        action: 'hash',
-        type: config.algorithm || 'SHA256',
-        value: `={{ $json.${config.field} }}`,
-        dataPropertyName: config.outputFieldName || 'hashValue',
-        encoding: config.encoding || 'hex',
+      // Pinned strictly to Crypto typeVersion 1 per Q10 contract (do not use latestCard)
+      const nodeObj = {
+        id: nodeId(step.id),
+        name: names[step.id],
+        type: 'n8n-nodes-base.crypto',
+        typeVersion: 1,
+        parameters: {
+          action: 'hash',
+          type: config.algorithm || 'SHA256',
+          value: `={{ $json.${config.field} }}`,
+          dataPropertyName: config.outputFieldName || 'hashValue',
+          encoding: config.encoding || 'hex',
+        },
+        position: [240 + index * 260, 300],
       };
+      return nodeObj;
     }
     if (step.capability === 'data_transform' && config.operation === 'render_markdown') {
       // Pinned to version 1 strictly per OVR-3 proposal (do not use latestCard)
