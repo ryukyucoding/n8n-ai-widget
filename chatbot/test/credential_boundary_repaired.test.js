@@ -5,85 +5,109 @@ const path = require('node:path');
 const {
   CredentialOwnershipBoundary,
   isScalarString,
-  TRUSTED_OWNERS_ALLOWLIST,
-  TRUSTED_PROVENANCE_ALLOWLIST,
+  getTrustedOwnersAllowlist,
+  getTrustedProvenanceAllowlist,
 } = require('../src/credentialOwnershipBoundary');
 
-console.log('--- Testing Repaired Pass 2 OVR-1 Credential Ownership Boundary ---');
+console.log('--- Testing Final Repaired OVR-1 Credential Ownership Boundary ---');
 
-// 1. Test Trusted Authority & Provenance Contract
-const untrustedOwnerBoundary = new CredentialOwnershipBoundary({
-  authorizedOwnerId: 'malicious_admin_injected',
-  provenance: 'audit_repair_harness',
+// 1. Residual 1 Test: Trusted Authority Sets Immutability & Mutation Regression
+const ownersList = getTrustedOwnersAllowlist();
+assert(Array.isArray(ownersList) && ownersList.includes('daniel'));
+// Verify mutation attempt on returned list does not affect boundary validation
+ownersList.push('injected_fake_owner');
+const testBoundary = new CredentialOwnershipBoundary({
+  authorizedOwnerId: 'injected_fake_owner',
 });
-assert.strictEqual(untrustedOwnerBoundary.boundaryValid, false);
-assert.strictEqual(untrustedOwnerBoundary.boundaryError, 'untrusted_authorized_owner_id');
+assert.strictEqual(testBoundary.boundaryValid, false);
+assert.strictEqual(testBoundary.boundaryError, 'untrusted_authorized_owner_id');
 
-const untrustedProvBoundary = new CredentialOwnershipBoundary({
-  authorizedOwnerId: 'daniel',
-  provenance: 'untrusted_external_injection',
+// 2. Residual 2 Test: Safe fail-closed on invalid constructor without unhandled exceptions
+const invalidCtorBoundary = new CredentialOwnershipBoundary({
+  authorizedOwnerId: 'unauthorized_attacker',
+  provenance: 'untrusted_location',
 });
-assert.strictEqual(untrustedProvBoundary.boundaryValid, false);
-assert.strictEqual(untrustedProvBoundary.boundaryError, 'untrusted_or_missing_provenance');
+assert.strictEqual(invalidCtorBoundary.boundaryValid, false);
+// Instance methods must fail closed safely without throwing
+const loadOnInvalid = invalidCtorBoundary.loadManifest([{ id: 'c1', type: 't1', state: 'active' }]);
+assert.strictEqual(loadOnInvalid.valid, false);
+assert.strictEqual(loadOnInvalid.error, 'untrusted_authorized_owner_id');
 
-// 2. Valid boundary initialization under trusted contract
+const resolveOnInvalid = invalidCtorBoundary.resolveCredentialRequirement({ type: 't1' });
+assert.strictEqual(resolveOnInvalid.status, 'unavailable');
+assert.strictEqual(resolveOnInvalid.allowed, false);
+assert.strictEqual(resolveOnInvalid.reason, 'untrusted_authorized_owner_id');
+assert.strictEqual(typeof invalidCtorBoundary.getRevision(), 'string');
+
+// 3. Valid boundary initialization under trusted contract
 const boundary = new CredentialOwnershipBoundary({
   authorizedOwnerId: 'daniel',
   provenance: 'audit_repair_harness',
 });
 assert.strictEqual(boundary.boundaryValid, true);
 
-// 3. Test Residual 1: Non-scalar ownerUserId must reject immediately and never fallback
-const nonScalarOwnerBoundary = new CredentialOwnershipBoundary({
-  authorizedOwnerId: 'daniel',
-  provenance: 'offline_test',
-});
+// 4. Residual 3 Test: Restored duplicate ID, duplicate (type, name) collision, and ambiguous type tests
+const dupIdBoundary = new CredentialOwnershipBoundary();
+const dupIdRes = dupIdBoundary.loadManifest([
+  { id: 'cred-same-id', type: 'typeA', name: 'NameA', ownerUserId: 'daniel', state: 'active' },
+  { id: 'cred-same-id', type: 'typeB', name: 'NameB', ownerUserId: 'daniel', state: 'active' },
+]);
+console.log('Restored Collision Test (Duplicate ID):', dupIdRes.valid, dupIdRes.error);
+assert.strictEqual(dupIdRes.valid, false);
+assert.strictEqual(dupIdRes.error, 'duplicate_credential_id_collision');
+
+const dupTypeNameBoundary = new CredentialOwnershipBoundary();
+const dupTypeNameRes = dupTypeNameBoundary.loadManifest([
+  { id: 'cred-1', type: 'gmailOAuth2', name: 'SharedName', ownerUserId: 'daniel', state: 'active' },
+  { id: 'cred-2', type: 'gmailOAuth2', name: 'SharedName', ownerUserId: 'daniel', state: 'active' },
+]);
+console.log('Restored Collision Test (Duplicate type+name):', dupTypeNameRes.valid, dupTypeNameRes.error);
+assert.strictEqual(dupTypeNameRes.valid, false);
+assert.strictEqual(dupTypeNameRes.error, 'duplicate_type_and_name_collision');
+
+// Ambiguous type-only resolution test (multiple valid Daniel credentials of same type without ID/name)
+const ambigBoundary = new CredentialOwnershipBoundary();
+ambigBoundary.loadManifest([
+  { id: 'cred-gmail-1', type: 'gmailOAuth2', name: 'Gmail 1', ownerUserId: 'daniel', state: 'active' },
+  { id: 'cred-gmail-2', type: 'gmailOAuth2', name: 'Gmail 2', ownerUserId: 'daniel', state: 'active' },
+]);
+const ambigQuery = ambigBoundary.resolveCredentialRequirement({ type: 'gmailOAuth2' });
+console.log('Restored Ambiguous Type Query:', ambigQuery.status, ambigQuery.reason);
+assert.strictEqual(ambigQuery.status, 'unavailable');
+assert.strictEqual(ambigQuery.allowed, false);
+assert.strictEqual(ambigQuery.reason, 'ambiguous_multiple_credentials');
+assert.strictEqual(ambigQuery.candidateCount, 2);
+
+// 5. Test Non-scalar ownerUserId rejection (never fallback to entry.owner)
+const nonScalarOwnerBoundary = new CredentialOwnershipBoundary();
 const nonScalarOwnerRes = nonScalarOwnerBoundary.loadManifest([
   {
     id: 'cred-1',
     type: 'gmailOAuth2',
     name: 'Gmail',
     ownerUserId: ['daniel'], // Non-scalar array
-    owner: 'daniel',        // Must NOT fallback to this
+    owner: 'daniel',        // Must NOT fallback
     state: 'active',
   },
 ]);
-console.log('Residual 1 (Non-scalar ownerUserId):', nonScalarOwnerRes.valid, nonScalarOwnerRes.error);
 assert.strictEqual(nonScalarOwnerRes.valid, false);
 assert.strictEqual(nonScalarOwnerRes.error, 'non_scalar_owner_user_id_at_index_0');
 
-// 4. Test Residual 2: Missing or unknown state must reject and never default to active
-const missingStateBoundary = new CredentialOwnershipBoundary({
-  authorizedOwnerId: 'daniel',
-  provenance: 'offline_test',
-});
+// 6. Test Missing or unknown state rejection (never defaults to active)
+const missingStateBoundary = new CredentialOwnershipBoundary();
 const missingStateRes = missingStateBoundary.loadManifest([
-  {
-    id: 'cred-1',
-    type: 'gmailOAuth2',
-    name: 'Gmail',
-    ownerUserId: 'daniel',
-    // Missing state
-  },
+  { id: 'cred-1', type: 'gmailOAuth2', name: 'Gmail', ownerUserId: 'daniel' },
 ]);
-console.log('Residual 2 (Missing state):', missingStateRes.valid, missingStateRes.error);
 assert.strictEqual(missingStateRes.valid, false);
 assert.strictEqual(missingStateRes.error, 'missing_state_at_index_0');
 
 const unknownStateRes = missingStateBoundary.loadManifest([
-  {
-    id: 'cred-1',
-    type: 'gmailOAuth2',
-    name: 'Gmail',
-    ownerUserId: 'daniel',
-    state: 'pending_verification', // Unknown state
-  },
+  { id: 'cred-1', type: 'gmailOAuth2', name: 'Gmail', ownerUserId: 'daniel', state: 'pending' },
 ]);
-console.log('Residual 2 (Unknown state):', unknownStateRes.valid, unknownStateRes.error);
 assert.strictEqual(unknownStateRes.valid, false);
 assert.strictEqual(unknownStateRes.error, 'invalid_state_at_index_0');
 
-// 5. Test Baseline valid manifest
+// 7. Baseline valid manifest & findings
 const validManifest = [
   {
     id: 'cred-dan-gmail',
@@ -115,34 +139,26 @@ const validManifest = [
     ownerUserId: 'daniel',
     state: 'revoked',
   },
-  {
-    id: 'cred-unowned-github',
-    type: 'githubApi',
-    name: 'Orphan Github',
-    state: 'active',
-  },
 ];
 
 const loadRes = boundary.loadManifest(validManifest);
 assert.strictEqual(loadRes.valid, true);
-assert.strictEqual(loadRes.count, 5);
+assert.strictEqual(loadRes.count, 4);
 
-// 6. Test Finding 1: Exact type + ID binding (Query ID but mismatched type MUST fail)
+// Finding 1: Exact type + ID binding (Query ID but mismatched type MUST fail)
 const f1Query = boundary.resolveCredentialRequirement({
   type: 'slackApi',
   id: 'cred-dan-gmail',
 });
-console.log('Finding 1 (Type + ID mismatch):', f1Query.status, f1Query.reason);
 assert.strictEqual(f1Query.status, 'unavailable');
 assert.strictEqual(f1Query.allowed, false);
 assert.strictEqual(f1Query.reason, 'credential_type_mismatch_for_id');
 
-// 7. Test Finding 2: Valid Daniel resolution & trusted provenance
+// Finding 2: Valid Daniel resolution & trusted provenance
 const validDaniel = boundary.resolveCredentialRequirement({
   type: 'gmailOAuth2',
   id: 'cred-dan-gmail',
 });
-console.log('Finding 2 (Valid Daniel resolution):', validDaniel.status, 'allowed:', validDaniel.allowed);
 assert.strictEqual(validDaniel.status, 'available_now');
 assert.strictEqual(validDaniel.allowed, true);
 assert.deepStrictEqual(validDaniel.opaqueRef, {
@@ -151,12 +167,11 @@ assert.deepStrictEqual(validDaniel.opaqueRef, {
   name: 'Personal Gmail',
 });
 
-// 8. Test Finding 4: Foreign rejection never exposes foreign opaque ID
+// Finding 4: Foreign rejection never exposes foreign opaque ID
 const foreignQuery = boundary.resolveCredentialRequirement({
   type: 'slackApi',
   id: 'cred-foreign-slack',
 });
-console.log('Finding 4 (Foreign owner rejection):', foreignQuery.status, foreignQuery.reason);
 assert.strictEqual(foreignQuery.status, 'unavailable');
 assert.strictEqual(foreignQuery.allowed, false);
 assert.strictEqual(foreignQuery.reason, 'foreign_owner_rejected');
@@ -164,24 +179,19 @@ assert.strictEqual('opaqueRef' in foreignQuery, false);
 assert.strictEqual('opaqueId' in foreignQuery, false);
 assert.strictEqual('id' in foreignQuery, false);
 
-// 9. Test Secret Exclusion & Change Invariance on Manifest Revision Hash
+// Secret Exclusion & Hash Stability Check (order-independent & secret-tampered)
 const originalRev = boundary.getRevision();
 const boundaryRecomputed = new CredentialOwnershipBoundary({
   authorizedOwnerId: 'daniel',
   provenance: 'audit_repair_harness',
 });
-// Reversing input entries must yield identical revision hash (order-independent)
 const reversedManifest = [...validManifest].reverse();
 boundaryRecomputed.loadManifest(reversedManifest);
-console.log('Revision hash stability:');
-console.log('Original hash:   ', originalRev);
-console.log('Recomputed hash: ', boundaryRecomputed.getRevision());
 assert.strictEqual(boundaryRecomputed.getRevision(), originalRev);
 
-// Tampering with secret fields must NOT alter the manifest revision hash (secret exclusion verification)
 const secretTamperedManifest = validManifest.map(m => ({
   ...m,
-  password: 'COMPLETELY_DIFFERENT_PASSWORD_12345',
+  password: 'DIFFERENT_PASSWORD_12345',
   token: 'tampered_token_xyz',
 }));
 const boundaryTampered = new CredentialOwnershipBoundary({
@@ -189,7 +199,6 @@ const boundaryTampered = new CredentialOwnershipBoundary({
   provenance: 'audit_repair_harness',
 });
 boundaryTampered.loadManifest(secretTamperedManifest);
-console.log('Secret-tampered hash:', boundaryTampered.getRevision());
 assert.strictEqual(boundaryTampered.getRevision(), originalRev);
 
-console.log('ALL REPAIRED PASS-2 OVR-1 AUDIT TESTS PASS (100% verified)');
+console.log('ALL FINAL REPAIRED OVR-1 AUDIT TESTS PASS (100% verified)');

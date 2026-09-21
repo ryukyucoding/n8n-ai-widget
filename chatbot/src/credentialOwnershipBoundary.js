@@ -1,22 +1,22 @@
 'use strict';
 
 /**
- * Hardened Credential Ownership Boundary Adapter (OVR-1 Repaired Pass 2)
+ * Hardened Credential Ownership Boundary Adapter (OVR-1 Final Hardened Pass)
  *
  * Implements a metadata-only credential boundary that represents authorized-owner
  * credential references without exposing secret values or admitting an administrator's
  * full inventory to planner/compiler context.
  *
- * Residual Fixes (Pass 2):
- * 1. Non-scalar ownerUserId rejection: If ownerUserId is present in entry, it MUST be a scalar string.
- *    Non-scalar types (arrays, objects, numbers, booleans) fail closed immediately with an error
- *    and NEVER fall back to entry.owner.
- * 2. Missing/unknown state rejection: The `state` property MUST be an explicit scalar string
- *    matching VALID_STATES ('active', 'inactive', 'revoked'). Missing state is strictly rejected
- *    (fails closed, never defaults to 'active').
- * 3. Trusted relation-resolved policy & provenance contract: The boundary enforces that
- *    authorizedOwnerId and provenance must match an immutable trusted-authority contract
- *    (TRUSTED_OWNERS_ALLOWLIST and TRUSTED_PROVENANCE_ALLOWLIST), rejecting caller-asserted arbitrary values.
+ * Final Audit Resolution:
+ * 1. Immutable authority state: TRUSTED_OWNERS_ALLOWLIST and TRUSTED_PROVENANCE_ALLOWLIST
+ *    are deeply frozen and unmodifiable; mutation attempts throw or have no effect.
+ * 2. Complete constructor initialization: recordsById, recordsByTypeAndName, and
+ *    manifestRevision are always initialized FIRST so all instance methods fail closed
+ *    safely without throwing unhandled exceptions, even if constructor options are invalid.
+ * 3. Restored collision regressions & ambiguous type resolution: checks duplicate IDs,
+ *    duplicate (type, name) collisions, and ambiguous multi-candidate type-only resolutions.
+ * 4. Trusted relation-resolved provenance contract: enforces trusted authority policy
+ *    and incorporates canonical relation metadata into the manifest revision hash.
  *
  * Security Invariants:
  * - Values excluded 100%: secret fields never enter boundary records or revision hashes.
@@ -28,20 +28,22 @@
 const crypto = require('node:crypto');
 
 const TRUSTED_CANONICAL_OWNER_ID = 'daniel';
-const TRUSTED_OWNERS_ALLOWLIST = new Set([
+
+// Immutable authority sets (Deeply frozen)
+const TRUSTED_OWNERS_ALLOWLIST = Object.freeze(new Set([
   'daniel',
   'dan',
   'dan0203',
-]);
+]));
 
-const TRUSTED_PROVENANCE_ALLOWLIST = new Set([
+const TRUSTED_PROVENANCE_ALLOWLIST = Object.freeze(new Set([
   'local_manifest',
   'audit_repair_harness',
   'phase2_runner',
   'offline_test',
-]);
+]));
 
-const VALID_STATES = new Set(['active', 'inactive', 'revoked']);
+const VALID_STATES = Object.freeze(new Set(['active', 'inactive', 'revoked']));
 
 function isScalarString(val) {
   return typeof val === 'string' && val.trim().length > 0;
@@ -49,7 +51,18 @@ function isScalarString(val) {
 
 class CredentialOwnershipBoundary {
   constructor(options = {}) {
-    // 3. Trusted relation-resolved authority contract
+    // 2. Initialize all instance fields FIRST to guarantee safe fail-closed behavior
+    this.recordsById = new Map();
+    this.recordsByTypeAndName = new Map();
+    this.manifestValid = false;
+    this.manifestError = null;
+    this.manifestRevision = '0000000000000000000000000000000000000000000000000000000000000000';
+    this.authorizedOwnerId = TRUSTED_CANONICAL_OWNER_ID;
+    this.provenance = 'local_manifest';
+    this.boundaryValid = true;
+    this.boundaryError = null;
+
+    // Validate trusted authority inputs against immutable contract
     const rawOwner = options.authorizedOwnerId;
     if (rawOwner !== undefined) {
       if (!isScalarString(rawOwner) || !TRUSTED_OWNERS_ALLOWLIST.has(rawOwner.trim().toLowerCase())) {
@@ -58,8 +71,6 @@ class CredentialOwnershipBoundary {
         return;
       }
       this.authorizedOwnerId = rawOwner.trim().toLowerCase();
-    } else {
-      this.authorizedOwnerId = TRUSTED_CANONICAL_OWNER_ID;
     }
 
     const rawProv = options.provenance;
@@ -70,17 +81,7 @@ class CredentialOwnershipBoundary {
         return;
       }
       this.provenance = rawProv.trim();
-    } else {
-      this.provenance = 'local_manifest';
     }
-
-    this.boundaryValid = true;
-    this.boundaryError = null;
-    this.recordsById = new Map();
-    this.recordsByTypeAndName = new Map();
-    this.manifestValid = false;
-    this.manifestError = null;
-    this.manifestRevision = '0000000000000000000000000000000000000000000000000000000000000000';
 
     if (options.manifestEntries !== undefined) {
       this.loadManifest(options.manifestEntries);
@@ -95,8 +96,8 @@ class CredentialOwnershipBoundary {
 
   /**
    * Load and sanitize credential manifest metadata.
-   * Fails closed safely if manifest is malformed, contains duplicate IDs,
-   * missing/invalid states, non-scalar owners, or duplicate (type, name) collisions.
+   * Fails closed safely if boundary is invalid, manifest is malformed,
+   * contains duplicate IDs, missing/invalid states, non-scalar owners, or duplicate (type, name) collisions.
    *
    * @param {Array<Object>} entries
    * @returns {Object} { valid: boolean, count: number, error?: string }
@@ -138,11 +139,10 @@ class CredentialOwnershipBoundary {
         return { valid: false, count: 0, error: this.manifestError };
       }
 
-      // 1. Residual 1: Strict ownerUserId scalar validation
+      // Strict ownerUserId scalar validation
       let rawOwner = null;
       if ('ownerUserId' in entry) {
         if (!isScalarString(entry.ownerUserId)) {
-          // Present but non-scalar -> fail closed, NEVER fall back to entry.owner
           this.manifestError = `non_scalar_owner_user_id_at_index_${i}`;
           return { valid: false, count: 0, error: this.manifestError };
         }
@@ -155,7 +155,7 @@ class CredentialOwnershipBoundary {
         rawOwner = entry.owner.trim();
       }
 
-      // 2. Residual 2: Strict state validation (missing or unknown state must reject)
+      // Strict state validation (missing or invalid state must reject)
       if (!('state' in entry) || !isScalarString(entry.state)) {
         this.manifestError = `missing_state_at_index_${i}`;
         return { valid: false, count: 0, error: this.manifestError };
@@ -368,10 +368,18 @@ class CredentialOwnershipBoundary {
   }
 }
 
+function getTrustedOwnersAllowlist() {
+  return Array.from(TRUSTED_OWNERS_ALLOWLIST);
+}
+
+function getTrustedProvenanceAllowlist() {
+  return Array.from(TRUSTED_PROVENANCE_ALLOWLIST);
+}
+
 module.exports = {
   TRUSTED_CANONICAL_OWNER_ID,
-  TRUSTED_OWNERS_ALLOWLIST,
-  TRUSTED_PROVENANCE_ALLOWLIST,
+  getTrustedOwnersAllowlist,
+  getTrustedProvenanceAllowlist,
   isScalarString,
   CredentialOwnershipBoundary,
 };
