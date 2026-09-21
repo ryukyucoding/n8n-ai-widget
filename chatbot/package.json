@@ -10,7 +10,8 @@
     "test:hash": "node test/hash_data.test.js",
     "test:xml": "node test/xml_convert.test.js",
     "test:typeversion": "node test/typeversion_consistency.test.js",
-    "test:extract_date": "node test/extract_date.test.js"
+    "test:extract_date": "node test/extract_date.test.js",
+    "test:subplan": "node test/subplan_phase1.test.js"
   },
   "dependencies": {
     "@langchain/langgraph": "0.2.74",
