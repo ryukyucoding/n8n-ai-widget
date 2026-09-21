@@ -58,6 +58,7 @@ function skillIdsForSpecification(specification) {
       if (operation === 'format_date') ids.push('transform.format_date');
       if (operation === 'hash_data') ids.push('transform.hash_data');
       if (operation === 'render_markdown') ids.push('transform.render_markdown');
+      if (operation === 'xml_convert') ids.push('transform.xml_convert');
     }
   }
   return [...new Set(ids)];

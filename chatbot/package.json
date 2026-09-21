@@ -7,7 +7,8 @@
     "dev": "node --watch src/index.js",
     "test:credentials": "node test/credential_boundary_repaired.test.js",
     "test:markdown": "node test/render_markdown.test.js",
-    "test:hash": "node test/hash_data.test.js"
+    "test:hash": "node test/hash_data.test.js",
+    "test:xml": "node test/xml_convert.test.js"
   },
   "dependencies": {
     "@langchain/langgraph": "0.2.74",

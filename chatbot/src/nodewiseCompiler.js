@@ -10,8 +10,9 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge', 'data_loop']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date', 'hash_data', 'render_markdown']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date', 'hash_data', 'render_markdown', 'xml_convert']);
 const MARKDOWN_MODES = new Set(['markdownToHtml', 'htmlToMarkdown']);
+const XML_MODES = new Set(['jsonToxml', 'xmlToJson']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
 const CARDINALITIES = new Set(['one_object', 'items']);
@@ -305,6 +306,31 @@ function validateSpecification(value) {
           cardinality: 'items',
           fields: { ...input.output.fields, [outputFieldName]: 'string' },
         };
+      } else if (config.operation === 'xml_convert') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'mode', 'field', 'outputFieldName'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'xml_convert requires items input');
+        const mode = config.mode;
+        assert(XML_MODES.has(mode), 'xml_convert mode must be jsonToxml or xmlToJson');
+        const field = safeIdentifier(config.field, `steps[${index}].configuration.field`);
+        assertInputField(input.output, field, { expectedType: 'string', usedBy: `steps[${index}].configuration.field` });
+        const defaultOutputField = mode === 'jsonToxml' ? 'xmlOutput' : 'jsonOutput';
+        const rawOutputField = config.outputFieldName !== undefined ? config.outputFieldName : defaultOutputField;
+        const outputFieldName = safeIdentifier(rawOutputField, `steps[${index}].configuration.outputFieldName`);
+        assert(!input.output.fields[outputFieldName], `xml_convert outputFieldName "${outputFieldName}" collides with an existing input field`);
+        configuration = {
+          operation: config.operation,
+          input: input.value,
+          mode,
+          field,
+          outputFieldName,
+        };
+        output = {
+          cardinality: 'items',
+          fields: { ...input.output.fields, [outputFieldName]: 'string' },
+        };
       } else {
         const objectInput = source(config.objectInput, `steps[${index}].configuration.objectInput`, seen, outputs);
         const itemsInput = source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen, outputs);
@@ -510,6 +536,26 @@ function compileNodewiseSpecification(specification) {
       };
       return nodeObj;
     }
+    if (step.capability === 'data_transform' && config.operation === 'xml_convert') {
+      // Pinned strictly to XML typeVersion 1 per contract (do not use latestCard)
+      // dataPropertyName carries config.field for xmlToJson (read property) and
+      // config.outputFieldName for jsonToxml (target XML output property).
+      // All options.* left absent/closed.
+      const propName = config.mode === 'xmlToJson' ? config.field : config.outputFieldName;
+      const nodeObj = {
+        id: nodeId(step.id),
+        name: names[step.id],
+        type: 'n8n-nodes-base.xml',
+        typeVersion: 1,
+        parameters: {
+          mode: config.mode,
+          dataPropertyName: propName,
+          options: {},
+        },
+        position: [240 + index * 260, 300],
+      };
+      return nodeObj;
+    }
     if (step.capability === 'data_branch' && config.operation === 'branch_if') {
       type = 'n8n-nodes-base.if';
       parameters = {
@@ -539,7 +585,7 @@ function compileNodewiseSpecification(specification) {
         options: {},
       };
     }
-    const card = type === 'n8n-nodes-base.crypto'
+    const card = (type === 'n8n-nodes-base.crypto' || type === 'n8n-nodes-base.xml')
       ? { type, typeVersion: 1 }
       : latestCard(type);
     return { id: nodeId(step.id), name: names[step.id], ...card, parameters, position: [240 + index * 260, 300] };
