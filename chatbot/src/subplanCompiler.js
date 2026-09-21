@@ -1,7 +1,12 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { validateSpecification, compileNodewiseSpecification } = require('./nodewiseCompiler');
+const {
+  validateSpecificationWithShapes,
+  compileNodewiseSpecification,
+  CARDINALITIES,
+  VALUE_TYPES,
+} = require('./nodewiseCompiler');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -14,11 +19,11 @@ function safeIdentifier(value, field) {
 
 function validateContract(contract, field) {
   assert(contract && typeof contract === 'object' && !Array.isArray(contract), `${field} must be an object`);
-  assert(['one_object', 'items'].includes(contract.cardinality), `${field}.cardinality must be one_object or items`);
+  assert(CARDINALITIES.has(contract.cardinality), `${field}.cardinality must be one_object or items`);
   assert(contract.fields && typeof contract.fields === 'object' && !Array.isArray(contract.fields), `${field}.fields must be an object`);
   for (const [k, v] of Object.entries(contract.fields)) {
     safeIdentifier(k, `${field}.fields key`);
-    assert(['string', 'number', 'boolean'].includes(v), `${field}.fields[${k}] type ${v} is unsupported`);
+    assert(VALUE_TYPES.has(v), `${field}.fields[${k}] type ${v} is unsupported`);
   }
 }
 
@@ -52,7 +57,7 @@ function validateSubplanSpecification(specification) {
     assert(typeof block.checkpoint === 'boolean', 'block.checkpoint must be a boolean');
   }
 
-  // Construct equivalent flat spec for validation
+  // Construct equivalent flat spec for validation and shape extraction
   const flatSpec = {
     schemaVersion: '1.0',
     kind: 'nodewise_step_specification',
@@ -62,7 +67,31 @@ function validateSubplanSpecification(specification) {
     steps: block.steps,
   };
 
-  const validatedFlat = validateSpecification(flatSpec);
+  const { spec: validatedFlat, outputs } = validateSpecificationWithShapes(flatSpec);
+
+  // Derive block output shape from tail step output shape
+  const tailStep = validatedFlat.steps.at(-1);
+  const derivedTailOutput = outputs.get(tailStep.id);
+  assert(derivedTailOutput, `tail step ${tailStep.id} has no derived output shape`);
+
+  // Assert declared block.output cardinality equals derived tail output cardinality
+  assert(
+    block.output.cardinality === derivedTailOutput.cardinality,
+    `block.output cardinality ${block.output.cardinality} must match tail step cardinality ${derivedTailOutput.cardinality}`
+  );
+
+  // Assert declared block.output fields are a subset of derived tail output fields with matching types
+  for (const [fieldName, declaredType] of Object.entries(block.output.fields)) {
+    const derivedType = derivedTailOutput.fields[fieldName];
+    assert(
+      derivedType !== undefined,
+      `block.output declared ghost field "${fieldName}" not produced by block tail step`
+    );
+    assert(
+      derivedType === declaredType,
+      `block.output field "${fieldName}" declared type ${declaredType} does not match derived type ${derivedType}`
+    );
+  }
 
   // In Phase 1, block.output must match expectedOutput fields
   assert(specification.expectedOutput?.deliveryShape === block.output.cardinality, 'expectedOutput deliveryShape must match block.output cardinality');

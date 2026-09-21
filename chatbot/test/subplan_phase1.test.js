@@ -143,8 +143,9 @@ assert.throws(
 console.log('Test 6 (Bad contract cardinality fails closed): PASS');
 
 // 7. Output contract mismatch with expectedOutput fails closed
+// Block steps produce totalTodos (number), block.output declares totalTodos, but expectedOutput expects unproducedField
 const mismatchOutputSpec = JSON.parse(JSON.stringify(subplanPhase1Spec));
-mismatchOutputSpec.blocks[0].output.fields = { otherField: 'string' };
+delete mismatchOutputSpec.blocks[0].output.fields.totalTodos;
 assert.throws(
   () => validateSubplanSpecification(mismatchOutputSpec),
   /block\.output missing declared expectedOutput field totalTodos/,
@@ -161,5 +162,35 @@ assert.throws(
   'Expected invalid step inside block to fail closed'
 );
 console.log('Test 8 (Block step scope validation fails closed): PASS');
+
+// 9. Contract derivation: ghost field in block.output fails closed
+const ghostFieldSpec = JSON.parse(JSON.stringify(subplanPhase1Spec));
+ghostFieldSpec.blocks[0].output.fields.ghostField = 'string';
+assert.throws(
+  () => validateSubplanSpecification(ghostFieldSpec),
+  /block\.output declared ghost field "ghostField" not produced by block tail step/,
+  'Expected ghost field in block.output to fail closed'
+);
+console.log('Test 9 (Ghost field in block.output fails closed against derived tail output): PASS');
+
+// 10. Contract derivation: wrong type in block.output fails closed (e.g. string vs number)
+const wrongTypeSpec = JSON.parse(JSON.stringify(subplanPhase1Spec));
+wrongTypeSpec.blocks[0].output.fields.totalTodos = 'string'; // actual derived is number
+assert.throws(
+  () => validateSubplanSpecification(wrongTypeSpec),
+  /block\.output field "totalTodos" declared type string does not match derived type number/,
+  'Expected wrong type in block.output to fail closed'
+);
+console.log('Test 10 (Wrong field type in block.output fails closed against derived tail output): PASS');
+
+// 11. Contract derivation: cardinality mismatch between block.output and derived tail fails closed
+const wrongCardSpec = JSON.parse(JSON.stringify(subplanPhase1Spec));
+wrongCardSpec.blocks[0].output.cardinality = 'items'; // tail is set_output (one_object)
+assert.throws(
+  () => validateSubplanSpecification(wrongCardSpec),
+  /block\.output cardinality items must match tail step cardinality one_object/,
+  'Expected cardinality mismatch in block.output to fail closed'
+);
+console.log('Test 11 (Cardinality mismatch in block.output fails closed against derived tail output): PASS');
 
 console.log('ALL nodewise_subplan_specification PHASE 1 TESTS PASS (100% verified)');

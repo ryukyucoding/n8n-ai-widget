@@ -109,6 +109,10 @@ function mappedOutput(input, value, field) {
 }
 
 function validateSpecification(value) {
+  return validateSpecificationWithShapes(value).spec;
+}
+
+function validateSpecificationWithShapes(value) {
   assert(value && typeof value === 'object' && !Array.isArray(value), 'specification must be an object');
   assert(value.schemaVersion === '1.0', 'schemaVersion must be 1.0');
   assert(value.kind === 'nodewise_step_specification', 'kind must be nodewise_step_specification');
@@ -445,16 +449,17 @@ function validateSpecification(value) {
   assert(finalFields.length > 0, 'final step must produce declared output fields');
   assert(finalFields.length === expectedOutputFields.length && finalFields.every((field, index) => field === expectedOutputFields[index]), 'final step fields must match expectedOutput.fields');
 
-  // Return the complete canonical IR. Callers use this value for review,
-  // approval binding, and compilation, so dropping envelope fields here would
-  // make a validated planner result impossible to validate a second time.
+  // Return the complete canonical IR alongside computed outputs map.
   return {
-    schemaVersion: '1.0',
-    kind: 'nodewise_step_specification',
-    goal: value.goal.trim(),
-    requiredUserSetup: [],
-    expectedOutput: { deliveryShape: 'one_object', fields: expectedOutputFields },
-    steps,
+    spec: {
+      schemaVersion: '1.0',
+      kind: 'nodewise_step_specification',
+      goal: value.goal.trim(),
+      requiredUserSetup: [],
+      expectedOutput: { deliveryShape: 'one_object', fields: expectedOutputFields },
+      steps,
+    },
+    outputs,
   };
 }
 
@@ -680,4 +685,11 @@ function compileNodewiseSpecification(specification) {
   return { name: workflowName, active: false, settings: { executionOrder: 'v1' }, nodes, connections };
 }
 
-module.exports = { compileNodewiseSpecification, validateSpecification, resolveCard };
+module.exports = {
+  compileNodewiseSpecification,
+  validateSpecification,
+  validateSpecificationWithShapes,
+  resolveCard,
+  CARDINALITIES,
+  VALUE_TYPES,
+};
