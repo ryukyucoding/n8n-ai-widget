@@ -1,0 +1,993 @@
+{
+  "catalogVersion": "1.0.0",
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-09-17T19:45:39.787Z",
+  "targetSurface": "demo_compiler_beta",
+  "provenance": {
+    "sourceCatalog": "n8n_node_catalog.json",
+    "sourceRuntimeSchemasSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5",
+    "compilerSource": "chatbot/src/nodewiseCompiler.js"
+  },
+  "totalCards": 14,
+  "actionCards": [
+    {
+      "cardId": "manual_trigger",
+      "actionName": "Manual Trigger",
+      "capability": "manual_trigger",
+      "nodeType": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "description": "Triggers the workflow manually for user-initiated executions or interactive testing.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "No external credentials required."
+      },
+      "inputMetadata": {
+        "inputs": [],
+        "cardinality": "trigger_start",
+        "notes": "Workflow entry point; produces trigger execution context."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "one_object",
+        "notes": "Emits initial empty or trigger context payload."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "notes": "Manual trigger requires no parameters in nodewise compiler."
+      },
+      "compiledNodeParameters": {},
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.manualTrigger@1",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5",
+        "compilerMapping": "nodewiseCompiler.js:307"
+      }
+    },
+    {
+      "cardId": "public_http_get",
+      "actionName": "Public HTTP GET",
+      "capability": "http_request",
+      "nodeType": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "description": "Performs a public, unauthenticated HTTP GET request against verified public data endpoints.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Unauthenticated public GET only. Zero credentials, tokens, or basic auth passed."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "optional_prior_step",
+        "notes": "Can run standalone or chained from trigger/prior step."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items_or_one_object",
+        "notes": "Yields JSON items array or single object depending on target endpoint contract."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "method",
+          "url"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET"
+            ]
+          },
+          "url": {
+            "type": "object",
+            "required": [
+              "kind",
+              "reference",
+              "cardinality"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "public_literal"
+                ]
+              },
+              "reference": {
+                "type": "string",
+                "format": "uri"
+              },
+              "cardinality": {
+                "type": "string",
+                "enum": [
+                  "one_object",
+                  "items"
+                ]
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "compiledNodeParameters": {
+        "method": "GET",
+        "url": "={{ config.url.reference }}",
+        "options": {}
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.httpRequest@4.4",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5",
+        "compilerMapping": "nodewiseCompiler.js:309-311"
+      }
+    },
+    {
+      "cardId": "sort_items",
+      "actionName": "Sort Items",
+      "capability": "data_transform",
+      "operation": "sort_items",
+      "nodeType": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "description": "Deterministically sorts input item list by a specific field in ascending or descending order.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Pure in-memory data transformation; zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Requires an array/stream of items from a prior node."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Emits reordered items matching the input schema."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "field",
+          "order"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "sort_items"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "order": {
+            "type": "string",
+            "enum": [
+              "ascending",
+              "descending"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "compiledNodeParameters": {
+        "type": "simple",
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "{{ config.field }}",
+              "order": "{{ config.order }}"
+            }
+          ]
+        }
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.sort@1",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5",
+        "compilerMapping": "nodewiseCompiler.js:325-327"
+      }
+    },
+    {
+      "cardId": "limit_items",
+      "actionName": "Limit Items",
+      "capability": "data_transform",
+      "operation": "limit_items",
+      "nodeType": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "description": "Truncates an item list to a maximum count, keeping first or last items.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Pure in-memory data transformation; zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Requires items list from prior step."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Emits at most maxItems items."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "limit"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "limit_items"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "keep": {
+            "type": "string",
+            "enum": [
+              "firstItems",
+              "lastItems"
+            ],
+            "default": "firstItems"
+          }
+        },
+        "additionalProperties": false
+      },
+      "compiledNodeParameters": {
+        "maxItems": "{{ config.limit }}",
+        "keep": "{{ config.keep || \"firstItems\" }}"
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.limit@1",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5",
+        "compilerMapping": "nodewiseCompiler.js:321-323"
+      }
+    },
+    {
+      "cardId": "code_count_false_boolean",
+      "actionName": "Code / Count False Boolean",
+      "capability": "data_transform",
+      "operation": "count_false_boolean",
+      "nodeType": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "description": "Fixed deterministic JavaScript template executing list aggregation and false-boolean counting with strict equality (=== false).",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Deterministic template code; zero credentials, zero network access."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Input records containing target boolean field."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "one_object",
+        "notes": "Emits a single object containing total and false count metrics."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "field",
+          "totalField",
+          "falseCountField"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "count_false_boolean"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "totalField": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "falseCountField": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "compiledNodeParameters": {
+        "jsCode": "const records = $input.all().map((item) => item.json);\nconst falseCount = records.filter((record) => record.{{field}} === false).length;\nreturn [{ json: { {{totalField}}: records.length, {{falseCountField}}: falseCount } }];"
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.code@2",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5",
+        "compilerMapping": "nodewiseCompiler.js:317-319"
+      }
+    },
+    {
+      "cardId": "set_output",
+      "actionName": "Set Output / Edit Fields",
+      "capability": "set_output",
+      "nodeType": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "description": "Sets and maps final output fields into a structured JSON delivery shape.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Pure field mapping; zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items_or_one_object",
+        "notes": "Data from prior steps to project and rename."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "one_object",
+        "notes": "Final structured output meeting compiler expectedOutput shape."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "mappings"
+        ],
+        "properties": {
+          "mappings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "value"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "compiledNodeParameters": {
+        "mode": "manual",
+        "fields": {
+          "values": "{{ assignments(config.mappings) }}"
+        }
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.set@3.4",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5",
+        "compilerMapping": "nodewiseCompiler.js:313-315"
+      }
+    },
+    {
+      "cardId": "remove_duplicates",
+      "actionName": "Remove Duplicates",
+      "capability": "data_transform",
+      "operation": "remove_duplicates",
+      "nodeType": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "description": "Deduplicates input items based on comparing selected fields.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Pure in-memory item deduplication; zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "List of items to deduplicate."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Deduplicated list of items."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "field"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "remove_duplicates"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "compiledNodeParameters": {
+        "operation": "removeDuplicateInputItems",
+        "compare": "selectedFields",
+        "fieldsToCompare": "{{ config.field }}"
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.removeDuplicates@2",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5",
+        "compilerMapping": "nodewiseCompiler.js:328-331"
+      }
+    },
+    {
+      "cardId": "loop_items",
+      "actionName": "Loop Over Items (Split in Batches)",
+      "capability": "data_loop",
+      "operation": "loop_items",
+      "nodeType": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "description": "Splits items into batches and iterates over them in a loop.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Pure loop iteration; zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Incoming batch of items."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main",
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Output 0 = iteration loop; Output 1 = done branch."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "input",
+          "loopBodySteps"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "loop_items"
+            ]
+          },
+          "batchSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "loopBodySteps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "executionModel": "cyclic_loop_dual_output",
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.splitInBatches@3",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    },
+    {
+      "cardId": "branch_if",
+      "actionName": "Branch (If)",
+      "capability": "data_branch",
+      "operation": "branch_if",
+      "nodeType": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "description": "Conditionally routes items to true or false branches based on evaluation criteria.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Stream of items to evaluate."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main",
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Output 0 = true branch, Output 1 = false branch."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "input",
+          "condition",
+          "branches"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "branch_if"
+            ]
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.if@2.2",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    },
+    {
+      "cardId": "merge_append",
+      "actionName": "Merge (Append)",
+      "capability": "data_merge",
+      "operation": "merge_append",
+      "nodeType": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "description": "Merges items from multiple branches into a single sequential item stream.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main",
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Multiple branch streams."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Unified merged item stream."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "inputs"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "merge_append"
+            ]
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.merge@3",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    },
+    {
+      "cardId": "format_date",
+      "actionName": "Format Date",
+      "capability": "data_transform",
+      "operation": "format_date",
+      "nodeType": "n8n-nodes-base.dateTime",
+      "typeVersion": 2,
+      "description": "Converts a date field on an item stream to a formatted date string using Luxon patterns.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Stream of items with a date field."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Items with new formatted date field."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "input",
+          "field",
+          "outputFieldName",
+          "format"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "format_date"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "outputFieldName": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "yyyy-MM-dd",
+              "MM/dd/yyyy",
+              "yyyy/MM/dd",
+              "X",
+              "x"
+            ]
+          }
+        }
+      },
+      "compiledNodeParameters": {
+        "operation": "formatDate",
+        "date": "={{ .{{ config.field }} }}",
+        "format": "{{ config.format }}",
+        "outputFieldName": "{{ config.outputFieldName }}",
+        "options": {
+          "includeInputFields": true
+        }
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.dateTime@2",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    },
+    {
+      "cardId": "select_fields",
+      "actionName": "Select Fields",
+      "capability": "data_transform",
+      "operation": "select_fields",
+      "nodeType": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "description": "Selects specific fields from a single object.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "one_object",
+        "notes": "Single object input."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "one_object",
+        "notes": "Filtered object output."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "input",
+          "mappings"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "select_fields"
+            ]
+          }
+        }
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.set@3.4",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    },
+    {
+      "cardId": "rename_keys",
+      "actionName": "Rename Keys",
+      "capability": "data_transform",
+      "operation": "rename_keys",
+      "nodeType": "n8n-nodes-base.renameKeys",
+      "typeVersion": 1,
+      "description": "Renames keys in an item stream.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Stream of items."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Stream of items with renamed keys."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "input",
+          "renames"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "rename_keys"
+            ]
+          }
+        }
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.renameKeys@1",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    },
+    {
+      "cardId": "join_object_and_count_false_boolean",
+      "actionName": "Join Object and Count False",
+      "capability": "data_transform",
+      "operation": "join_object_and_count_false_boolean",
+      "nodeType": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "description": "Joins an object with items and counts false booleans.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "one_object_and_items",
+        "notes": "One object + items."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "one_object",
+        "notes": "Merged summary object."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "objectInput",
+          "itemsInput",
+          "objectMappings",
+          "field",
+          "totalField",
+          "falseCountField"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "join_object_and_count_false_boolean"
+            ]
+          }
+        }
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.code@2",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    },
+    {
+      "cardId": "hash_data",
+      "actionName": "Hash Data (Crypto)",
+      "capability": "data_transform",
+      "operation": "hash_data",
+      "nodeType": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "description": "Calculates cryptographic hash (SHA256/MD5/SHA512/SHA384) of an input field and outputs as a hex or base64 string.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Pure in-memory cryptographic transform; zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Stream of items containing field to hash."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Original items enriched with new hash field."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "input",
+          "field"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "hash_data"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "algorithm": {
+            "type": "string",
+            "enum": [
+              "SHA256",
+              "MD5",
+              "SHA512",
+              "SHA384"
+            ]
+          },
+          "outputFieldName": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": [
+              "hex",
+              "base64"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.crypto@1",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    },
+    {
+      "cardId": "render_markdown",
+      "actionName": "Render Markdown",
+      "capability": "data_transform",
+      "operation": "render_markdown",
+      "nodeType": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "description": "Converts Markdown to HTML or HTML to Markdown.",
+      "credentialRequirement": {
+        "required": false,
+        "credentialTypes": [],
+        "notes": "Zero credentials."
+      },
+      "inputMetadata": {
+        "inputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Stream of items containing text field."
+      },
+      "outputMetadata": {
+        "outputs": [
+          "main"
+        ],
+        "cardinality": "items",
+        "notes": "Items enriched with converted text field."
+      },
+      "allowedConfigurationShape": {
+        "type": "object",
+        "required": [
+          "operation",
+          "input",
+          "mode",
+          "field"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "render_markdown"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "markdownToHtml",
+              "htmlToMarkdown"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "outputFieldName": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "sourceProvenance": {
+        "catalogSource": "n8n-nodes-base.markdown@1",
+        "sourceSha256": "dcefae5a5e7f7029c97807650f840dee9588f34ced49ace74734dc10c8d980b5"
+      }
+    }
+  ]
+}
