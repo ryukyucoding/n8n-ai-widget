@@ -8,6 +8,7 @@ const {
   assertField,
   assertCardinality,
 } = require('./sourceSchemaRegistry');
+const { getDeclaredAction } = require('./declaredActions');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge', 'data_loop']);
 const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date', 'hash_data', 'render_markdown', 'xml_convert']);
@@ -22,12 +23,13 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function latestCard(type) {
-  const versions = Object.keys(runtimeSchemas.nodeTypes?.[type]?.versions || {})
-    .filter((value) => Number.isFinite(Number(value)))
-    .sort((left, right) => Number(right) - Number(left));
-  assert(versions.length, `runtime does not expose ${type}`);
-  return { type, typeVersion: Number(versions[0]) };
+function resolveCard(type, declaredVersion) {
+  assert(declaredVersion !== undefined && declaredVersion !== null, `declared version is missing for ${type}`);
+  const nodeSchema = runtimeSchemas.nodeTypes?.[type];
+  assert(nodeSchema, `runtime does not expose ${type}`);
+  const versionStr = String(declaredVersion);
+  assert(nodeSchema.versions?.[versionStr], `runtime ${type} does not expose declared typeVersion ${declaredVersion}`);
+  return { type, typeVersion: Number(declaredVersion) };
 }
 
 function safeIdentifier(value, field) {
@@ -585,9 +587,9 @@ function compileNodewiseSpecification(specification) {
         options: {},
       };
     }
-    const card = (type === 'n8n-nodes-base.crypto' || type === 'n8n-nodes-base.xml')
-      ? { type, typeVersion: 1 }
-      : latestCard(type);
+    const declared = getDeclaredAction(step.capability, config.operation || null);
+    assert(declared, `missing declared action metadata for step ${step.id} (${step.capability})`);
+    const card = resolveCard(type, declared.version);
     return { id: nodeId(step.id), name: names[step.id], ...card, parameters, position: [240 + index * 260, 300] };
   });
 
@@ -670,4 +672,4 @@ function compileNodewiseSpecification(specification) {
   return { name: workflowName, active: false, settings: { executionOrder: 'v1' }, nodes, connections };
 }
 
-module.exports = { compileNodewiseSpecification, validateSpecification };
+module.exports = { compileNodewiseSpecification, validateSpecification, resolveCard };
