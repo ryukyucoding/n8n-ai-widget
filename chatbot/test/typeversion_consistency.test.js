@@ -208,7 +208,7 @@ assert.ok(dateNode, 'dateTime node must exist');
 assert.strictEqual(dateNode.typeVersion, 2, 'emitted dateTime node must have typeVersion 2');
 console.log('Test 6 (Compiler emits exact declared typeVersion: 2 for format_date): PASS');
 
-// 7. Verify all 17 capabilities in DECLARED_ACTIONS have matching schemas in runtime snapshot
+// 7. Verify all 18 capabilities in DECLARED_ACTIONS have matching schemas in runtime snapshot
 for (const action of DECLARED_ACTIONS) {
   const nodeSchema = runtimeSchemas.nodeTypes?.[action.nodeType];
   assert(nodeSchema, `Snapshot must expose ${action.nodeType} for ${action.cardId}`);
@@ -218,6 +218,6 @@ for (const action of DECLARED_ACTIONS) {
     `Snapshot ${action.nodeType} must expose version ${action.version} for ${action.cardId}`
   );
 }
-console.log('Test 7 (All 17 declared actions exist in runtime snapshot at exact declared versions): PASS');
+console.log('Test 7 (All 18 declared actions exist in runtime snapshot at exact declared versions): PASS');
 
 console.log('ALL TYPEVERSION CONSISTENCY AND AUTHORITATIVE ENFORCEMENT TESTS PASS (100% verified)');
