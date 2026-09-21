@@ -69,6 +69,17 @@ function validateSubplanSpecification(specification) {
 
   const { spec: validatedFlat, outputs } = validateSpecificationWithShapes(flatSpec);
 
+  // Derive block input requirement from first step
+  const firstStep = validatedFlat.steps[0];
+  if (firstStep.capability === 'manual_trigger') {
+    // Root block requires vacuous input: no upstream fields consumed
+    const declaredInputKeys = Object.keys(block.input.fields);
+    assert(
+      declaredInputKeys.length === 0,
+      `block.input declared phantom input fields [${declaredInputKeys.join(', ')}] on a root block that requires no input`
+    );
+  }
+
   // Derive block output shape from tail step output shape
   const tailStep = validatedFlat.steps.at(-1);
   const derivedTailOutput = outputs.get(tailStep.id);

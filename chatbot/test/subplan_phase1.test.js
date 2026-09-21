@@ -193,4 +193,14 @@ assert.throws(
 );
 console.log('Test 11 (Cardinality mismatch in block.output fails closed against derived tail output): PASS');
 
+// 12. Contract derivation: phantom input contract on root block fails closed (Probe B)
+const phantomInputSpec = JSON.parse(JSON.stringify(subplanPhase1Spec));
+phantomInputSpec.blocks[0].input.fields = { phantomField: 'string' };
+assert.throws(
+  () => validateSubplanSpecification(phantomInputSpec),
+  /block\.input declared phantom input fields \[phantomField\] on a root block that requires no input/,
+  'Expected phantom input fields on root block to fail closed'
+);
+console.log('Test 12 (Phantom input contract on root block fails closed against vacuous requirement): PASS');
+
 console.log('ALL nodewise_subplan_specification PHASE 1 TESTS PASS (100% verified)');
