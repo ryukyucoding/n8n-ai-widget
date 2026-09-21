@@ -538,60 +538,33 @@ function compileNodewiseSpecification(specification) {
       };
     }
     if (step.capability === 'data_transform' && config.operation === 'hash_data') {
-      // Pinned strictly to Crypto typeVersion 1 per Q10 contract (do not use latestCard)
-      const nodeObj = {
-        id: nodeId(step.id),
-        name: names[step.id],
-        type: 'n8n-nodes-base.crypto',
-        typeVersion: 1,
-        parameters: {
-          action: 'hash',
-          type: config.algorithm || 'SHA256',
-          value: `={{ $json.${config.field} }}`,
-          dataPropertyName: config.outputFieldName || 'hashValue',
-          encoding: config.encoding || 'hex',
-        },
-        position: [240 + index * 260, 300],
+      type = 'n8n-nodes-base.crypto';
+      parameters = {
+        action: 'hash',
+        type: config.algorithm || 'SHA256',
+        value: `={{ $json.${config.field} }}`,
+        dataPropertyName: config.outputFieldName || 'hashValue',
+        encoding: config.encoding || 'hex',
       };
-      return nodeObj;
     }
     if (step.capability === 'data_transform' && config.operation === 'render_markdown') {
-      // Pinned to version 1 strictly per OVR-3 proposal (do not use latestCard)
+      type = 'n8n-nodes-base.markdown';
       const fieldProp = config.mode === 'markdownToHtml' ? 'markdown' : 'html';
-      const nodeObj = {
-        id: nodeId(step.id),
-        name: names[step.id],
-        type: 'n8n-nodes-base.markdown',
-        typeVersion: 1,
-        parameters: {
-          mode: config.mode,
-          [fieldProp]: `={{ $json.${config.field} }}`,
-          destinationKey: config.outputFieldName,
-          options: {},
-        },
-        position: [240 + index * 260, 300],
+      parameters = {
+        mode: config.mode,
+        [fieldProp]: `={{ $json.${config.field} }}`,
+        destinationKey: config.outputFieldName,
+        options: {},
       };
-      return nodeObj;
     }
     if (step.capability === 'data_transform' && config.operation === 'xml_convert') {
-      // Pinned strictly to XML typeVersion 1 per contract (do not use latestCard)
-      // dataPropertyName carries config.field for xmlToJson (read property) and
-      // config.outputFieldName for jsonToxml (target XML output property).
-      // All options.* left absent/closed.
+      type = 'n8n-nodes-base.xml';
       const propName = config.mode === 'xmlToJson' ? config.field : config.outputFieldName;
-      const nodeObj = {
-        id: nodeId(step.id),
-        name: names[step.id],
-        type: 'n8n-nodes-base.xml',
-        typeVersion: 1,
-        parameters: {
-          mode: config.mode,
-          dataPropertyName: propName,
-          options: {},
-        },
-        position: [240 + index * 260, 300],
+      parameters = {
+        mode: config.mode,
+        dataPropertyName: propName,
+        options: {},
       };
-      return nodeObj;
     }
     if (step.capability === 'data_branch' && config.operation === 'branch_if') {
       type = 'n8n-nodes-base.if';

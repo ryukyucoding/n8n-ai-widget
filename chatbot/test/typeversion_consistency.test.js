@@ -208,7 +208,64 @@ assert.ok(dateNode, 'dateTime node must exist');
 assert.strictEqual(dateNode.typeVersion, 2, 'emitted dateTime node must have typeVersion 2');
 console.log('Test 6 (Compiler emits exact declared typeVersion: 2 for format_date): PASS');
 
-// 7. Verify all 18 capabilities in DECLARED_ACTIONS have matching schemas in runtime snapshot
+// 7. Test crypto, markdown, and xml route through resolveCard and emit exact declared versions (18/18 coverage)
+const hashDateSpec = JSON.parse(JSON.stringify(dateSpec));
+hashDateSpec.steps[2] = {
+  id: 'format-step',
+  capability: 'data_transform',
+  requiredUserSetup: [],
+  configuration: {
+    operation: 'hash_data',
+    input: { kind: 'prior_step', reference: 'fetch-todos.response', cardinality: 'items' },
+    field: 'title',
+    algorithm: 'SHA256',
+    outputFieldName: 'hashValue',
+    encoding: 'hex',
+  },
+};
+const wfHash = compileNodewiseSpecification(hashDateSpec);
+const cryptoNode = wfHash.nodes.find((n) => n.type === 'n8n-nodes-base.crypto');
+assert.ok(cryptoNode, 'cryptoNode must exist');
+assert.strictEqual(cryptoNode.typeVersion, 1, 'emitted crypto node must have declared typeVersion 1');
+
+const markdownSpec = JSON.parse(JSON.stringify(dateSpec));
+markdownSpec.steps[2] = {
+  id: 'format-step',
+  capability: 'data_transform',
+  requiredUserSetup: [],
+  configuration: {
+    operation: 'render_markdown',
+    input: { kind: 'prior_step', reference: 'fetch-todos.response', cardinality: 'items' },
+    mode: 'markdownToHtml',
+    field: 'title',
+    outputFieldName: 'renderedHtml',
+  },
+};
+const wfMarkdown = compileNodewiseSpecification(markdownSpec);
+const markdownNode = wfMarkdown.nodes.find((n) => n.type === 'n8n-nodes-base.markdown');
+assert.ok(markdownNode, 'markdownNode must exist');
+assert.strictEqual(markdownNode.typeVersion, 1, 'emitted markdown node must have declared typeVersion 1');
+
+const xmlSpec = JSON.parse(JSON.stringify(dateSpec));
+xmlSpec.steps[2] = {
+  id: 'format-step',
+  capability: 'data_transform',
+  requiredUserSetup: [],
+  configuration: {
+    operation: 'xml_convert',
+    input: { kind: 'prior_step', reference: 'fetch-todos.response', cardinality: 'items' },
+    mode: 'xmlToJson',
+    field: 'title',
+    outputFieldName: 'jsonOutput',
+  },
+};
+const wfXml = compileNodewiseSpecification(xmlSpec);
+const xmlNode = wfXml.nodes.find((n) => n.type === 'n8n-nodes-base.xml');
+assert.ok(xmlNode, 'xmlNode must exist');
+assert.strictEqual(xmlNode.typeVersion, 1, 'emitted xml node must have declared typeVersion 1');
+console.log('Test 7 (Crypto, Markdown, and XML route through resolveCard and emit declared typeVersion 1): PASS');
+
+// 8. Verify all 18 capabilities in DECLARED_ACTIONS have matching schemas in runtime snapshot
 for (const action of DECLARED_ACTIONS) {
   const nodeSchema = runtimeSchemas.nodeTypes?.[action.nodeType];
   assert(nodeSchema, `Snapshot must expose ${action.nodeType} for ${action.cardId}`);
@@ -218,6 +275,6 @@ for (const action of DECLARED_ACTIONS) {
     `Snapshot ${action.nodeType} must expose version ${action.version} for ${action.cardId}`
   );
 }
-console.log('Test 7 (All 18 declared actions exist in runtime snapshot at exact declared versions): PASS');
+console.log('Test 8 (All 18 declared actions exist in runtime snapshot at exact declared versions): PASS');
 
 console.log('ALL TYPEVERSION CONSISTENCY AND AUTHORITATIVE ENFORCEMENT TESTS PASS (100% verified)');
