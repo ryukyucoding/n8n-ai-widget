@@ -291,7 +291,8 @@ function validateSpecification(value) {
         const field = safeIdentifier(config.field, `steps[${index}].configuration.field`);
         assertInputField(input.output, field, { expectedType: 'string', usedBy: `steps[${index}].configuration.field` });
         const defaultOutputField = mode === 'markdownToHtml' ? 'renderedHtml' : 'renderedMarkdown';
-        const outputFieldName = safeIdentifier(config.outputFieldName || defaultOutputField, `steps[${index}].configuration.outputFieldName`);
+        const rawOutputField = config.outputFieldName !== undefined ? config.outputFieldName : defaultOutputField;
+        const outputFieldName = safeIdentifier(rawOutputField, `steps[${index}].configuration.outputFieldName`);
         assert(!input.output.fields[outputFieldName], `render_markdown outputFieldName "${outputFieldName}" collides with an existing input field`);
         configuration = {
           operation: config.operation,
