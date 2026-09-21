@@ -85,7 +85,15 @@ const SKILLS = Object.freeze([
   },
   {
     id: 'transform.hash_data',
-    label: 'Hash data field using cryptographic algorithms (SHA256/MD5)',
+    label: 'Hash data field using cryptographic algorithms (SHA256/MD5/SHA512/SHA384)',
+    maturity: 'implemented',
+    compiler: 'nodewise',
+    requiresUserSetup: false,
+    risk: 'read_only',
+  },
+  {
+    id: 'transform.render_markdown',
+    label: 'Render Markdown to HTML or HTML to Markdown',
     maturity: 'implemented',
     compiler: 'nodewise',
     requiresUserSetup: false,

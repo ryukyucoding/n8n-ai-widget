@@ -10,7 +10,8 @@ const {
 } = require('./sourceSchemaRegistry');
 
 const CAPABILITIES = new Set(['manual_trigger', 'http_request', 'data_transform', 'set_output', 'data_branch', 'data_merge', 'data_loop']);
-const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date', 'hash_data']);
+const TRANSFORMS = new Set(['select_fields', 'count_false_boolean', 'join_object_and_count_false_boolean', 'sort_items', 'remove_duplicates', 'limit_items', 'rename_keys', 'format_date', 'hash_data', 'render_markdown']);
+const MARKDOWN_MODES = new Set(['markdownToHtml', 'htmlToMarkdown']);
 const SORT_ORDERS = new Set(['ascending', 'descending']);
 const LIMIT_KEEP = new Set(['firstItems', 'lastItems']);
 const CARDINALITIES = new Set(['one_object', 'items']);
@@ -279,6 +280,30 @@ function validateSpecification(value) {
           cardinality: 'items',
           fields: { ...input.output.fields, [outputFieldName]: 'string' },
         };
+      } else if (config.operation === 'render_markdown') {
+        for (const key of Object.keys(config)) {
+          assert(['operation', 'input', 'mode', 'field', 'outputFieldName'].includes(key), `steps[${index}].configuration has unsupported key ${key}`);
+        }
+        const input = source(config.input, `steps[${index}].configuration.input`, seen, outputs);
+        assert(input.value.cardinality === 'items', 'render_markdown requires items input');
+        const mode = config.mode;
+        assert(MARKDOWN_MODES.has(mode), 'render_markdown mode must be markdownToHtml or htmlToMarkdown');
+        const field = safeIdentifier(config.field, `steps[${index}].configuration.field`);
+        assertInputField(input.output, field, { expectedType: 'string', usedBy: `steps[${index}].configuration.field` });
+        const defaultOutputField = mode === 'markdownToHtml' ? 'renderedHtml' : 'renderedMarkdown';
+        const outputFieldName = safeIdentifier(config.outputFieldName || defaultOutputField, `steps[${index}].configuration.outputFieldName`);
+        assert(!input.output.fields[outputFieldName], `render_markdown outputFieldName "${outputFieldName}" collides with an existing input field`);
+        configuration = {
+          operation: config.operation,
+          input: input.value,
+          mode,
+          field,
+          outputFieldName,
+        };
+        output = {
+          cardinality: 'items',
+          fields: { ...input.output.fields, [outputFieldName]: 'string' },
+        };
       } else {
         const objectInput = source(config.objectInput, `steps[${index}].configuration.objectInput`, seen, outputs);
         const itemsInput = source(config.itemsInput, `steps[${index}].configuration.itemsInput`, seen, outputs);
@@ -458,6 +483,24 @@ function compileNodewiseSpecification(specification) {
         encoding: config.encoding || 'hex',
       };
     }
+    if (step.capability === 'data_transform' && config.operation === 'render_markdown') {
+      // Pinned to version 1 strictly per OVR-3 proposal (do not use latestCard)
+      const fieldProp = config.mode === 'markdownToHtml' ? 'markdown' : 'html';
+      const nodeObj = {
+        id: nodeId(step.id),
+        name: names[step.id],
+        type: 'n8n-nodes-base.markdown',
+        typeVersion: 1,
+        parameters: {
+          mode: config.mode,
+          [fieldProp]: `={{ $json.${config.field} }}`,
+          destinationKey: config.outputFieldName,
+          options: {},
+        },
+        position: [240 + index * 260, 300],
+      };
+      return nodeObj;
+    }
     if (step.capability === 'data_branch' && config.operation === 'branch_if') {
       type = 'n8n-nodes-base.if';
       parameters = {
@@ -487,7 +530,10 @@ function compileNodewiseSpecification(specification) {
         options: {},
       };
     }
-    return { id: nodeId(step.id), name: names[step.id], ...latestCard(type), parameters, position: [240 + index * 260, 300] };
+    const card = type === 'n8n-nodes-base.crypto'
+      ? { type, typeVersion: 1 }
+      : latestCard(type);
+    return { id: nodeId(step.id), name: names[step.id], ...card, parameters, position: [240 + index * 260, 300] };
   });
 
   const connections = {};
