@@ -159,6 +159,7 @@ function buildCheckpoint2NormalizeWorkflow(options = {}) {
     typeVersion: 3.4,
     position: [660, 0],
     parameters: {
+      includeOtherFields: false,
       options: {},
       assignments: {
         assignments: [
@@ -206,6 +207,7 @@ function assertCheckpoint2Artifact(workflow, expected = {}) {
   }
   assert(workflow.nodes[1].parameters.assignments.assignments[0].name === 'rawTickets', 'CP2 raw fixture field mismatch');
   assert(workflow.nodes[2].parameters.fieldToSplitOut === 'rawTickets', 'CP2 split field mismatch');
+  assert(workflow.nodes[3].parameters.includeOtherFields === false, 'CP2 normalization must project canonical fields only');
   const assignments = workflow.nodes[3].parameters.assignments.assignments;
   assertDeepEqual(assignments.map((item) => item.name), ['ticketId', 'priority', 'title'], 'CP2 normalized assignment names mismatch');
   assertDeepEqual(assignments.map((item) => item.value), ['={{ $json.id }}', '={{ $json.priority }}', '={{ $json.subject }}'], 'CP2 normalized expressions mismatch');
