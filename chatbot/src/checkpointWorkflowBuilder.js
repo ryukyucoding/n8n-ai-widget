@@ -188,8 +188,8 @@ function deriveCheckpoint2Expected(tickets = CP2_RAW_TICKETS) {
     inputCount: tickets.length,
     outputCount: tickets.length,
     outputItems: tickets.map((ticket) => ({
-      ...(ticket.id === undefined ? {} : { ticketId: ticket.id }),
-      ...(ticket.priority === undefined ? {} : { priority: ticket.priority }),
+      ticketId: ticket.id === undefined ? null : ticket.id,
+      priority: ticket.priority === undefined ? null : ticket.priority,
       title: ticket.subject,
     })),
     fields: ['ticketId', 'priority', 'title'],

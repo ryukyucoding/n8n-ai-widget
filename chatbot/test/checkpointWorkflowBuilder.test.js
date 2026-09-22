@@ -84,7 +84,8 @@ test('CP2 derives the expected normalized field mapping from its fixture', () =>
   assert.equal(expected.outputCount, 8);
   assert.deepEqual(expected.fields, ['ticketId', 'priority', 'title']);
   assert.deepEqual(expected.outputItems[0], { ticketId: 'T1', priority: 'high', title: 'Login fails' });
-  assert.deepEqual(expected.outputItems[4], { priority: 'high', title: 'No id' });
+  assert.deepEqual(expected.outputItems[4], { ticketId: null, priority: 'high', title: 'No id' });
+  assert.deepEqual(expected.outputItems[6], { ticketId: 'T7', priority: null, title: 'No priority' });
 });
 
 test('CP1 rejects malformed fixtures before producing an artifact', () => {
