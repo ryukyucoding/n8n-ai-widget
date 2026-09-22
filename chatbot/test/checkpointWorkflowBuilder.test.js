@@ -14,6 +14,9 @@ const {
   buildCheckpoint2NormalizeWorkflow,
   deriveCheckpoint2Expected,
   assertCheckpoint2Artifact,
+  buildCheckpoint3ValidateIdWorkflow,
+  deriveCheckpoint3Expected,
+  assertCheckpoint3Artifact,
 } = require('../src/checkpointWorkflowBuilder');
 
 test('CP1 builds a deterministic three-node artifact from a literal requirement fixture', () => {
@@ -86,6 +89,38 @@ test('CP2 derives the expected normalized field mapping from its fixture', () =>
   assert.deepEqual(expected.outputItems[0], { ticketId: 'T1', priority: 'high', title: 'Login fails' });
   assert.deepEqual(expected.outputItems[4], { ticketId: null, priority: 'high', title: 'No id' });
   assert.deepEqual(expected.outputItems[6], { ticketId: 'T7', priority: null, title: 'No priority' });
+});
+
+test('CP3 builds an explicit-null-aware id validation branch', () => {
+  const first = buildCheckpoint3ValidateIdWorkflow();
+  const second = buildCheckpoint3ValidateIdWorkflow();
+
+  assert.deepEqual(first, second);
+  assert.equal(JSON.stringify(first), JSON.stringify(second));
+  assertCheckpoint3Artifact(first, { inputCount: 8 });
+  assert.equal(first.nodes.length, 7);
+  assert.equal(first.nodes[3].parameters.mode, 'runOnceForAllItems');
+  assert.equal(first.nodes[4].parameters.conditions.conditions[0].operator.operation, 'true');
+});
+
+test('CP3 passes the shared structural and dataflow verifier', async () => {
+  const result = await verifyCandidateWorkflow({
+    operation: 'create',
+    userRequest: 'Reject support tickets with null ticket IDs',
+    candidateWorkflow: buildCheckpoint3ValidateIdWorkflow(),
+  }, { runtimeSchemas });
+
+  assert.equal(result.status, 'pass');
+  assert.equal(result.verification.structural.status, 'pass');
+  assert.equal(result.verification.dataflow.status, 'pass');
+});
+
+test('CP3 expected result is computed from explicit null semantics', () => {
+  const expected = deriveCheckpoint3Expected();
+  assert.equal(expected.outputCount, 8);
+  assert.equal(expected.rejectedCount, 2);
+  assert.equal(expected.outputItems.filter((item) => item.rejected).length, 2);
+  assert.equal(expected.outputItems.filter((item) => item.rejectReason === 'missing_ticket_id').length, 2);
 });
 
 test('CP1 rejects malformed fixtures before producing an artifact', () => {

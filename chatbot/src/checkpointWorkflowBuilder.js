@@ -24,6 +24,12 @@ const CP2_RAW_TICKETS = [
   { id: 'T1', priority: 'high', subject: 'Duplicate' },
 ];
 
+const CP3_NORMALIZED_TICKETS = CP2_RAW_TICKETS.map((ticket) => ({
+  ticketId: ticket.id === undefined ? null : ticket.id,
+  priority: ticket.priority === undefined ? null : ticket.priority,
+  title: ticket.subject,
+}));
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -218,6 +224,121 @@ function assertCheckpoint2Artifact(workflow, expected = {}) {
   return true;
 }
 
+function buildCheckpoint3ValidateIdWorkflow(options = {}) {
+  const tickets = clone(options.tickets || CP3_NORMALIZED_TICKETS);
+  assert(Array.isArray(tickets) && tickets.length > 0, 'CP3 tickets must be a non-empty array');
+  for (const [index, ticket] of tickets.entries()) {
+    assert(ticket && typeof ticket === 'object' && !Array.isArray(ticket), `CP3 tickets[${index}] must be an object`);
+    assert(typeof ticket.title === 'string', `CP3 tickets[${index}].title must be a string`);
+    assert(ticket.ticketId === null || typeof ticket.ticketId === 'string', `CP3 tickets[${index}].ticketId must be null or a string`);
+    assert(ticket.priority === null || typeof ticket.priority === 'string', `CP3 tickets[${index}].priority must be null or a string`);
+  }
+
+  const start = node({ id: 'cp3-start', name: 'CP3 Start', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} });
+  const source = node({
+    id: 'cp3-source', name: 'CP3 Normalized Fixture', type: 'n8n-nodes-base.set', typeVersion: 3.4, position: [220, 0],
+    parameters: { options: {}, assignments: { assignments: [{ id: 'cp3-items-field', name: 'items', type: 'array', value: JSON.stringify(tickets) }] } },
+  });
+  const split = node({
+    id: 'cp3-split', name: 'CP3 Expand Items', type: 'n8n-nodes-base.splitOut', typeVersion: 1, position: [440, 0],
+    parameters: { fieldToSplitOut: 'items', include: 'noOtherFields', options: {} },
+  });
+  const presence = node({
+    id: 'cp3-presence', name: 'CP3 Compute Id Presence', type: 'n8n-nodes-base.code', typeVersion: 2, position: [660, 0],
+    parameters: {
+      mode: 'runOnceForAllItems',
+      language: 'javaScript',
+      jsCode: [
+        'return $input.all().map((item) => ({',
+        '  json: { ...item.json, hasTicketId: item.json.ticketId !== null && item.json.ticketId !== undefined && item.json.ticketId !== \'\' },',
+        '}));',
+      ].join('\\n'),
+    },
+  });
+  const branch = node({
+    id: 'cp3-branch', name: 'CP3 Has Ticket Id?', type: 'n8n-nodes-base.if', typeVersion: 2.2, position: [880, 0],
+    parameters: {
+      conditions: {
+        options: { caseSensitive: true, leftValue: '', typeValidation: 'strict' },
+        conditions: [{ id: 'cp3-has-id', leftValue: '={{ $json.hasTicketId }}', rightValue: true, operator: { type: 'boolean', operation: 'true' } }],
+        combinator: 'and',
+      },
+      options: {},
+    },
+  });
+  const valid = node({
+    id: 'cp3-valid', name: 'CP3 Mark Valid', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1100, -120],
+    parameters: {
+      mode: 'runOnceForAllItems', language: 'javaScript',
+      jsCode: [
+        'return $input.all().map((item) => {',
+        '  const { hasTicketId, ...ticket } = item.json;',
+        '  return { json: { ...ticket, rejected: false, rejectReason: \'\' } };',
+        '});',
+      ].join('\\n'),
+    },
+  });
+  const invalid = node({
+    id: 'cp3-invalid', name: 'CP3 Mark Missing Id', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1100, 120],
+    parameters: {
+      mode: 'runOnceForAllItems', language: 'javaScript',
+      jsCode: [
+        'return $input.all().map((item) => {',
+        '  const { hasTicketId, ...ticket } = item.json;',
+        '  return { json: { ...ticket, rejected: true, rejectReason: \'missing_ticket_id\' } };',
+        '});',
+      ].join('\\n'),
+    },
+  });
+
+  return {
+    name: options.name || 'Generated CP3 Validate Ticket Id Fixture',
+    nodes: [start, source, split, presence, branch, valid, invalid],
+    connections: {
+      [start.name]: { main: [[{ node: source.name, type: 'main', index: 0 }]] },
+      [source.name]: { main: [[{ node: split.name, type: 'main', index: 0 }]] },
+      [split.name]: { main: [[{ node: presence.name, type: 'main', index: 0 }]] },
+      [presence.name]: { main: [[{ node: branch.name, type: 'main', index: 0 }]] },
+      [branch.name]: {
+        main: [
+          [{ node: valid.name, type: 'main', index: 0 }],
+          [{ node: invalid.name, type: 'main', index: 0 }],
+        ],
+      },
+    },
+    settings: { executionOrder: 'v1' },
+  };
+}
+
+function deriveCheckpoint3Expected(tickets = CP3_NORMALIZED_TICKETS) {
+  return {
+    inputCount: tickets.length,
+    outputCount: tickets.length,
+    rejectedCount: tickets.filter((ticket) => ticket.ticketId === null).length,
+    outputItems: tickets.map((ticket) => ({ ...ticket, rejected: ticket.ticketId === null, rejectReason: ticket.ticketId === null ? 'missing_ticket_id' : '' })),
+  };
+}
+
+function assertCheckpoint3Artifact(workflow, expected = {}) {
+  assert(workflow && Array.isArray(workflow.nodes), 'CP3 workflow.nodes must be an array');
+  assert(workflow.nodes.length === 7, `CP3 must contain 7 nodes, got ${workflow.nodes.length}`);
+  for (const [index, item] of workflow.nodes.entries()) {
+    assert(JSON.stringify(Object.keys(item).sort()) === JSON.stringify([...NODE_KEYS].sort()), `CP3 node ${index} has non-canonical keys`);
+    assert(!Object.prototype.hasOwnProperty.call(item, 'credentials'), `CP3 node ${index} must not contain credentials`);
+    assert(!Object.prototype.hasOwnProperty.call(item, 'cid'), `CP3 node ${index} must not contain cid`);
+    assert(!Object.prototype.hasOwnProperty.call(item, 'creator'), `CP3 node ${index} must not contain creator`);
+  }
+  assert(workflow.nodes[1].parameters.assignments.assignments[0].name === 'items', 'CP3 fixture field mismatch');
+  assert(workflow.nodes[2].parameters.fieldToSplitOut === 'items', 'CP3 split field mismatch');
+  assert(workflow.nodes[3].parameters.jsCode.includes('ticketId !== null'), 'CP3 must explicitly handle null ticket IDs');
+  assert(workflow.nodes[4].parameters.conditions.conditions[0].operator.type === 'boolean', 'CP3 branch must use a boolean condition');
+  if (expected.inputCount !== undefined) {
+    const actual = JSON.parse(workflow.nodes[1].parameters.assignments.assignments[0].value);
+    assert(actual.length === expected.inputCount, 'CP3 fixture input count mismatch');
+  }
+  return true;
+}
+
 function deriveCheckpoint1Expected(tickets = DEFAULT_TICKETS) {
   return {
     inputCount: tickets.length,
@@ -258,4 +379,7 @@ module.exports = {
   buildCheckpoint2NormalizeWorkflow,
   deriveCheckpoint2Expected,
   assertCheckpoint2Artifact,
+  buildCheckpoint3ValidateIdWorkflow,
+  deriveCheckpoint3Expected,
+  assertCheckpoint3Artifact,
 };
