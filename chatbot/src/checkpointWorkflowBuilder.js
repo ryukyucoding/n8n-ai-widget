@@ -30,6 +30,12 @@ const CP3_NORMALIZED_TICKETS = CP2_RAW_TICKETS.map((ticket) => ({
   title: ticket.subject,
 }));
 
+const CP4_CP3_OUTPUT = CP3_NORMALIZED_TICKETS.map((ticket) => ({
+  ...ticket,
+  rejected: ticket.ticketId === null,
+  rejectReason: ticket.ticketId === null ? 'missing_ticket_id' : '',
+}));
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -252,7 +258,7 @@ function buildCheckpoint3ValidateIdWorkflow(options = {}) {
         'return $input.all().map((item) => ({',
         '  json: { ...item.json, hasTicketId: item.json.ticketId !== null && item.json.ticketId !== undefined && item.json.ticketId !== \'\' },',
         '}));',
-      ].join('\\n'),
+      ].join('\n'),
     },
   });
   const branch = node({
@@ -275,7 +281,7 @@ function buildCheckpoint3ValidateIdWorkflow(options = {}) {
         '  const { hasTicketId, ...ticket } = item.json;',
         '  return { json: { ...ticket, rejected: false, rejectReason: \'\' } };',
         '});',
-      ].join('\\n'),
+      ].join('\n'),
     },
   });
   const invalid = node({
@@ -287,7 +293,7 @@ function buildCheckpoint3ValidateIdWorkflow(options = {}) {
         '  const { hasTicketId, ...ticket } = item.json;',
         '  return { json: { ...ticket, rejected: true, rejectReason: \'missing_ticket_id\' } };',
         '});',
-      ].join('\\n'),
+      ].join('\n'),
     },
   });
 
@@ -339,6 +345,126 @@ function assertCheckpoint3Artifact(workflow, expected = {}) {
   return true;
 }
 
+function buildCheckpoint4ValidatePriorityWorkflow(options = {}) {
+  const tickets = clone(options.tickets || CP4_CP3_OUTPUT);
+  assert(Array.isArray(tickets) && tickets.length > 0, 'CP4 tickets must be a non-empty array');
+  for (const [index, ticket] of tickets.entries()) {
+    assert(ticket && typeof ticket === 'object' && !Array.isArray(ticket), `CP4 tickets[${index}] must be an object`);
+    assert(typeof ticket.title === 'string', `CP4 tickets[${index}].title must be a string`);
+    assert(ticket.ticketId === null || typeof ticket.ticketId === 'string', `CP4 tickets[${index}].ticketId must be null or a string`);
+    assert(ticket.priority === null || typeof ticket.priority === 'string', `CP4 tickets[${index}].priority must be null or a string`);
+    assert(typeof ticket.rejected === 'boolean', `CP4 tickets[${index}].rejected must be a boolean`);
+  }
+
+  const start = node({ id: 'cp4-start', name: 'CP4 Start', type: 'n8n-nodes-base.manualTrigger', typeVersion: 1, position: [0, 0], parameters: {} });
+  const source = node({
+    id: 'cp4-source', name: 'CP4 CP3 Fixture', type: 'n8n-nodes-base.set', typeVersion: 3.4, position: [220, 0],
+    parameters: { options: {}, assignments: { assignments: [{ id: 'cp4-items-field', name: 'items', type: 'array', value: JSON.stringify(tickets) }] } },
+  });
+  const split = node({
+    id: 'cp4-split', name: 'CP4 Expand Items', type: 'n8n-nodes-base.splitOut', typeVersion: 1, position: [440, 0],
+    parameters: { fieldToSplitOut: 'items', include: 'noOtherFields', options: {} },
+  });
+  const presence = node({
+    id: 'cp4-presence', name: 'CP4 Compute Priority Presence', type: 'n8n-nodes-base.code', typeVersion: 2, position: [660, 0],
+    parameters: {
+      mode: 'runOnceForAllItems', language: 'javaScript',
+      jsCode: [
+        'return $input.all().map((item) => ({',
+        '  json: { ...item.json, hasPriority: item.json.priority !== null && item.json.priority !== undefined && item.json.priority !== \'\' },',
+        '}));',
+      ].join('\n'),
+    },
+  });
+  const branch = node({
+    id: 'cp4-branch', name: 'CP4 Has Priority?', type: 'n8n-nodes-base.if', typeVersion: 2.2, position: [880, 0],
+    parameters: {
+      conditions: {
+        options: { caseSensitive: true, leftValue: '', typeValidation: 'strict' },
+        conditions: [{ id: 'cp4-has-priority', leftValue: '={{ $json.hasPriority }}', rightValue: true, operator: { type: 'boolean', operation: 'true' } }],
+        combinator: 'and',
+      },
+      options: {},
+    },
+  });
+  const valid = node({
+    id: 'cp4-valid', name: 'CP4 Preserve Validity', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1100, -120],
+    parameters: {
+      mode: 'runOnceForAllItems', language: 'javaScript',
+      jsCode: [
+        'return $input.all().map((item) => {',
+        '  const { hasPriority, ...ticket } = item.json;',
+        '  return { json: { ...ticket, rejected: ticket.rejected === true, rejectReason: ticket.rejectReason || \'\' } };',
+        '});',
+      ].join('\n'),
+    },
+  });
+  const invalid = node({
+    id: 'cp4-invalid', name: 'CP4 Mark Missing Priority', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1100, 120],
+    parameters: {
+      mode: 'runOnceForAllItems', language: 'javaScript',
+      jsCode: [
+        'return $input.all().map((item) => {',
+        '  const { hasPriority, ...ticket } = item.json;',
+        '  const wasRejected = ticket.rejected === true;',
+        '  return { json: { ...ticket, rejected: true, rejectReason: wasRejected ? ticket.rejectReason : \'missing_priority\' } };',
+        '});',
+      ].join('\n'),
+    },
+  });
+
+  return {
+    name: options.name || 'Generated CP4 Validate Priority Fixture',
+    nodes: [start, source, split, presence, branch, valid, invalid],
+    connections: {
+      [start.name]: { main: [[{ node: source.name, type: 'main', index: 0 }]] },
+      [source.name]: { main: [[{ node: split.name, type: 'main', index: 0 }]] },
+      [split.name]: { main: [[{ node: presence.name, type: 'main', index: 0 }]] },
+      [presence.name]: { main: [[{ node: branch.name, type: 'main', index: 0 }]] },
+      [branch.name]: {
+        main: [
+          [{ node: valid.name, type: 'main', index: 0 }],
+          [{ node: invalid.name, type: 'main', index: 0 }],
+        ],
+      },
+    },
+    settings: { executionOrder: 'v1' },
+  };
+}
+
+function deriveCheckpoint4Expected(tickets = CP4_CP3_OUTPUT) {
+  return {
+    inputCount: tickets.length,
+    outputCount: tickets.length,
+    rejectedCount: tickets.filter((ticket) => ticket.rejected === true || ticket.priority === null).length,
+    outputItems: tickets.map((ticket) => ({
+      ...ticket,
+      rejected: ticket.rejected === true || ticket.priority === null,
+      rejectReason: ticket.rejected === true ? ticket.rejectReason : (ticket.priority === null ? 'missing_priority' : ''),
+    })),
+  };
+}
+
+function assertCheckpoint4Artifact(workflow, expected = {}) {
+  assert(workflow && Array.isArray(workflow.nodes), 'CP4 workflow.nodes must be an array');
+  assert(workflow.nodes.length === 7, `CP4 must contain 7 nodes, got ${workflow.nodes.length}`);
+  for (const [index, item] of workflow.nodes.entries()) {
+    assert(JSON.stringify(Object.keys(item).sort()) === JSON.stringify([...NODE_KEYS].sort()), `CP4 node ${index} has non-canonical keys`);
+    assert(!Object.prototype.hasOwnProperty.call(item, 'credentials'), `CP4 node ${index} must not contain credentials`);
+    assert(!Object.prototype.hasOwnProperty.call(item, 'cid'), `CP4 node ${index} must not contain cid`);
+    assert(!Object.prototype.hasOwnProperty.call(item, 'creator'), `CP4 node ${index} must not contain creator`);
+  }
+  assert(workflow.nodes[3].parameters.jsCode.includes('priority !== null'), 'CP4 must explicitly handle null priorities');
+  assert(workflow.nodes[4].parameters.conditions.conditions[0].operator.type === 'boolean', 'CP4 branch must use a boolean condition');
+  assert(workflow.nodes[5].parameters.jsCode.includes('ticket.rejected === true'), 'CP4 valid path must preserve earlier rejection');
+  assert(workflow.nodes[6].parameters.jsCode.includes('wasRejected'), 'CP4 invalid path must preserve earlier rejection');
+  if (expected.inputCount !== undefined) {
+    const actual = JSON.parse(workflow.nodes[1].parameters.assignments.assignments[0].value);
+    assert(actual.length === expected.inputCount, 'CP4 fixture input count mismatch');
+  }
+  return true;
+}
+
 function deriveCheckpoint1Expected(tickets = DEFAULT_TICKETS) {
   return {
     inputCount: tickets.length,
@@ -382,4 +508,7 @@ module.exports = {
   buildCheckpoint3ValidateIdWorkflow,
   deriveCheckpoint3Expected,
   assertCheckpoint3Artifact,
+  buildCheckpoint4ValidatePriorityWorkflow,
+  deriveCheckpoint4Expected,
+  assertCheckpoint4Artifact,
 };
