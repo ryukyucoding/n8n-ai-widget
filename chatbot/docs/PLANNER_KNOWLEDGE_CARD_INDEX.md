@@ -24,10 +24,18 @@ The loader reads from verified offline engine artifacts published under `a2a/run
 
 ## 2. Ingested Cards & Exact Count Guarantee
 
-- **Exact Total Cards:** **54**
+- **Exact Total Cards:** **60**
   - Curated Behaviour Cards: 5 (XML, htmlExtract, compression, etc.)
-  - E-Probe Findings: 2 (E2 switch fallback channel, E4 summarize naming)
+  - E-Probe Findings: 1 (E4 summarize naming)
   - K2 Input Binding Discoveries: 2 (`formatDate` UTC trap, `extractDate` numeric output type)
+  - Demo 3 M1 Expanded Node Cards: 7
+    * `if@2.2#conditions` (filter version 2, strict validation, output routing, file:line citations)
+    * `switch@3.4#rules` (fallbackOutput extra channel routing)
+    * `merge@3#append` (sequential input array concatenation)
+    * `merge@3#combineByFields` (fieldsToMatchString vs mergeByFields advanced selector)
+    * `googleSheets@4.7#read` (combineFilters version switch, loop over items, untilSheetSelected)
+    * `gmail@2.1#getAll` (returnAll vs limit, simple MIME toggle, filter options)
+    * `slack@2.2#post` (select channel vs user RLC, messageType text vs blocksUi, thread_ts)
   - Opsweep Transform Cards: 45
 
 ---

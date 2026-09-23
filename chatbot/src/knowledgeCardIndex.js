@@ -73,6 +73,13 @@ class KnowledgeCardIndex {
       }
     }
 
+    if (card.parameters !== undefined && (typeof card.parameters !== 'object' || Array.isArray(card.parameters))) {
+      throw new Error('parameters must be an object');
+    }
+    if (card.setupParameters !== undefined && !Array.isArray(card.setupParameters)) {
+      throw new Error('setupParameters must be an array');
+    }
+
     if (typeof card.nodeType !== 'string' || !card.nodeType.startsWith('n8n-nodes-base.')) {
       throw new Error(`Invalid nodeType: "${card.nodeType}"`);
     }
