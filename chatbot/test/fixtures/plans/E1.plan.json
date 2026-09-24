@@ -1,0 +1,240 @@
+{
+  "plan": "compass-plan/0.1 (n8n-native, route v3 E2E mode: structural contracts)",
+  "task": "E1",
+  "taskRef": {
+    "id": "E1",
+    "source": "GAUGE_E2E3_SEALED_SET_PUBLIC_20260923.md public requests ONLY",
+    "publicRequestsSha256": "d772ef7155a223ef9cd6a84bf12cd7d7dba900c6dbfd495a6055e523f21525cc",
+    "requestSha256": "22f85a9f9b35fb2ba728ba4d15c7ca7d3d41ae764340e3dd36050191dee0c06d"
+  },
+  "planner": "claudex Compass",
+  "sealedMaterialAccessed": false,
+  "maturity": "design",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "input": {
+    "kind": "trigger_items",
+    "itemSchema": {
+      "dueDate": "string",
+      "loanId": "string",
+      "member": "string",
+      "returned": "boolean"
+    }
+  },
+  "typedBindings": {
+    "notReturned": {
+      "expr": "$json.returned",
+      "type": "boolean",
+      "operator": "boolean:false"
+    },
+    "dueBefore": {
+      "expr": "$json.dueDate",
+      "type": "dateTime (parsed from YYYY-MM-DD)",
+      "operator": "dateTime:before",
+      "right": "2026-09-20",
+      "note": "strictly before; both sides parsed by luxon fromISO in the same workflow zone, so a date-only comparison is zone-invariant (type-validation.js tryToParseDateTime)"
+    },
+    "sortKey": {
+      "field": "dueDate",
+      "type": "string",
+      "order": "ascending",
+      "note": "fixed ISO YYYY-MM-DD: lexicographic = chronological"
+    }
+  },
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "block": "keep loans not returned",
+      "dependsOn": {
+        "node": "@trigger",
+        "port": 0
+      },
+      "node": {
+        "name": "CP1 Not Returned",
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "e1-ret",
+                "leftValue": "={{ $json.returned }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "false",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "items",
+        "fields": {
+          "dueDate": "string",
+          "loanId": "string",
+          "member": "string",
+          "returned": "boolean"
+        }
+      }
+    },
+    {
+      "id": "CP2",
+      "block": "keep dueDate strictly before 2026-09-20",
+      "dependsOn": {
+        "node": "CP1 Not Returned",
+        "port": 0
+      },
+      "node": {
+        "name": "CP2 Due Before 2026-09-20",
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "e1-due",
+                "leftValue": "={{ $json.dueDate }}",
+                "rightValue": "2026-09-20",
+                "operator": {
+                  "type": "dateTime",
+                  "operation": "before"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "items",
+        "fields": {
+          "dueDate": "string",
+          "loanId": "string",
+          "member": "string",
+          "returned": "boolean"
+        }
+      }
+    },
+    {
+      "id": "CP3",
+      "block": "sort oldest to newest",
+      "dependsOn": {
+        "node": "CP2 Due Before 2026-09-20",
+        "port": 0
+      },
+      "node": {
+        "name": "CP3 Sort By Due Date",
+        "type": "n8n-nodes-base.sort",
+        "typeVersion": 1,
+        "parameters": {
+          "type": "simple",
+          "sortFieldsUi": {
+            "sortField": [
+              {
+                "fieldName": "dueDate",
+                "order": "ascending"
+              }
+            ]
+          },
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "items",
+        "fields": {
+          "dueDate": "string",
+          "loanId": "string",
+          "member": "string",
+          "returned": "boolean"
+        }
+      }
+    },
+    {
+      "id": "CP4",
+      "block": "exact projection loanId/member/dueDate",
+      "dependsOn": {
+        "node": "CP3 Sort By Due Date",
+        "port": 0
+      },
+      "node": {
+        "name": "CP4 Project Overdue",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "e1-id",
+                "name": "loanId",
+                "type": "string",
+                "value": "={{ $json.loanId }}"
+              },
+              {
+                "id": "e1-member",
+                "name": "member",
+                "type": "string",
+                "value": "={{ $json.member }}"
+              },
+              {
+                "id": "e1-due",
+                "name": "dueDate",
+                "type": "string",
+                "value": "={{ $json.dueDate }}"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "items",
+        "fields": {
+          "loanId": "string",
+          "member": "string",
+          "dueDate": "string"
+        }
+      }
+    }
+  ],
+  "outputBindings": {
+    "overdue": {
+      "node": "CP4 Project Overdue",
+      "port": 0
+    }
+  },
+  "clarifications": [
+    {
+      "id": "Q1",
+      "question": "Loans with the same dueDate: any tie order?",
+      "defaultAssumption": "keep input order (stable sort)",
+      "affects": [
+        "CP3"
+      ],
+      "blocking": false,
+      "asked": false
+    }
+  ],
+  "requiredUserSetup": [],
+  "riskFlags": [
+    "Tie order relies on sort@1 being stable; unobserved.",
+    "A non-ISO or missing dueDate: the filter drops it (parse failure or undefined -> false) or errors under strict typing; unobserved."
+  ]
+}

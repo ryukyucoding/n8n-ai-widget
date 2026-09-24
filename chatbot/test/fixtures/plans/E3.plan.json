@@ -1,0 +1,200 @@
+{
+  "plan": "compass-plan/0.1 (n8n-native, route v3 E2E mode: structural contracts)",
+  "task": "E3",
+  "taskRef": {
+    "id": "E3",
+    "source": "GAUGE_E2E3_SEALED_SET_PUBLIC_20260923.md public requests ONLY",
+    "publicRequestsSha256": "d772ef7155a223ef9cd6a84bf12cd7d7dba900c6dbfd495a6055e523f21525cc",
+    "requestSha256": "1c8abd378752697a851de792a2452bb69abda1ec419be9319b7936309166f50f"
+  },
+  "planner": "claudex Compass",
+  "sealedMaterialAccessed": false,
+  "maturity": "design",
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/New_York"
+  },
+  "timezoneDecision": {
+    "value": "America/New_York",
+    "status": "BENCHMARK ASSUMPTION, not a user answer",
+    "why": "runtime workflow-zone default W (execs 638/639); the request names no zone",
+    "openUserQuestion": "which timezone is Monday 07:30?"
+  },
+  "input": {
+    "kind": "schedule",
+    "itemSchema": {
+      "site": "string",
+      "statusCode": "number",
+      "responseMs": "number"
+    }
+  },
+  "trigger": {
+    "name": "CP0 Mondays 07:30",
+    "type": "n8n-nodes-base.scheduleTrigger",
+    "typeVersion": 1.2,
+    "parameters": {
+      "rule": {
+        "interval": [
+          {
+            "field": "cronExpression",
+            "expression": "30 7 * * 1"
+          }
+        ]
+      }
+    },
+    "expectCron": "30 7 * * 1"
+  },
+  "typedBindings": {
+    "down": {
+      "expr": "$json.statusCode >= 500 OR $json.responseMs > 2000",
+      "operators": [
+        "number:gte 500",
+        "number:gt 2000"
+      ],
+      "combinator": "or"
+    },
+    "reason": {
+      "expr": "$json.statusCode >= 500 ? \"error\" : \"slow\"",
+      "type": "string",
+      "note": "error wins when both hold"
+    }
+  },
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "block": "keep down sites (status >= 500 OR responseMs > 2000)",
+      "dependsOn": {
+        "node": "@trigger",
+        "port": 0
+      },
+      "node": {
+        "name": "CP1 Site Is Down",
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "e3-err",
+                "leftValue": "={{ $json.statusCode }}",
+                "rightValue": 500,
+                "operator": {
+                  "type": "number",
+                  "operation": "gte"
+                }
+              },
+              {
+                "id": "e3-slow",
+                "leftValue": "={{ $json.responseMs }}",
+                "rightValue": 2000,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "or"
+          },
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "items",
+        "fields": {
+          "site": "string",
+          "statusCode": "number",
+          "responseMs": "number"
+        }
+      }
+    },
+    {
+      "id": "CP2",
+      "block": "exact projection site + reason",
+      "dependsOn": {
+        "node": "CP1 Site Is Down",
+        "port": 0
+      },
+      "node": {
+        "name": "CP2 Down Record",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "e3-site",
+                "name": "site",
+                "type": "string",
+                "value": "={{ $json.site }}"
+              },
+              {
+                "id": "e3-reason",
+                "name": "reason",
+                "type": "string",
+                "value": "={{ $json.statusCode >= 500 ? \"error\" : \"slow\" }}"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "items",
+        "fields": {
+          "site": "string",
+          "reason": "string"
+        }
+      }
+    }
+  ],
+  "outputBindings": {
+    "down": {
+      "node": "CP2 Down Record",
+      "port": 0
+    }
+  },
+  "clarifications": [
+    {
+      "id": "Q1",
+      "question": "Which timezone is \"Monday at 07:30\"?",
+      "defaultAssumption": "America/New_York (benchmark assumption only)",
+      "affects": [
+        "trigger",
+        "settings.timezone"
+      ],
+      "blocking": true,
+      "asked": false,
+      "status": "unresolved user input"
+    },
+    {
+      "id": "Q2",
+      "question": "Exactly 2000 ms: slow or fine?",
+      "defaultAssumption": "fine (the request says greater than 2000)",
+      "affects": [
+        "CP1"
+      ],
+      "blocking": false,
+      "asked": false
+    }
+  ],
+  "requiredUserSetup": [
+    {
+      "kind": "choice",
+      "plainLanguage": "Confirm the timezone for \"every Monday at 07:30\", then activate the workflow (a user/Dan gate).",
+      "neededBy": [
+        "trigger"
+      ],
+      "blocking": true
+    }
+  ],
+  "riskFlags": [
+    "The schedule never fires in verification (a manual trigger is substituted); cron and timezone are static checks only.",
+    "Boundaries 500 (inclusive) and 2000 (exclusive) are load-bearing."
+  ]
+}

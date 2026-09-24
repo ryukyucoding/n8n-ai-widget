@@ -4,3 +4,7 @@ node_modules/
 chatbot/node_modules/
 **/__pycache__/
 *.pyc
+
+# Engine state and run output (offline direct route)
+chatbot/src/directRoute/n8n-user/
+e3a-report.json

@@ -1,0 +1,281 @@
+{
+  "plan": "compass-plan/0.1 (n8n-native parameters, X2 route v2 format)",
+  "task": "D09",
+  "taskRef": {
+    "id": "D09",
+    "source": "gauge dev_v0_public.json (public dev split)",
+    "devSplitSha256": "5f5b40eabe031a815040e767bcd722f56cf333ae4e8a0553c93dc1ca5a61daf8",
+    "taskSha256": "698bf0871c4e14d4bab2069c981230732c2d12086e881dea2b33febdc6989fec"
+  },
+  "planner": "claudex Compass",
+  "maturity": "design",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "input": {
+    "kind": "pinned_node",
+    "itemSchema": {
+      "row_number": "number",
+      "name": "string",
+      "email": "string",
+      "status": "string"
+    }
+  },
+  "typedBindings": {
+    "condition": {
+      "expr": "$json.status",
+      "type": "string",
+      "operator": "string:equals",
+      "right": "new",
+      "caseSensitive": true
+    },
+    "name": {
+      "expr": "$json.name",
+      "type": "string"
+    },
+    "email": {
+      "expr": "$json.email",
+      "type": "string"
+    }
+  },
+  "checkpoints": [
+    {
+      "id": "CP0",
+      "block": "read all rows of sheet \"Leads\" (pinned in verification; never executed)",
+      "dependsOn": {
+        "node": "@trigger",
+        "port": 0
+      },
+      "node": {
+        "name": "CP0 Read Leads Sheet",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "credential": "pinned",
+        "parameters": {
+          "authentication": "oAuth2",
+          "resource": "sheet",
+          "operation": "read",
+          "documentId": {
+            "__rl": true,
+            "mode": "url",
+            "value": ""
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Leads"
+          },
+          "filtersUI": {},
+          "options": {}
+        }
+      },
+      "evidence": "PIN (E1-A engine; E1 runtime pinData pass da46d6a) + static probe: only documentId raises an n8n parameter issue (declared user setup); googleSheetsOAuth2Api required",
+      "assertions": [
+        {
+          "port": 0,
+          "count": 3,
+          "compare": "multiset",
+          "fieldSet": [
+            "email",
+            "name",
+            "row_number",
+            "status"
+          ],
+          "items": [
+            {
+              "email": "ivy@example.com",
+              "name": "Ivy",
+              "row_number": 2,
+              "status": "new"
+            },
+            {
+              "email": "jon@example.com",
+              "name": "Jon",
+              "row_number": 3,
+              "status": "contacted"
+            },
+            {
+              "email": "kai@example.com",
+              "name": "Kai",
+              "row_number": 4,
+              "status": "new"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CP1",
+      "block": "keep status exactly \"new\"",
+      "dependsOn": {
+        "node": "CP0 Read Leads Sheet",
+        "port": 0
+      },
+      "node": {
+        "name": "CP1 Status Is New",
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "d09-status",
+                "leftValue": "={{ $json.status }}",
+                "rightValue": "new",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      "evidence": "E1 filter string:equals engine-observed (X1 D01)",
+      "assertions": [
+        {
+          "port": 0,
+          "count": 2,
+          "compare": "multiset",
+          "fieldSet": [
+            "email",
+            "name",
+            "row_number",
+            "status"
+          ],
+          "items": [
+            {
+              "email": "ivy@example.com",
+              "name": "Ivy",
+              "row_number": 2,
+              "status": "new"
+            },
+            {
+              "email": "kai@example.com",
+              "name": "Kai",
+              "row_number": 4,
+              "status": "new"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CP2",
+      "block": "exact projection name/email (drops row_number, status)",
+      "dependsOn": {
+        "node": "CP1 Status Is New",
+        "port": 0
+      },
+      "node": {
+        "name": "CP2 Project Lead",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "d09-name",
+                "name": "name",
+                "type": "string",
+                "value": "={{ $json.name }}"
+              },
+              {
+                "id": "d09-email",
+                "name": "email",
+                "type": "string",
+                "value": "={{ $json.email }}"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      },
+      "evidence": "RV set@3.4",
+      "assertions": [
+        {
+          "port": 0,
+          "count": 2,
+          "compare": "multiset",
+          "fieldSet": [
+            "email",
+            "name"
+          ],
+          "items": [
+            {
+              "name": "Ivy",
+              "email": "ivy@example.com"
+            },
+            {
+              "name": "Kai",
+              "email": "kai@example.com"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "outputBindings": {
+    "newLeads": {
+      "node": "CP2 Project Lead",
+      "port": 0
+    }
+  },
+  "clarifications": [
+    {
+      "id": "Q1",
+      "question": "Count \"New\" or \" new \" as new?",
+      "defaultAssumption": "no, exact match",
+      "affects": [
+        "CP1"
+      ],
+      "blocking": false
+    }
+  ],
+  "requiredUserSetup": [
+    {
+      "kind": "credential",
+      "plainLanguage": "Connect your Google account so n8n can read the spreadsheet.",
+      "credentialTypes": [
+        "googleSheetsOAuth2Api"
+      ],
+      "neededBy": [
+        "CP0"
+      ],
+      "blocking": true
+    },
+    {
+      "kind": "resource",
+      "param": "documentId",
+      "plainLanguage": "Which spreadsheet? Paste its link.",
+      "neededBy": [
+        "CP0"
+      ],
+      "blocking": true
+    },
+    {
+      "kind": "choice",
+      "param": "sheetName",
+      "plainLanguage": "Is the tab called exactly \"Leads\", with a header row name / email / status?",
+      "value": "Leads",
+      "neededBy": [
+        "CP0",
+        "CP1"
+      ],
+      "blocking": true
+    }
+  ],
+  "riskFlags": [
+    "Pinned node parameters are not validated by execution (E1-A #2); the plan relies on the static probe.",
+    "E8 open: the real read-rows output shape (row_number etc.) is assumed from the Gauge fixture, not observed.",
+    "An empty sheet pins [] and silently halts downstream (E1-A #1); CP1/CP2 counts are the guard."
+  ]
+}
