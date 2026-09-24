@@ -12,5 +12,10 @@
     "express": "^4.18.2",
     "openai": "^4.68.0",
     "undici": "^7.25.0"
+  },
+  "devDependencies": {
+    "n8n-core": "2.18.3",
+    "n8n-nodes-base": "2.18.3",
+    "n8n-workflow": "2.18.3"
   }
 }
