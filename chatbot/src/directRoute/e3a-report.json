@@ -1,0 +1,372 @@
+{
+  "seed": "keystone-e3a-20260923",
+  "method": "eligible types sorted by sha256(seed + type); first 20",
+  "populationSize": 56,
+  "excluded": {
+    "n8n-nodes-base.coinGecko": "external network",
+    "n8n-nodes-base.hackerNews": "external network",
+    "n8n-nodes-base.openThesaurus": "external network",
+    "n8n-nodes-base.postBin": "external network",
+    "n8n-nodes-base.rssFeedRead": "external network",
+    "n8n-nodes-base.quickChart": "external network",
+    "n8n-nodes-base.executeCommand": "host command execution",
+    "n8n-nodes-base.readWriteFile": "host filesystem",
+    "n8n-nodes-base.readBinaryFile": "host filesystem",
+    "n8n-nodes-base.readBinaryFiles": "host filesystem",
+    "n8n-nodes-base.writeBinaryFile": "host filesystem",
+    "n8n-nodes-base.executeWorkflow": "needs n8n instance (sub-workflow)",
+    "n8n-nodes-base.executionData": "needs n8n instance (execution metadata)",
+    "n8n-nodes-base.dataTable": "needs n8n instance (database)",
+    "n8n-nodes-base.dynamicCredentialCheck": "credential subsystem",
+    "n8n-nodes-base.e2eTest": "n8n internal test node",
+    "n8n-nodes-base.aiTransform": "LLM call",
+    "n8n-nodes-base.timeSaved": "n8n instance metrics",
+    "n8n-nodes-base.stickyNote": "not executable"
+  },
+  "eligibleSize": 37,
+  "eligibleTypes": [
+    "n8n-nodes-base.noOp",
+    "n8n-nodes-base.functionItem",
+    "n8n-nodes-base.code",
+    "n8n-nodes-base.htmlExtract",
+    "n8n-nodes-base.limit",
+    "n8n-nodes-base.html",
+    "n8n-nodes-base.iCal",
+    "n8n-nodes-base.convertToFile",
+    "n8n-nodes-base.editImage",
+    "n8n-nodes-base.simulate",
+    "n8n-nodes-base.xml",
+    "n8n-nodes-base.dateTime",
+    "n8n-nodes-base.debugHelper",
+    "n8n-nodes-base.aggregate",
+    "n8n-nodes-base.splitOut",
+    "n8n-nodes-base.compression",
+    "n8n-nodes-base.moveBinaryData",
+    "n8n-nodes-base.splitInBatches",
+    "n8n-nodes-base.compareDatasets",
+    "n8n-nodes-base.renameKeys",
+    "n8n-nodes-base.removeDuplicates",
+    "n8n-nodes-base.filter",
+    "n8n-nodes-base.summarize",
+    "n8n-nodes-base.n8nTrainingCustomerMessenger",
+    "n8n-nodes-base.function",
+    "n8n-nodes-base.stopAndError",
+    "n8n-nodes-base.switch",
+    "n8n-nodes-base.sort",
+    "n8n-nodes-base.itemLists",
+    "n8n-nodes-base.set",
+    "n8n-nodes-base.if",
+    "n8n-nodes-base.n8nTrainingCustomerDatastore",
+    "n8n-nodes-base.markdown",
+    "n8n-nodes-base.spreadsheetFile",
+    "n8n-nodes-base.extractFromFile",
+    "n8n-nodes-base.merge",
+    "n8n-nodes-base.readPDF"
+  ],
+  "sample": [
+    "n8n-nodes-base.noOp",
+    "n8n-nodes-base.functionItem",
+    "n8n-nodes-base.code",
+    "n8n-nodes-base.htmlExtract",
+    "n8n-nodes-base.limit",
+    "n8n-nodes-base.html",
+    "n8n-nodes-base.iCal",
+    "n8n-nodes-base.convertToFile",
+    "n8n-nodes-base.editImage",
+    "n8n-nodes-base.simulate",
+    "n8n-nodes-base.xml",
+    "n8n-nodes-base.dateTime",
+    "n8n-nodes-base.debugHelper",
+    "n8n-nodes-base.aggregate",
+    "n8n-nodes-base.splitOut",
+    "n8n-nodes-base.compression",
+    "n8n-nodes-base.moveBinaryData",
+    "n8n-nodes-base.splitInBatches",
+    "n8n-nodes-base.compareDatasets",
+    "n8n-nodes-base.renameKeys"
+  ],
+  "classes": {
+    "1": "schema-valid + executes + stable non-empty output shape recorded",
+    "2": "schema-valid but execution-invalid, empty, or unstable",
+    "3": "schema-incomplete / semantic choice required",
+    "4": "unsupported by offline loader/runtime"
+  },
+  "counts": {
+    "class1": 10,
+    "class2": 8,
+    "class3": 0,
+    "class4": 2
+  },
+  "yield": 0.5,
+  "class1Passthrough": [
+    "n8n-nodes-base.noOp",
+    "n8n-nodes-base.simulate",
+    "n8n-nodes-base.renameKeys"
+  ],
+  "nonTrivialYield": 0.35,
+  "gate": "PASS (>=50%)",
+  "results": [
+    {
+      "type": "n8n-nodes-base.noOp",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 1,
+      "ports": [
+        3
+      ],
+      "shape": [
+        [
+          "date:string",
+          "flag:boolean",
+          "id:number",
+          "name:string",
+          "tags:array",
+          "text:string",
+          "value:number"
+        ]
+      ],
+      "passthrough": true
+    },
+    {
+      "type": "n8n-nodes-base.functionItem",
+      "version": 1,
+      "klass": 4,
+      "reason": "code runs in n8n task runner (not installed offline)"
+    },
+    {
+      "type": "n8n-nodes-base.code",
+      "version": 2,
+      "klass": 4,
+      "reason": "code runs in n8n task runner (not installed offline)"
+    },
+    {
+      "type": "n8n-nodes-base.htmlExtract",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 2,
+      "reason": "error: No property named \"data\" exists!"
+    },
+    {
+      "type": "n8n-nodes-base.limit",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 1,
+      "ports": [
+        1
+      ],
+      "shape": [
+        [
+          "date:string",
+          "flag:boolean",
+          "id:number",
+          "name:string",
+          "tags:array",
+          "text:string",
+          "value:number"
+        ]
+      ],
+      "passthrough": false
+    },
+    {
+      "type": "n8n-nodes-base.html",
+      "version": 1.2,
+      "filledParameters": [],
+      "klass": 1,
+      "ports": [
+        3
+      ],
+      "shape": [
+        [
+          "html:string"
+        ]
+      ],
+      "passthrough": false
+    },
+    {
+      "type": "n8n-nodes-base.iCal",
+      "version": 1,
+      "filledParameters": [
+        {
+          "name": "start",
+          "type": "dateTime"
+        },
+        {
+          "name": "end",
+          "type": "dateTime"
+        }
+      ],
+      "klass": 1,
+      "ports": [
+        3
+      ],
+      "shape": [
+        []
+      ],
+      "passthrough": false
+    },
+    {
+      "type": "n8n-nodes-base.convertToFile",
+      "version": 1.1,
+      "filledParameters": [],
+      "klass": 1,
+      "ports": [
+        1
+      ],
+      "shape": [
+        []
+      ],
+      "passthrough": false
+    },
+    {
+      "type": "n8n-nodes-base.editImage",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 2,
+      "reason": "error: This operation expects the node's input data to contain a binary file 'data', but none was found [item 0]"
+    },
+    {
+      "type": "n8n-nodes-base.simulate",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 1,
+      "ports": [
+        3
+      ],
+      "shape": [
+        [
+          "date:string",
+          "flag:boolean",
+          "id:number",
+          "name:string",
+          "tags:array",
+          "text:string",
+          "value:number"
+        ]
+      ],
+      "passthrough": true
+    },
+    {
+      "type": "n8n-nodes-base.xml",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 2,
+      "reason": "error: Item has no JSON property called \"data\""
+    },
+    {
+      "type": "n8n-nodes-base.dateTime",
+      "version": 2,
+      "filledParameters": [],
+      "klass": 2,
+      "reason": "output not stable across two runs",
+      "ports": [
+        3
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.debugHelper",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 2,
+      "reason": "error: Node has thrown an error"
+    },
+    {
+      "type": "n8n-nodes-base.aggregate",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 1,
+      "ports": [
+        1
+      ],
+      "shape": [
+        []
+      ],
+      "passthrough": false
+    },
+    {
+      "type": "n8n-nodes-base.splitOut",
+      "version": 1,
+      "filledParameters": [
+        {
+          "name": "fieldToSplitOut",
+          "type": "string"
+        }
+      ],
+      "klass": 1,
+      "ports": [
+        3
+      ],
+      "shape": [
+        [
+          "value:number"
+        ]
+      ],
+      "passthrough": false
+    },
+    {
+      "type": "n8n-nodes-base.compression",
+      "version": 1.1,
+      "filledParameters": [],
+      "klass": 2,
+      "reason": "error: This operation expects the node's input data to contain a binary file 'data', but none was found [item 0]"
+    },
+    {
+      "type": "n8n-nodes-base.moveBinaryData",
+      "version": 1.1,
+      "filledParameters": [],
+      "klass": 2,
+      "reason": "executes but emits 0 items"
+    },
+    {
+      "type": "n8n-nodes-base.splitInBatches",
+      "version": 3,
+      "filledParameters": [],
+      "klass": 1,
+      "ports": [
+        0,
+        1
+      ],
+      "shape": [
+        [],
+        [
+          "date:string",
+          "flag:boolean",
+          "id:number",
+          "name:string",
+          "tags:array",
+          "text:string",
+          "value:number"
+        ]
+      ],
+      "passthrough": false
+    },
+    {
+      "type": "n8n-nodes-base.compareDatasets",
+      "version": 2.3,
+      "filledParameters": [],
+      "klass": 2,
+      "reason": "error: You need to define at least one pair of fields in \"Fields to Match\" to match on"
+    },
+    {
+      "type": "n8n-nodes-base.renameKeys",
+      "version": 1,
+      "filledParameters": [],
+      "klass": 1,
+      "ports": [
+        3
+      ],
+      "shape": [
+        [
+          "date:string",
+          "flag:boolean",
+          "id:number",
+          "name:string",
+          "tags:array",
+          "text:string",
+          "value:number"
+        ]
+      ],
+      "passthrough": true
+    }
+  ],
+  "variant": "schema-only"
+}
