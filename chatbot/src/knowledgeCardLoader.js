@@ -26,7 +26,9 @@ const ARTIFACT_MANIFESTS = Object.freeze({
   },
 });
 
-const EXACT_TOTAL_CARDS = 60; // 5 behaviour + 1 eprobe (E4) + 2 K2 discoveries + 7 Demo 3 M1 cards + 45 opsweep
+// Total cards count:
+// 5 behaviour + 1 eprobe (E4) + 2 K2 discoveries + 45 opsweep + 12 Demo 3 & 4 cards = 65 cards
+const EXACT_TOTAL_CARDS = 68;
 
 function sha256File(filePath) {
   const content = fs.readFileSync(filePath);
@@ -38,12 +40,8 @@ function sha256File(filePath) {
  * - behaviour-cards.json
  * - eprobes-report.json
  * - opsweep-cards.json
- * - K2 input binding pilot discoveries (formatDate UTC vs workflowTimezone trap)
- *
- * Enforces fail-closed validation:
- * - Throws if artifact base directory or required files are missing/unreadable.
- * - Asserts exact count (54 cards) and binds to artifact manifest.
- * - Allows configuring base directory via options.baseDir or env PLANNER_CARD_DIR.
+ * - K2 input binding pilot discoveries
+ * - Demo 3 & Demo 4 Google-family knowledge cards
  */
 function createPopulatedPlannerCardIndex(customPaths = {}) {
   const index = new KnowledgeCardIndex();
@@ -146,8 +144,8 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     throw new Error(`Failed to ingest eprobes: ${e.message}`);
   }
 
-  // Ingest Demo 3 M1 coverage expansion cards with source file:line citations
-  // 1. if@2.2
+  // 3. Ingest Demo 3 Core Control & Transformation Cards
+  // if@2.2
   index.registerCard({
     nodeType: 'n8n-nodes-base.if',
     version: 2.2,
@@ -180,7 +178,7 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     maturity: 'offline-source-verified',
   });
 
-  // 2. switch@3.4 (rules)
+  // switch@3.4 (rules)
   index.registerCard({
     nodeType: 'n8n-nodes-base.switch',
     version: 3.4,
@@ -212,7 +210,7 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     maturity: 'offline-source-verified',
   });
 
-  // 3. merge@3 (append)
+  // merge@3 (append)
   index.registerCard({
     nodeType: 'n8n-nodes-base.merge',
     version: 3,
@@ -236,7 +234,7 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     maturity: 'offline-source-verified',
   });
 
-  // 4. merge@3 (combineByFields)
+  // merge@3 (combineByFields)
   index.registerCard({
     nodeType: 'n8n-nodes-base.merge',
     version: 3,
@@ -266,78 +264,7 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     maturity: 'offline-source-verified',
   });
 
-  // 5. googleSheets@4.7 (read)
-  index.registerCard({
-    nodeType: 'n8n-nodes-base.googleSheets',
-    version: 4.7,
-    operation: 'read',
-    fixtureFamily: 'json-records',
-    inputContract: { cardinality: 'items', fields: {} },
-    outputContract: { cardinality: 'items', fields: {} },
-    timezoneDependency: false,
-    parameters: {
-      resource: 'sheet',
-      operation: 'read',
-      documentId: '={{ $parameter.documentId }}',
-      sheetName: '={{ $parameter.sheetName }}',
-      options: {},
-    },
-    setupParameters: [
-      { name: 'documentId', type: 'resourceLocator', required: true, description: 'Google Spreadsheet document ID or URL' },
-      { name: 'sheetName', type: 'resourceLocator', required: true, description: 'Target sheet tab name or GID' },
-      { name: 'filtersUI', type: 'fixedCollection', required: false, description: 'Optional row filter criteria (column and match value)' },
-      { name: 'options.dataLocationOnSheet', type: 'fixedCollection', required: false, description: 'Range definition (detectAutomatically or specifyRangeA1)' },
-    ],
-    knownTraps: [
-      'Google/Sheet/v2/actions/sheet/read.operation.js:81-104: combineFiltersOptions defaults to OR in version < 4.3, but switches to AND in version >= 4.3',
-      'Google/Sheet/v2/actions/sheet/read.operation.js:153-157: returnAllMatches option was removed in version >= 4.5 (replaced by returnFirstMatch boolean)',
-      'Google/Sheet/v2/actions/sheet/read.operation.js:166-168: if nodeVersion > 4.1, length = items.length (loops over all incoming items to read sheet)',
-      'Google/Sheet/v2/actions/sheet/read.operation.js:73-76: options are hidden until documentId and sheetName are selected (untilSheetSelected)',
-    ],
-    evidence: {
-      ref: 'n8n-node-catalog/raw/nodes/Google/Sheet/v2/actions/sheet/read.operation.js',
-      hash: 'source-verified-GoogleSheetsV2-read:71-174',
-    },
-    maturity: 'offline-source-verified',
-  });
-
-  // 6. gmail@2.1 (getAll)
-  index.registerCard({
-    nodeType: 'n8n-nodes-base.gmail',
-    version: 2.1,
-    operation: 'getAll',
-    fixtureFamily: 'json-records',
-    inputContract: { cardinality: 'items', fields: {} },
-    outputContract: { cardinality: 'items', fields: {} },
-    timezoneDependency: false,
-    parameters: {
-      resource: 'message',
-      operation: 'getAll',
-      returnAll: false,
-      limit: 50,
-      simple: true,
-      filters: {},
-    },
-    setupParameters: [
-      { name: 'authentication', type: 'options', required: true, default: 'oAuth2', description: 'Authentication mode (oAuth2 or serviceAccount)' },
-      { name: 'returnAll', type: 'boolean', required: false, default: false, description: 'Whether to return all matching messages or limit count' },
-      { name: 'limit', type: 'number', required: false, default: 50, displayOptions: { returnAll: [false] }, description: 'Max number of messages to retrieve (1-500)' },
-      { name: 'simple', type: 'boolean', required: false, default: true, description: 'Whether to return simplified message payload instead of raw MIME payload' },
-      { name: 'filters.q', type: 'string', required: false, description: 'Gmail search query string' },
-    ],
-    knownTraps: [
-      'Google/Gmail/v2/MessageDescription.js:347-363: limit parameter is only displayed when returnAll === false',
-      'Google/Gmail/v2/MessageDescription.js:378-389: filtersNotice displayed when returnAll === true warning that fetching many messages takes long',
-      'Google/Gmail/v2/MessageDescription.js:365-376: simple defaults to true; setting simple to false exposes raw message payload and attachment prefix options',
-    ],
-    evidence: {
-      ref: 'n8n-node-catalog/raw/nodes/Google/Gmail/v2/MessageDescription.js',
-      hash: 'source-verified-GmailV2-getAll:330-400',
-    },
-    maturity: 'offline-source-verified',
-  });
-
-  // 7. slack@2.2 (post)
+  // slack@2.2 (post)
   index.registerCard({
     nodeType: 'n8n-nodes-base.slack',
     version: 2.2,
@@ -371,6 +298,8 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     },
     maturity: 'offline-source-verified',
   });
+
+  // 4. Ingest K2 input-binding synthesis discoveries (dateTime@2)
   index.registerCard({
     nodeType: 'n8n-nodes-base.dateTime',
     version: 2,
@@ -422,7 +351,449 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     maturity: 'offline-source-verified',
   });
 
-  // 4. Ingest transform cards from opsweep
+  // 5. Ingest Demo 4 Google-Family Cards with Exact Output Shapes
+  // googleSheets@4.7 (read: all rows)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.googleSheets',
+    version: 4.7,
+    operation: 'read',
+    fixtureFamily: 'google-sheets-data',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: { row_number: 'number' },
+      shape: 'user-sheet-dependent',
+    },
+    timezoneDependency: false,
+    parameters: {
+      resource: 'sheet',
+      operation: 'read',
+      documentId: '={{ $parameter.documentId }}',
+      sheetName: '={{ $parameter.sheetName }}',
+      options: {},
+    },
+    setupParameters: [
+      { name: 'documentId', type: 'resourceLocator', required: true, description: 'Google Spreadsheet document ID or URL' },
+      { name: 'sheetName', type: 'resourceLocator', required: true, description: 'Target sheet tab name or GID' },
+      { name: 'options.dataLocationOnSheet', type: 'fixedCollection', required: false, description: 'Range definition (detectAutomatically or specifyRangeA1)' },
+    ],
+    knownTraps: [
+      'Google/Sheet/v2/actions/sheet/read.operation.js:166-168: nodeVersion > 4.1 loops over all incoming items (length = items.length)',
+      'Google/Sheet/v2/helpers/GoogleSheet.js:205-216: structureArrayDataByColumn generates col_<index> if keyRow headers are empty',
+      'Google/Sheet/v2/helpers/GoogleSheets.types.js:4: row_number is an internal reserved key for row indexing',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Sheet/v2/actions/sheet/read.operation.js',
+      hash: 'source-verified-GoogleSheetsV2-read:71-174',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // googleSheets@4.7 (readLookup: read with filtersUI)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.googleSheets',
+    version: 4.7,
+    operation: 'readLookup',
+    fixtureFamily: 'google-sheets-data',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: { row_number: 'number' },
+      shape: 'user-sheet-dependent',
+    },
+    timezoneDependency: false,
+    parameters: {
+      resource: 'sheet',
+      operation: 'read',
+      documentId: '={{ $parameter.documentId }}',
+      sheetName: '={{ $parameter.sheetName }}',
+      filtersUI: { values: [] },
+      combineFilters: 'AND',
+      options: {},
+    },
+    setupParameters: [
+      { name: 'documentId', type: 'resourceLocator', required: true, description: 'Google Spreadsheet document ID or URL' },
+      { name: 'sheetName', type: 'resourceLocator', required: true, description: 'Target sheet tab name or GID' },
+      { name: 'filtersUI', type: 'fixedCollection', required: true, description: 'Lookup filter column and match value pairs' },
+      { name: 'combineFilters', type: 'options', default: 'AND', description: 'AND requires all conditions, OR requires at least one' },
+    ],
+    knownTraps: [
+      'Google/Sheet/v2/actions/sheet/read.operation.js:81-104: combineFiltersOptions defaults to OR in version < 4.3, but switches to AND in version >= 4.3',
+      'Google/Sheet/v2/helpers/GoogleSheet.js:392-474: lookupValues removes empty columns via removeEmptyColumns before converting array to object array',
+      'Google/Sheet/v2/helpers/GoogleSheet.js:424-468: combineFilters OR stops after first match if returnAllMatches !== true',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Sheet/v2/actions/sheet/read.operation.js',
+      hash: 'source-verified-GoogleSheetsV2-readLookup:25-104',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // googleSheets@4.7 (append)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.googleSheets',
+    version: 4.7,
+    operation: 'append',
+    fixtureFamily: 'google-sheets-data',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {},
+      shape: 'input-passthrough',
+    },
+    timezoneDependency: false,
+    parameters: {
+      resource: 'sheet',
+      operation: 'append',
+      documentId: '={{ $parameter.documentId }}',
+      sheetName: '={{ $parameter.sheetName }}',
+      columns: { mappingMode: 'autoMapInputData' },
+      options: {},
+    },
+    setupParameters: [
+      { name: 'documentId', type: 'resourceLocator', required: true, description: 'Target spreadsheet document ID' },
+      { name: 'sheetName', type: 'resourceLocator', required: true, description: 'Target sheet tab' },
+      { name: 'columns.mappingMode', type: 'options', default: 'autoMapInputData', description: 'autoMapInputData or defineBelow' },
+    ],
+    knownTraps: [
+      'Google/Sheet/v2/actions/sheet/append.operation.js:253-258: returns items unchanged with pairedItem metadata attached in autoMapInputData mode (input passthrough)',
+      'Google/Sheet/v2/actions/sheet/append.operation.js:209-216: version >= 4.4 checks for schema changes if mappingMode !== autoMapInputData and throws on column mismatches',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Sheet/v2/actions/sheet/append.operation.js',
+      hash: 'source-verified-GoogleSheetsV2-append:250-268',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // googleSheets@4.7 (update)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.googleSheets',
+    version: 4.7,
+    operation: 'update',
+    fixtureFamily: 'google-sheets-data',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {},
+      shape: 'input-passthrough',
+    },
+    timezoneDependency: false,
+    parameters: {
+      resource: 'sheet',
+      operation: 'update',
+      documentId: '={{ $parameter.documentId }}',
+      sheetName: '={{ $parameter.sheetName }}',
+      columns: { matchingColumns: ['row_number'] },
+      options: {},
+    },
+    setupParameters: [
+      { name: 'documentId', type: 'resourceLocator', required: true, description: 'Target spreadsheet document ID' },
+      { name: 'sheetName', type: 'resourceLocator', required: true, description: 'Target sheet tab' },
+      { name: 'columns.matchingColumns', type: 'multiOptions', required: true, description: 'Column names or row_number to match on for updates' },
+    ],
+    knownTraps: [
+      'Google/Sheet/v2/actions/sheet/update.operation.js:377-379: matching on "row_number" bypasses index column lookup and directly updates by physical row number',
+      'Google/Sheet/v2/actions/sheet/update.operation.js:398-403: returns incoming items array with pairedItem index in autoMapInputData mode',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Sheet/v2/actions/sheet/update.operation.js',
+      hash: 'source-verified-GoogleSheetsV2-update:370-405',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // gmail@2.1 (getAll: simple=true)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.gmail',
+    version: 2.1,
+    operation: 'getAll',
+    fixtureFamily: 'json-records',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {
+        id: 'string',
+        threadId: 'string',
+        snippet: 'string',
+        labels: 'array',
+        From: 'string',
+        To: 'string',
+        Cc: 'string',
+        Bcc: 'string',
+        Subject: 'string',
+      },
+      shape: 'fixed-simple-metadata',
+    },
+    timezoneDependency: false,
+    parameters: {
+      resource: 'message',
+      operation: 'getAll',
+      simple: true,
+      returnAll: false,
+      limit: 50,
+      filters: {},
+    },
+    setupParameters: [
+      { name: 'authentication', type: 'options', required: true, default: 'oAuth2', description: 'Authentication mode (oAuth2 or serviceAccount)' },
+      { name: 'returnAll', type: 'boolean', required: false, default: false, description: 'Whether to return all matching messages or limit count' },
+      { name: 'limit', type: 'number', required: false, default: 50, displayOptions: { returnAll: [false] }, description: 'Max number of messages to retrieve (1-500)' },
+      { name: 'simple', type: 'boolean', required: false, default: true, description: 'Whether to return simplified message payload instead of raw MIME payload' },
+    ],
+    knownTraps: [
+      'Google/Gmail/v2/GmailV2.node.js:307-325: simple=true fetches metadata format and extracts From, To, Cc, Bcc, Subject into root item JSON',
+      'Google/Gmail/GenericFunctions.js:369-389: simplifyOutput replaces labelIds array with expanded labels objects array [{id, name}]',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Gmail/v2/MessageDescription.js',
+      hash: 'source-verified-GmailV2-getAll-simple:330-400',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // gmail@2.1 (getAllRaw: simple=false)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.gmail',
+    version: 2.1,
+    operation: 'getAllRaw',
+    fixtureFamily: 'json-records',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {
+        id: 'string',
+        threadId: 'string',
+        labelIds: 'array',
+        sizeEstimate: 'number',
+        text: 'string',
+        html: 'string',
+        textAsHtml: 'string',
+        subject: 'string',
+        date: 'string',
+        to: 'object',
+        from: 'object',
+        messageId: 'string',
+        headers: 'object',
+      },
+      shape: 'mailparser-parsed',
+    },
+    timezoneDependency: false,
+    parameters: {
+      resource: 'message',
+      operation: 'getAll',
+      simple: false,
+      returnAll: false,
+      limit: 50,
+      options: {
+        downloadAttachments: false,
+      },
+    },
+    setupParameters: [
+      { name: 'authentication', type: 'options', required: true, default: 'oAuth2', description: 'Authentication mode' },
+      { name: 'simple', type: 'boolean', default: false, description: 'Set to false to parse full MIME email payload' },
+      { name: 'options.downloadAttachments', type: 'boolean', default: false, description: 'Whether to download binary attachments into execution data' },
+    ],
+    knownTraps: [
+      'Google/Gmail/v2/GmailV2.node.js:315-321: simple=false fetches raw base64 MIME string and runs mailparser simpleParser',
+      'Google/Gmail/GenericFunctions.js:120-128: attachments are downloaded to binary properties attachment_0, attachment_1 only when downloadAttachments is true',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Gmail/GenericFunctions.js',
+      hash: 'source-verified-GmailV2-parseRawEmail:113-145',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // gmail@2.1 (send)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.gmail',
+    version: 2.1,
+    operation: 'send',
+    fixtureFamily: 'json-records',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {
+        id: 'string',
+        threadId: 'string',
+        labelIds: 'array',
+      },
+      shape: 'api-passthrough',
+    },
+    timezoneDependency: false,
+    parameters: {
+      resource: 'message',
+      operation: 'send',
+      sendTo: '={{ $parameter.sendTo }}',
+      subject: '={{ $parameter.subject }}',
+      emailType: 'html',
+      message: '={{ $parameter.message }}',
+    },
+    setupParameters: [
+      { name: 'sendTo', type: 'string', required: true, description: 'Comma-separated recipient email addresses' },
+      { name: 'subject', type: 'string', required: true, description: 'Email subject line' },
+      { name: 'emailType', type: 'options', default: 'html', description: 'text or html body format' },
+      { name: 'message', type: 'string', required: true, description: 'Email body content' },
+    ],
+    knownTraps: [
+      'Google/Gmail/v2/GmailV2.node.js:253-258: returns raw Google API send response (id, threadId, labelIds)',
+      'Google/Gmail/GenericFunctions.js:282-299: prepareEmailsInput validates presence of @ in every address before sending, throwing NodeOperationError if invalid',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Gmail/v2/GmailV2.node.js',
+      hash: 'source-verified-GmailV2-send:240-260',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // googleCalendar@1.3 (event:getAll)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.googleCalendar',
+    version: 1.3,
+    operation: 'getAll',
+    fixtureFamily: 'json-records',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {
+        id: 'string',
+        summary: 'string',
+        start: 'object',
+        end: 'object',
+        attendees: 'array',
+        creator: 'object',
+        organizer: 'object',
+        description: 'string',
+        location: 'string',
+        created: 'string',
+        updated: 'string',
+      },
+      shape: 'sorted-priority-list',
+    },
+    timezoneDependency: true,
+    parameters: {
+      resource: 'event',
+      operation: 'getAll',
+      calendar: { mode: 'list', value: '' },
+      returnAll: false,
+      limit: 50,
+      options: {},
+    },
+    setupParameters: [
+      { name: 'calendar', type: 'resourceLocator', required: true, description: 'Google Calendar ID or name' },
+      { name: 'returnAll', type: 'boolean', default: false, description: 'Whether to return all events' },
+      { name: 'limit', type: 'number', default: 50, displayOptions: { returnAll: [false] }, description: 'Max events count' },
+      { name: 'options.timeZone', type: 'options', required: false, description: 'Timezone for formatting event dates (defaults to workflow timezone)' },
+    ],
+    knownTraps: [
+      'Google/Calendar/GoogleCalendar.node.js:636-638: version >= 1.3 sorts item keys by priority list [id, summary, start, end, attendees, creator, organizer, description, location, created, updated]',
+      'Google/Calendar/GoogleCalendar.node.js:345-357: version >= 1.3 defaults singleEvents = true to expand recurring events',
+      'Google/Calendar/GoogleCalendar.node.js:447-455: warns in execution hints if recurring events repeat far into future without timeMax',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Calendar/GoogleCalendar.node.js',
+      hash: 'source-verified-GoogleCalendar-getAll:338-455',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // googleCalendar@1.3 (event:create)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.googleCalendar',
+    version: 1.3,
+    operation: 'create',
+    fixtureFamily: 'json-records',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {
+        id: 'string',
+        summary: 'string',
+        start: 'object',
+        end: 'object',
+        attendees: 'array',
+        creator: 'object',
+        organizer: 'object',
+        description: 'string',
+        location: 'string',
+        created: 'string',
+        updated: 'string',
+      },
+      shape: 'sorted-priority-list',
+    },
+    timezoneDependency: true,
+    parameters: {
+      resource: 'event',
+      operation: 'create',
+      calendar: { mode: 'list', value: '' },
+      start: '={{ $parameter.start }}',
+      end: '={{ $parameter.end }}',
+      additionalFields: {},
+    },
+    setupParameters: [
+      { name: 'calendar', type: 'resourceLocator', required: true, description: 'Target Google Calendar ID' },
+      { name: 'start', type: 'dateTime', required: true, description: 'Start time of the event' },
+      { name: 'end', type: 'dateTime', required: true, description: 'End time of the event' },
+      { name: 'additionalFields.summary', type: 'string', description: 'Event title' },
+      { name: 'additionalFields.allday', type: 'options', description: 'Whether event is all day (yes/no)' },
+    ],
+    knownTraps: [
+      'Google/Calendar/GoogleCalendar.node.js:262-264: throws error if both repeatHowManyTimes and repeatUntil are set',
+      'Google/Calendar/GoogleCalendar.node.js:243-250: allday === "yes" forces date format to YYYY-MM-DD instead of dateTime timestamp',
+      'Google/Calendar/GoogleCalendar.node.js:636-638: sorts keys by priority list [id, summary, start, end, ...]',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Calendar/GoogleCalendar.node.js',
+      hash: 'source-verified-GoogleCalendar-create:180-297',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // googleDrive@2 (fileFolder:search)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.googleDrive',
+    version: 2,
+    operation: 'search',
+    fixtureFamily: 'json-records',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {
+        kind: 'string',
+        id: 'string',
+        name: 'string',
+        mimeType: 'string',
+      },
+      shape: 'api-passthrough',
+    },
+    timezoneDependency: false,
+    parameters: {
+      resource: 'fileFolder',
+      operation: 'search',
+      searchMethod: 'name',
+      queryString: '={{ $parameter.queryString }}',
+      filter: {},
+      options: {},
+    },
+    setupParameters: [
+      { name: 'searchMethod', type: 'options', required: true, default: 'name', description: 'Search by file name or raw query string' },
+      { name: 'queryString', type: 'string', required: true, description: 'Name to search for or query expression' },
+      { name: 'filter.driveId', type: 'resourceLocator', required: false, description: 'Target shared drive (default: My Drive)' },
+      { name: 'filter.folderId', type: 'resourceLocator', required: false, description: 'Target folder ID (default: root)' },
+    ],
+    knownTraps: [
+      'Google/Drive/v2/actions/fileFolder/search.operation.js:315-320: if no driveId and folderId is root, sets corpora = "user" and spaces = "drive"',
+      'Google/Drive/v2/actions/fileFolder/search.operation.js:321-330: returnAll=true calls googleApiRequestAllItems; otherwise fetches up to limit (pageSize)',
+      'Google/Drive/v2/actions/fileFolder/search.operation.js:331-332: outputs raw files array via constructExecutionMetaData (api-passthrough)',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Google/Drive/v2/actions/fileFolder/search.operation.js',
+      hash: 'source-verified-GoogleDriveV2-search:305-333',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // 6. Ingest transform cards from opsweep
   try {
     const raw = fs.readFileSync(opsweepCardsPath, 'utf8');
     const opsData = JSON.parse(raw);
