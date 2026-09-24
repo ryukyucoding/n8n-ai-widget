@@ -28,7 +28,7 @@ const ARTIFACT_MANIFESTS = Object.freeze({
 
 // Total cards count:
 // 5 behaviour + 1 eprobe (E4) + 2 K2 discoveries + 45 opsweep + 12 Demo 3 & 4 cards = 65 cards
-const EXACT_TOTAL_CARDS = 68;
+const EXACT_TOTAL_CARDS = 67;
 
 function sha256File(filePath) {
   const content = fs.readFileSync(filePath);
@@ -352,7 +352,7 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
   });
 
   // 5. Ingest Demo 4 Google-Family Cards with Exact Output Shapes
-  // googleSheets@4.7 (read: all rows)
+  // googleSheets@4.7 (read: all rows or lookup via filtersUI)
   index.registerCard({
     nodeType: 'n8n-nodes-base.googleSheets',
     version: 4.7,
@@ -362,6 +362,7 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     outputContract: {
       cardinality: 'items',
       fields: { row_number: 'number' },
+      extra: 'sheet-columns',
       shape: 'user-sheet-dependent',
     },
     timezoneDependency: false,
@@ -370,61 +371,28 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
       operation: 'read',
       documentId: '={{ $parameter.documentId }}',
       sheetName: '={{ $parameter.sheetName }}',
-      options: {},
+      options: {
+        returnFirstMatch: false,
+      },
     },
     setupParameters: [
       { name: 'documentId', type: 'resourceLocator', required: true, description: 'Google Spreadsheet document ID or URL' },
       { name: 'sheetName', type: 'resourceLocator', required: true, description: 'Target sheet tab name or GID' },
+      { name: 'filtersUI', type: 'fixedCollection', required: false, description: 'Lookup filter column and match value pairs (when lookup is used)' },
+      { name: 'combineFilters', type: 'options', default: 'AND', description: 'AND requires all conditions, OR requires at least one' },
       { name: 'options.dataLocationOnSheet', type: 'fixedCollection', required: false, description: 'Range definition (detectAutomatically or specifyRangeA1)' },
     ],
     knownTraps: [
       'Google/Sheet/v2/actions/sheet/read.operation.js:166-168: nodeVersion > 4.1 loops over all incoming items (length = items.length)',
       'Google/Sheet/v2/helpers/GoogleSheet.js:205-216: structureArrayDataByColumn generates col_<index> if keyRow headers are empty',
       'Google/Sheet/v2/helpers/GoogleSheets.types.js:4: row_number is an internal reserved key for row indexing',
+      'Google/Sheet/v2/actions/sheet/read.operation.js:81-104: combineFiltersOptions defaults to OR in version < 4.3, but switches to AND in version >= 4.3 when filtersUI is provided',
+      'Google/Sheet/v2/helpers/GoogleSheet.js:392-474: lookupValues removes empty columns via removeEmptyColumns before converting array to object array',
+      'Google/Sheet/v2/helpers/GoogleSheet.js:424-468: combineFilters OR stops after first match if returnAllMatches !== true (cardinality change only, field set unchanged)',
     ],
     evidence: {
       ref: 'n8n-node-catalog/raw/nodes/Google/Sheet/v2/actions/sheet/read.operation.js',
       hash: 'source-verified-GoogleSheetsV2-read:71-174',
-    },
-    maturity: 'offline-source-verified',
-  });
-
-  // googleSheets@4.7 (readLookup: read with filtersUI)
-  index.registerCard({
-    nodeType: 'n8n-nodes-base.googleSheets',
-    version: 4.7,
-    operation: 'readLookup',
-    fixtureFamily: 'google-sheets-data',
-    inputContract: { cardinality: 'items', fields: {} },
-    outputContract: {
-      cardinality: 'items',
-      fields: { row_number: 'number' },
-      shape: 'user-sheet-dependent',
-    },
-    timezoneDependency: false,
-    parameters: {
-      resource: 'sheet',
-      operation: 'read',
-      documentId: '={{ $parameter.documentId }}',
-      sheetName: '={{ $parameter.sheetName }}',
-      filtersUI: { values: [] },
-      combineFilters: 'AND',
-      options: {},
-    },
-    setupParameters: [
-      { name: 'documentId', type: 'resourceLocator', required: true, description: 'Google Spreadsheet document ID or URL' },
-      { name: 'sheetName', type: 'resourceLocator', required: true, description: 'Target sheet tab name or GID' },
-      { name: 'filtersUI', type: 'fixedCollection', required: true, description: 'Lookup filter column and match value pairs' },
-      { name: 'combineFilters', type: 'options', default: 'AND', description: 'AND requires all conditions, OR requires at least one' },
-    ],
-    knownTraps: [
-      'Google/Sheet/v2/actions/sheet/read.operation.js:81-104: combineFiltersOptions defaults to OR in version < 4.3, but switches to AND in version >= 4.3',
-      'Google/Sheet/v2/helpers/GoogleSheet.js:392-474: lookupValues removes empty columns via removeEmptyColumns before converting array to object array',
-      'Google/Sheet/v2/helpers/GoogleSheet.js:424-468: combineFilters OR stops after first match if returnAllMatches !== true',
-    ],
-    evidence: {
-      ref: 'n8n-node-catalog/raw/nodes/Google/Sheet/v2/actions/sheet/read.operation.js',
-      hash: 'source-verified-GoogleSheetsV2-readLookup:25-104',
     },
     maturity: 'offline-source-verified',
   });
@@ -519,8 +487,8 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
         labels: 'array',
         From: 'string',
         To: 'string',
-        Cc: 'string',
-        Bcc: 'string',
+        Cc: 'string|absent',
+        Bcc: 'string|absent',
         Subject: 'string',
       },
       shape: 'fixed-simple-metadata',
@@ -542,7 +510,8 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     ],
     knownTraps: [
       'Google/Gmail/v2/GmailV2.node.js:307-325: simple=true fetches metadata format and extracts From, To, Cc, Bcc, Subject into root item JSON',
-      'Google/Gmail/GenericFunctions.js:369-389: simplifyOutput replaces labelIds array with expanded labels objects array [{id, name}]',
+      'Google/Gmail/GenericFunctions.js:369-372: labels is an array of objects {id, name} produced by mapping labelIds against fetched labels',
+      'Google/Gmail/GenericFunctions.js:380-386: Cc and Bcc headers are hoisted only when present on the message; otherwise absent',
     ],
     evidence: {
       ref: 'n8n-node-catalog/raw/nodes/Google/Gmail/v2/MessageDescription.js',
@@ -565,14 +534,14 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
         threadId: 'string',
         labelIds: 'array',
         sizeEstimate: 'number',
-        text: 'string',
-        html: 'string',
-        textAsHtml: 'string',
-        subject: 'string',
-        date: 'string',
-        to: 'object',
-        from: 'object',
-        messageId: 'string',
+        text: 'string|absent',
+        html: 'string|absent',
+        textAsHtml: 'string|absent',
+        subject: 'string|absent',
+        date: 'string|absent',
+        to: 'object|absent',
+        from: 'object|absent',
+        messageId: 'string|absent',
         headers: 'object',
       },
       shape: 'mailparser-parsed',
@@ -596,6 +565,7 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     knownTraps: [
       'Google/Gmail/v2/GmailV2.node.js:315-321: simple=false fetches raw base64 MIME string and runs mailparser simpleParser',
       'Google/Gmail/GenericFunctions.js:120-128: attachments are downloaded to binary properties attachment_0, attachment_1 only when downloadAttachments is true',
+      'Google/Gmail/GenericFunctions.js:113-145: text, html, to, from, subject fields in mailparser output are populated only if present in message payload',
     ],
     evidence: {
       ref: 'n8n-node-catalog/raw/nodes/Google/Gmail/GenericFunctions.js',
@@ -657,16 +627,16 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
       cardinality: 'items',
       fields: {
         id: 'string',
-        summary: 'string',
+        summary: 'string|absent',
         start: 'object',
         end: 'object',
-        attendees: 'array',
-        creator: 'object',
-        organizer: 'object',
-        description: 'string',
-        location: 'string',
-        created: 'string',
-        updated: 'string',
+        attendees: 'array|absent',
+        creator: 'object|absent',
+        organizer: 'object|absent',
+        description: 'string|absent',
+        location: 'string|absent',
+        created: 'string|absent',
+        updated: 'string|absent',
       },
       shape: 'sorted-priority-list',
     },
@@ -689,6 +659,7 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
       'Google/Calendar/GoogleCalendar.node.js:636-638: version >= 1.3 sorts item keys by priority list [id, summary, start, end, attendees, creator, organizer, description, location, created, updated]',
       'Google/Calendar/GoogleCalendar.node.js:345-357: version >= 1.3 defaults singleEvents = true to expand recurring events',
       'Google/Calendar/GoogleCalendar.node.js:447-455: warns in execution hints if recurring events repeat far into future without timeMax',
+      'Google/Calendar/GoogleCalendar.node.js:622-638: summary, attendees, creator, organizer, description, location, created, updated are optional in Calendar API events (present only when defined)',
     ],
     evidence: {
       ref: 'n8n-node-catalog/raw/nodes/Google/Calendar/GoogleCalendar.node.js',
@@ -708,18 +679,18 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
       cardinality: 'items',
       fields: {
         id: 'string',
-        summary: 'string',
+        summary: 'string|absent',
         start: 'object',
         end: 'object',
-        attendees: 'array',
-        creator: 'object',
-        organizer: 'object',
-        description: 'string',
-        location: 'string',
-        created: 'string',
-        updated: 'string',
+        attendees: 'array|absent',
+        creator: 'object|absent',
+        organizer: 'object|absent',
+        description: 'string|absent',
+        location: 'string|absent',
+        created: 'string|absent',
+        updated: 'string|absent',
       },
-      shape: 'sorted-priority-list',
+      shape: 'api-passthrough',
     },
     timezoneDependency: true,
     parameters: {
@@ -738,9 +709,9 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
       { name: 'additionalFields.allday', type: 'options', description: 'Whether event is all day (yes/no)' },
     ],
     knownTraps: [
+      'Google/Calendar/GoogleCalendar.node.js:296-297: returns raw Google API create event response directly (api-passthrough)',
       'Google/Calendar/GoogleCalendar.node.js:262-264: throws error if both repeatHowManyTimes and repeatUntil are set',
       'Google/Calendar/GoogleCalendar.node.js:243-250: allday === "yes" forces date format to YYYY-MM-DD instead of dateTime timestamp',
-      'Google/Calendar/GoogleCalendar.node.js:636-638: sorts keys by priority list [id, summary, start, end, ...]',
     ],
     evidence: {
       ref: 'n8n-node-catalog/raw/nodes/Google/Calendar/GoogleCalendar.node.js',
@@ -749,10 +720,10 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     maturity: 'offline-source-verified',
   });
 
-  // googleDrive@2 (fileFolder:search)
+  // googleDrive@3 (fileFolder:search)
   index.registerCard({
     nodeType: 'n8n-nodes-base.googleDrive',
-    version: 2,
+    version: 3,
     operation: 'search',
     fixtureFamily: 'json-records',
     inputContract: { cardinality: 'items', fields: {} },
