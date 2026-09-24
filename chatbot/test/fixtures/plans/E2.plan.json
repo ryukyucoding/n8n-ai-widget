@@ -1,0 +1,206 @@
+{
+  "plan": "compass-plan/0.1 (n8n-native, route v3 E2E mode: structural contracts)",
+  "task": "E2",
+  "taskRef": {
+    "id": "E2",
+    "source": "GAUGE_E2E3_SEALED_SET_PUBLIC_20260923.md public requests ONLY",
+    "publicRequestsSha256": "d772ef7155a223ef9cd6a84bf12cd7d7dba900c6dbfd495a6055e523f21525cc",
+    "requestSha256": "1a02229f348d749cd535a204afc07a398fb76a91f057a82c71fb3acf2610a0cc"
+  },
+  "planner": "claudex Compass",
+  "sealedMaterialAccessed": false,
+  "maturity": "design",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "input": {
+    "kind": "trigger_items",
+    "itemSchema": {
+      "respondentId": "string",
+      "rating": "number (integer 1-5)",
+      "comment": "string|absent (optional; may be missing or empty)"
+    }
+  },
+  "typedBindings": {
+    "hasComment": {
+      "expr": "$json.comment !== undefined && $json.comment !== null && $json.comment !== \"\" ? 1 : 0",
+      "type": "number",
+      "note": "present AND not the empty string"
+    },
+    "responseCount": {
+      "from": "summarize count of respondentId, includeEmpty true (counts every item)",
+      "type": "number"
+    },
+    "averageRating": {
+      "expr": "Math.round(sum_rating * 10 / count) / 10",
+      "type": "number",
+      "rounding": "half-up to 1 decimal; computed as integer sum*10 / count so a true .x5 tie is an exact binary .5 before Math.round (no reliance on the float mean)"
+    },
+    "withCommentCount": {
+      "from": "summarize sum of hasComment",
+      "type": "number"
+    }
+  },
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "block": "flag responses with a present, non-empty comment",
+      "dependsOn": {
+        "node": "@trigger",
+        "port": 0
+      },
+      "node": {
+        "name": "CP1 Flag Comment",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "e2-has",
+                "name": "hasComment",
+                "type": "number",
+                "value": "={{ $json.comment !== undefined && $json.comment !== null && $json.comment !== \"\" ? 1 : 0 }}"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "include": "all",
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "items",
+        "fields": {
+          "respondentId": "string",
+          "rating": "number",
+          "comment": "string|null|absent",
+          "hasComment": "number"
+        }
+      }
+    },
+    {
+      "id": "CP2",
+      "block": "aggregate: count, sum rating, sum hasComment (no split)",
+      "dependsOn": {
+        "node": "CP1 Flag Comment",
+        "port": 0
+      },
+      "node": {
+        "name": "CP2 Summarize Responses",
+        "type": "n8n-nodes-base.summarize",
+        "typeVersion": 1.1,
+        "parameters": {
+          "fieldsToSummarize": {
+            "values": [
+              {
+                "aggregation": "count",
+                "field": "respondentId",
+                "includeEmpty": true
+              },
+              {
+                "aggregation": "sum",
+                "field": "rating"
+              },
+              {
+                "aggregation": "sum",
+                "field": "hasComment"
+              }
+            ]
+          },
+          "fieldsToSplitBy": "",
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "one",
+        "fields": {
+          "count_respondentId": "number",
+          "sum_rating": "number",
+          "sum_hasComment": "number"
+        }
+      }
+    },
+    {
+      "id": "CP3",
+      "block": "final summary with rounding",
+      "dependsOn": {
+        "node": "CP2 Summarize Responses",
+        "port": 0
+      },
+      "node": {
+        "name": "CP3 Shape Summary",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "e2-count",
+                "name": "responseCount",
+                "type": "number",
+                "value": "={{ $json.count_respondentId }}"
+              },
+              {
+                "id": "e2-avg",
+                "name": "averageRating",
+                "type": "number",
+                "value": "={{ Math.round($json.sum_rating * 10 / $json.count_respondentId) / 10 }}"
+              },
+              {
+                "id": "e2-with",
+                "name": "withCommentCount",
+                "type": "number",
+                "value": "={{ $json.sum_hasComment }}"
+              }
+            ]
+          },
+          "includeOtherFields": false,
+          "options": {}
+        }
+      },
+      "contract": {
+        "cardinality": "one",
+        "fields": {
+          "responseCount": "number",
+          "averageRating": "number",
+          "withCommentCount": "number"
+        }
+      }
+    }
+  ],
+  "outputBindings": {
+    "summary": {
+      "node": "CP3 Shape Summary",
+      "port": 0
+    }
+  },
+  "clarifications": [
+    {
+      "id": "Q1",
+      "question": "Is a comment of only spaces \"not empty\"?",
+      "defaultAssumption": "yes: only a missing, null or \"\" comment counts as no comment",
+      "affects": [
+        "CP1"
+      ],
+      "blocking": false,
+      "asked": false
+    },
+    {
+      "id": "Q2",
+      "question": "Rounding a tie (e.g. 3.25): up or to even?",
+      "defaultAssumption": "half up",
+      "affects": [
+        "CP3"
+      ],
+      "blocking": false,
+      "asked": false
+    }
+  ],
+  "requiredUserSetup": [],
+  "riskFlags": [
+    "Summarize sum ignores non-number values: a rating given as a string would be silently excluded (utils.js NUMERICAL_AGGREGATIONS filter).",
+    "Zero responses: summarize is not executed, so no summary item is produced (E4 zero-input observation).",
+    "Whitespace-only comments count as comments (Q1 default)."
+  ]
+}

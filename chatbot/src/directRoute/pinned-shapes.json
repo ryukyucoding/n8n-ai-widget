@@ -1,0 +1,186 @@
+{
+  "shapes": [
+    {
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "resource": "sheet",
+      "operation": "read",
+      "when": {
+        "options.returnFirstMatch": false
+      },
+      "fields": {
+        "row_number": "number"
+      },
+      "extra": "sheet-columns",
+      "citations": [
+        "Google/Sheet/v2/actions/sheet/read.operation.js:81-104",
+        "Google/Sheet/v2/actions/sheet/read.operation.js:166-174",
+        "Google/Sheet/v2/actions/utils/readOperation.js:27-64",
+        "Google/Sheet/v2/helpers/GoogleSheet.js:205-216",
+        "Google/Sheet/v2/helpers/GoogleSheet.js:392-474",
+        "Google/Sheet/v2/helpers/GoogleSheets.types.js:4"
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "resource": "sheet",
+      "operation": "append",
+      "when": {
+        "columns.mappingMode": "autoMapInputData"
+      },
+      "shape": "input-passthrough",
+      "fields": {},
+      "citations": [
+        "Google/Sheet/v2/actions/sheet/append.operation.js:253-268"
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "resource": "sheet",
+      "operation": "update",
+      "when": {
+        "columns.matchingColumns": ["row_number"]
+      },
+      "shape": "input-passthrough",
+      "fields": {},
+      "citations": [
+        "Google/Sheet/v2/actions/sheet/update.operation.js:398-403"
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "resource": "message",
+      "operation": "getAll",
+      "when": {
+        "simple": true
+      },
+      "fields": {
+        "id": "string",
+        "threadId": "string",
+        "snippet": "string",
+        "labels": "array",
+        "From": "string",
+        "To": "string",
+        "Cc": "string|absent",
+        "Bcc": "string|absent",
+        "Subject": "string"
+      },
+      "citations": [
+        "Google/Gmail/v2/GmailV2.node.js:307-325",
+        "Google/Gmail/GenericFunctions.js:369-389"
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "resource": "message",
+      "operation": "getAll",
+      "when": {
+        "simple": false
+      },
+      "fields": {
+        "id": "string",
+        "threadId": "string",
+        "labelIds": "array",
+        "sizeEstimate": "number",
+        "text": "string|absent",
+        "html": "string|absent",
+        "textAsHtml": "string|absent",
+        "subject": "string|absent",
+        "date": "string|absent",
+        "to": "object|absent",
+        "from": "object|absent",
+        "messageId": "string|absent",
+        "headers": "object"
+      },
+      "citations": [
+        "Google/Gmail/v2/GmailV2.node.js:315-321",
+        "Google/Gmail/GenericFunctions.js:113-145"
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "resource": "message",
+      "operation": "send",
+      "when": {},
+      "shape": "api-passthrough",
+      "fields": {
+        "id": "string",
+        "threadId": "string",
+        "labelIds": "array"
+      },
+      "citations": [
+        "Google/Gmail/v2/GmailV2.node.js:253-258"
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "resource": "event",
+      "operation": "getAll",
+      "when": {},
+      "fields": {
+        "id": "string",
+        "summary": "string|absent",
+        "start": "object",
+        "end": "object",
+        "attendees": "array|absent",
+        "creator": "object|absent",
+        "organizer": "object|absent",
+        "description": "string|absent",
+        "location": "string|absent",
+        "created": "string|absent",
+        "updated": "string|absent"
+      },
+      "citations": [
+        "Google/Calendar/GoogleCalendar.node.js:394-402",
+        "Google/Calendar/GoogleCalendar.node.js:622-638"
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "resource": "event",
+      "operation": "create",
+      "when": {},
+      "shape": "api-passthrough",
+      "fields": {
+        "id": "string",
+        "summary": "string|absent",
+        "start": "object",
+        "end": "object",
+        "attendees": "array|absent",
+        "creator": "object|absent",
+        "organizer": "object|absent",
+        "description": "string|absent",
+        "location": "string|absent",
+        "created": "string|absent",
+        "updated": "string|absent"
+      },
+      "citations": [
+        "Google/Calendar/GoogleCalendar.node.js:296-297"
+      ]
+    },
+    {
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "resource": "fileFolder",
+      "operation": "search",
+      "when": {},
+      "shape": "api-passthrough",
+      "fields": {
+        "kind": "string",
+        "id": "string",
+        "name": "string",
+        "mimeType": "string"
+      },
+      "citations": [
+        "Google/Drive/v2/actions/fileFolder/search.operation.js:305-333"
+      ]
+    }
+  ]
+}
