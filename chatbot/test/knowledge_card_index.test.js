@@ -211,6 +211,8 @@ const filterCard = queryKnowledgeCard('n8n-nodes-base.filter@2.2#conditions');
 assert.ok(filterCard, 'filter@2.2#conditions must exist');
 assert.strictEqual(filterCard.version, 2.2);
 assert.strictEqual(filterCard.outputContract.shape, 'input-passthrough');
+assert.strictEqual(filterCard.connectableOutputs, 1);
+assert.ok(filterCard.knownTraps.some((t) => t.includes('Filter/V2/FilterV2.node.js:23')));
 assert.ok(filterCard.knownTraps.some((t) => t.includes('Filter/V2/FilterV2.node.js:101-106')));
 assert.ok(filterCard.knownTraps.some((t) => t.includes('Filter/V2/FilterV2.node.js:35')));
 assert.ok(filterCard.setupParameters.some((p) => p.name === 'conditions.conditions'));
