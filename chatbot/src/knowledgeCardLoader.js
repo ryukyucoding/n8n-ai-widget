@@ -27,8 +27,8 @@ const ARTIFACT_MANIFESTS = Object.freeze({
 });
 
 // Total cards count:
-// 5 behaviour + 1 eprobe (E4) + 2 K2 discoveries + 45 opsweep + 12 Demo 3 & 4 cards = 65 cards
-const EXACT_TOTAL_CARDS = 67;
+// 5 behaviour + 1 eprobe (E4) + 2 K2 discoveries + 45 opsweep + 12 Demo 3 & 4 cards + 1 Filter card = 68 cards
+const EXACT_TOTAL_CARDS = 68;
 
 function sha256File(filePath) {
   const content = fs.readFileSync(filePath);
@@ -760,6 +760,53 @@ function createPopulatedPlannerCardIndex(customPaths = {}) {
     evidence: {
       ref: 'n8n-node-catalog/raw/nodes/Google/Drive/v2/actions/fileFolder/search.operation.js',
       hash: 'source-verified-GoogleDriveV2-search:305-333',
+    },
+    maturity: 'offline-source-verified',
+  });
+
+  // filter@2.2 (conditions)
+  index.registerCard({
+    nodeType: 'n8n-nodes-base.filter',
+    version: 2.2,
+    operation: 'conditions',
+    fixtureFamily: 'json-records',
+    inputContract: { cardinality: 'items', fields: {} },
+    outputContract: {
+      cardinality: 'items',
+      fields: {},
+      shape: 'input-passthrough',
+    },
+    timezoneDependency: false,
+    parameters: {
+      conditions: {
+        options: {
+          caseSensitive: true,
+          leftValue: '',
+          typeValidation: 'strict',
+        },
+        conditions: [],
+        combinator: 'and',
+      },
+      options: {
+        ignoreCase: false,
+        looseTypeValidation: false,
+      },
+    },
+    setupParameters: [
+      { name: 'conditions.conditions', type: 'filter', required: true, description: 'Rules evaluated per item; matching items emitted to kept (output 0), non-matching to discarded (output 1)' },
+      { name: 'conditions.combinator', type: 'options', default: 'and', description: 'Logical combinator (and / or) across condition rules' },
+      { name: 'options.ignoreCase', type: 'boolean', default: true, description: 'Whether to ignore letter case in string comparisons' },
+      { name: 'options.looseTypeValidation', type: 'boolean', default: false, description: 'Less strict type checking on evaluated inputs' },
+    ],
+    knownTraps: [
+      'Filter/V2/FilterV2.node.js:101-106: matching items go to Kept (main output 0); non-matching items go to Discarded (main output 1)',
+      'Filter/V2/FilterV2.node.js:35: caseSensitive condition option is dynamically bound to ={{!$parameter.options.ignoreCase}}, defaulting to case-sensitive when ignoreCase: false',
+      'Filter/V2/FilterV2.node.js:89-97: strict typeValidation throws error on type mismatch unless looseTypeValidation is explicitly enabled',
+      'Filter/V2/FilterV2.node.js:98-100: pairs input items preserving itemIndex mapping in item.pairedItem',
+    ],
+    evidence: {
+      ref: 'n8n-node-catalog/raw/nodes/Filter/V2/FilterV2.node.js',
+      hash: 'source-verified-FilterV2:1-128',
     },
     maturity: 'offline-source-verified',
   });

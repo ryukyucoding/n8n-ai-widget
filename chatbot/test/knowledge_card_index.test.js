@@ -20,8 +20,8 @@ const index = createPopulatedPlannerCardIndex();
 const totalCards = index.count();
 console.log(`Ingested exactly ${totalCards} knowledge cards.`);
 assert.strictEqual(totalCards, EXACT_TOTAL_CARDS, `Expected exactly ${EXACT_TOTAL_CARDS} cards`);
-assert.strictEqual(totalCards, 67, 'Card count must be exactly 67');
-console.log('Test 1 (Exact card count 67 verified): PASS');
+assert.strictEqual(totalCards, 68, 'Card count must be exactly 68');
+console.log('Test 1 (Exact card count 68 verified): PASS');
 
 // 2. Verify artifact manifest hashes against published files
 const baseDir = path.resolve(__dirname, '../../../n8n-ai-widget-a2a-private/a2a/runner/e2_offline_engine');
@@ -206,4 +206,14 @@ const freshCard = queryKnowledgeCard('n8n-nodes-base.if@2.2#conditions');
 assert.ok(!freshCard.knownTraps.includes('tampered trap'), 'Returned card must not allow state tampering');
 console.log('Test 20 (Query entrypoint immutability verified): PASS');
 
-console.log('ALL CARD-INDEX M1, DEMO 3 & DEMO 4 GOOGLE-FAMILY TESTS PASS (100% verified)');
+// 21. E1 Card: filter@2.2 (kept vs discarded output, conditions, source traps)
+const filterCard = queryKnowledgeCard('n8n-nodes-base.filter@2.2#conditions');
+assert.ok(filterCard, 'filter@2.2#conditions must exist');
+assert.strictEqual(filterCard.version, 2.2);
+assert.strictEqual(filterCard.outputContract.shape, 'input-passthrough');
+assert.ok(filterCard.knownTraps.some((t) => t.includes('Filter/V2/FilterV2.node.js:101-106')));
+assert.ok(filterCard.knownTraps.some((t) => t.includes('Filter/V2/FilterV2.node.js:35')));
+assert.ok(filterCard.setupParameters.some((p) => p.name === 'conditions.conditions'));
+console.log('Test 21 (E1 filter@2.2 card with source-cited traps verified): PASS');
+
+console.log('ALL CARD-INDEX M1, DEMO 3, DEMO 4 & E1 FILTER TESTS PASS (100% verified)');
