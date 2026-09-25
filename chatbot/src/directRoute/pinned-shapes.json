@@ -181,6 +181,31 @@
       "citations": [
         "Google/Drive/v2/actions/fileFolder/search.operation.js:305-333"
       ]
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "resource": "",
+      "operation": "",
+      "when": {
+        "options.response.response.fullResponse": false,
+        "options.response.response.neverError": false,
+        "options.allowUnauthorizedCerts": false,
+        "options.proxy": "",
+        "options.sendCredentialsOnCrossOriginRedirect": false
+      },
+      "shape": "response-body",
+      "fields": {},
+      "citations": [
+        "HttpRequest/V3/HttpRequestV3.node.js:96",
+        "HttpRequest/V3/HttpRequestV3.node.js:172-194",
+        "HttpRequest/V3/HttpRequestV3.node.js:562",
+        "HttpRequest/V3/HttpRequestV3.node.js:764-797",
+        "HttpRequest/V3/HttpRequestV3.node.js:810",
+        "HttpRequest/V3/Description.js:723",
+        "HttpRequest/V3/Description.js:874-888",
+        "HttpRequest/V3/Description.js:1172-1194"
+      ]
     }
   ]
 }
