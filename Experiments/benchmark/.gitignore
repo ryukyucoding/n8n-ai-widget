@@ -7,6 +7,13 @@ data/**
 !data/manifest_creation.json
 !data/manifest_creation_edit.json
 
+# Local-only extensions (not the shared 60-case official benchmark)
+data/manifest_creation_300.json
+data/creation/create-0[6-9][0-9]/
+data/creation/create-[12][0-9][0-9]/
+data/creation/create-300/
+data/modify/
+
 results/
 !results/
 results/*

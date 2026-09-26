@@ -1,0 +1,360 @@
+{
+  "cloudUrl": "https://widmn8n.app.n8n.cloud",
+  "preparedAt": "2026-06-04T16:55:16.042Z",
+  "mode": "manual_ai_builder",
+  "cases": [
+    {
+      "caseId": "insert-partial-001",
+      "workflowId": "hXLE9y9PQLNjy73P",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/hXLE9y9PQLNjy73P",
+      "instruction": "Insert the node \"Query Data Tool\" of type \"@n8n/n8n-nodes-langchain.vectorStoreInMemory\" between \"Upload your file here\" and \"Insert Data to Store\". Set parameters to: {\"mode\": \"retrieve-as-tool\", \"memoryKey\": {\"__rl\": true, \"mode\": \"list\", \"value\": \"vector_store_key\"}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:54:57.735Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": false,
+        "noCollateral": true,
+        "coveragePct": 50
+      }
+    },
+    {
+      "caseId": "insert-partial-002",
+      "workflowId": "zwyFvJ3aZdnsCYrq",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/zwyFvJ3aZdnsCYrq",
+      "instruction": "Insert the node \"Redirect to Completion Screen\" of type \"n8n-nodes-base.form\" between \"Clear For Next Interview\" and \"Get Session\". Set parameters to: {\"respondWith\": \"redirect\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:54:59.752Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": true,
+        "coveragePct": 67
+      }
+    },
+    {
+      "caseId": "insert-partial-003",
+      "workflowId": "tUJiA4IwVLUF02rM",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/tUJiA4IwVLUF02rM",
+      "instruction": "Insert the node \"Update Sheets data\" of type \"n8n-nodes-base.googleSheets\" between \"Run Workflow\" and \"Get Rows from Google Sheets\". Set parameters to: {\"documentId\": {\"__rl\": true, \"mode\": \"list\", \"value\": \"15i9WIYpqc5lNd5T4VyM0RRptFPdi9doCbEEDn8QglN4\", \"cachedResultUrl\": \"https://docs.google.com/spreadsheets/d/15i9WIYpqc5lNd5T4VyM0RRptFPdi9doCbEEDn8QglN4/edit?usp=drivesdk\", \"cachedResultName\": \"Sample Data\"}, \"sheetName\": {\"__rl\": true, \"mode\": \"list\", \"value\": \"gid=0\", \"cachedResultUrl\": \"https://docs.google.com/spreadsheets/d/15i9WIYpqc5lNd5T4VyM0RRptFPdi9doCbEEDn8QglN4/edit#gid=0\", \"cachedResultName\": \"Sheet1\"}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:00.455Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": false,
+        "type": false,
+        "paramsGt50": false,
+        "noCollateral": true,
+        "coveragePct": null
+      }
+    },
+    {
+      "caseId": "insert-partial-004",
+      "workflowId": "ifQ6InqRmuwMBbnU",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/ifQ6InqRmuwMBbnU",
+      "instruction": "Insert the node \"Post Twitter\" of type \"n8n-nodes-base.httpRequest\" between \"If\" and \"No Operation, do nothing\". Set parameters to: {\"specifyBody\": \"json\", \"method\": \"POST\", \"genericAuthType\": \"httpBearerAuth\", \"options\": {}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:01.133Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": true,
+        "coveragePct": 71
+      }
+    },
+    {
+      "caseId": "insert-partial-005",
+      "workflowId": "RMPxxeYQToSOW2hu",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/RMPxxeYQToSOW2hu",
+      "instruction": "Insert the node \"Add Task\" of type \"n8n-nodes-base.googleSheets\" between \"Write Json\" and \"Respond Complete\". Set parameters to: {\"documentId\": {\"__rl\": true, \"mode\": \"list\", \"value\": \"1pbK-B-Q9p8fVjxJIsjEVrAfRgqEPCeYw8rZojZPAb84\", \"cachedResultUrl\": \"https://docs.google.com/spreadsheets/d/1pbK-B-Q9p8fVjxJIsjEVrAfRgqEPCeYw8rZojZPAb84/edit?usp=drivesdk\", \"cachedResultName\": \"Project Manager\"}, \"options\": {}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:01.918Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": false,
+        "noCollateral": true,
+        "coveragePct": 38
+      }
+    },
+    {
+      "caseId": "insert-partial-006",
+      "workflowId": "E7fHlerv6DX4mZAT",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/E7fHlerv6DX4mZAT",
+      "instruction": "Insert the node \"OPENAI - Get messages\" of type \"n8n-nodes-base.httpRequest\" between \"OPENAI - Run assistant\" and \"Send Message to User\". Set parameters to: {\"authentication\": \"predefinedCredentialType\", \"options\": {}, \"sendHeaders\": true}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:02.814Z",
+      "insertStatus": "Perfect",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": false,
+        "coveragePct": 100
+      }
+    },
+    {
+      "caseId": "insert-partial-007",
+      "workflowId": "NJrd1VlPjYuYtorb",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/NJrd1VlPjYuYtorb",
+      "instruction": "Insert the node \"Upload Chunk\" of type \"n8n-nodes-base.httpRequest\" between \"Chunk\" and \"Loop Over Chunks\". Set parameters to: {\"contentType\": \"multipart-form-data\", \"method\": \"POST\", \"url\": \"={{ $('Configuration').item.json.fileflows_url }}/api/library-file/upload\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:04.065Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": false,
+        "noCollateral": true,
+        "coveragePct": 38
+      }
+    },
+    {
+      "caseId": "insert-partial-008",
+      "workflowId": "Y8z9ZndoS3FuWGjz",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/Y8z9ZndoS3FuWGjz",
+      "instruction": "Insert the node \"LinkedIn Image generator\" of type \"@n8n/n8n-nodes-langchain.openAi\" between \"AI Content creator\" and \"Post image Cloudianry LIn\". Set parameters to: {}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:04.918Z",
+      "insertStatus": "Perfect",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": false,
+        "coveragePct": 100
+      }
+    },
+    {
+      "caseId": "insert-partial-009",
+      "workflowId": "dX5uPDaKagvIDDFO",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/dX5uPDaKagvIDDFO",
+      "instruction": "Insert the node \"Prepare Firestore Data\" of type \"n8n-nodes-base.code\" between \"Finalize Story\" and \"Save to Firestore\". Set parameters to: {\"jsCode\": \"// ========================================\\n// PREPARE FIRESTORE DOCUMENT\\n// ========================================\\n// Update FIREBASE_PROJECT_ID with your project ID\\n// ========================================\\n\\nconst data = $input.first().json;\\nconst story = data.finalStory;\\n\\n// ⚠️ REPLACE WITH YOUR PROJECT ID\\nconst FIREBASE_PROJECT_ID = 'your-project-id';\\n\\nfunction toFirestore(value) {\\n  if (value === null || value === undefined) return { nullValue: null };\\n  if (typeof value === 'boolean') return { booleanValue: value };\\n  if (typeof value === 'number') {\\n    return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };\\n  }\\n  if (typeof value === 'string') return { stringValue: value };\\n  if (Array.isArray(value)) {\\n    return { arrayValue: { values: value.map(v => toFirestore(v)) } };\\n  }\\n  if (typeof value === 'object') {\\n    const fields = {};\\n    for (const [k, v] of Object.entries(value)) {\\n      fields[k] = toFirestore(v);\\n    }\\n    return { mapValue: { fields } };\\n  }\\n  return { stringValue: String(value) };\\n}\\n\\nconst docFields = {\\n  id: toFirestore(story.id),\\n  title: toFirestore(story.title),\\n  titleEnglish: toFirestore(story.titleEnglish),\\n  summary: toFirestore(story.summary),\\n  summaryEnglish: toFirestore(story.summaryEnglish),\\n  language: toFirestore(story.language),\\n  targetAudience: toFirestore(story.targetAudience),\\n  mood: toFirestore(story.mood),\\n  moral: toFirestore(story.moral),\\n  imageStyle: toFirestore(story.imageStyle),\\n  totalScenes: toFirestore(story.totalScenes),\\n  scenes: toFirestore(story.scenes),\\n  characters: toFirestore(story.characters),\\n  metadata: toFirestore(story.metadata),\\n  createdAt: { timestampValue: new Date().toISOString() }\\n};\\n\\nreturn {\\n  json: {\\n    body: { fields: docFields },\\n    collection: `stories/${data.language}/items`,\\n    docId: story.id,\\n    projectId: FIREBASE_PROJECT_ID,\\n    finalStory: story\\n  }\\n};\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:05.713Z",
+      "insertStatus": "Perfect",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": false,
+        "coveragePct": 100
+      }
+    },
+    {
+      "caseId": "insert-partial-015",
+      "workflowId": "Zskefyv4nHmQSx8I",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/Zskefyv4nHmQSx8I",
+      "instruction": "Insert the node \"Extract from Text\" of type \"n8n-nodes-base.extractFromFile\" between \"Switch\" and \"Postgres PGVector Store\". Set parameters to: {\"operation\": \"text\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:06.564Z",
+      "insertStatus": "Perfect",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": false,
+        "coveragePct": 100
+      }
+    },
+    {
+      "caseId": "insert-partial-016",
+      "workflowId": "NtYs9q8XFdROuSeY",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/NtYs9q8XFdROuSeY",
+      "instruction": "Insert the node \"Instagram params\" of type \"n8n-nodes-base.set\" between \"When clicking ‘Test workflow’\" and \"Instagram prepare media\". Set parameters to: {\"options\": {}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:07.428Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": false,
+        "noCollateral": true,
+        "coveragePct": 33
+      }
+    },
+    {
+      "caseId": "insert-partial-018",
+      "workflowId": "3CF5ANJ2uOlKmXlS",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/3CF5ANJ2uOlKmXlS",
+      "instruction": "Insert the node \"Submit Video Generation\" of type \"n8n-nodes-base.httpRequest\" between \"Generate Video Prompt\" and \"Await Video Completion\". Set parameters to: {\"specifyBody\": \"json\", \"options\": {}, \"sendBody\": true, \"jsonBody\": \"={\\n  \\\"model\\\": \\\"sora-2-text-to-video\\\",\\n  \\\"callBackUrl\\\": \\\"{{ $execution.resumeUrl }}\\\",\\n  \\\"input\\\": {\\n    \\\"prompt\\\": \\\"{{ JSON.stringify($('Generate Video Prompt').item.json.text.replaceAll(/\\\\\\\\n/g, '')).slice(1, -1) }}\\\",\\n    \\\"aspect_ratio\\\": \\\"portrait\\\",\\n    \\\"n_frames\\\": \\\"10\\\",\\n    \\\"remove_watermark\\\": true\\n  }\\n}\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:08.385Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": true,
+        "coveragePct": 71
+      }
+    },
+    {
+      "caseId": "insert-partial-019",
+      "workflowId": "xVl1XFhdbsMpO2aw",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/xVl1XFhdbsMpO2aw",
+      "instruction": "Insert the node \"X1\" of type \"n8n-nodes-base.twitter\" between \"Wait\" and \"Split Out\". Set parameters to: {\"additionalFields\": {}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:09.189Z",
+      "insertStatus": "Perfect",
+      "componentRates": {
+        "splice": false,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": true,
+        "coveragePct": 100
+      }
+    },
+    {
+      "caseId": "insert-partial-041",
+      "workflowId": "AcUyRnGeLGIFfJYk",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/AcUyRnGeLGIFfJYk",
+      "instruction": "Insert the node \"Edit Fields\" of type \"n8n-nodes-base.set\" between \"Aggregate\" and \"Create or update a record\". Set parameters to: {\"options\": {}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:09.852Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": false,
+        "noCollateral": true,
+        "coveragePct": 0
+      }
+    },
+    {
+      "caseId": "insert-partial-046",
+      "workflowId": "mbglNXXUdyQUpm6V",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/mbglNXXUdyQUpm6V",
+      "instruction": "Insert the node \"Google Search\" of type \"n8n-nodes-base.httpRequest\" between \"Edit Fields\" and \"Extract Competitor Data\". Set parameters to: {\"url\": \"https://www.googleapis.com/customsearch/v1\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:10.596Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": false,
+        "noCollateral": false,
+        "coveragePct": 50
+      }
+    },
+    {
+      "caseId": "insert-partial-047",
+      "workflowId": "DJ43075jqPHbxzap",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/DJ43075jqPHbxzap",
+      "instruction": "Insert the node \"Code - Normalize LinkedIn Jobs\" of type \"n8n-nodes-base.code\" between \"Apify - Scrape LinkedIn Jobs\" and \"Merge - Combine All Sources\". Set parameters to: {\"jsCode\": \"// Normalize LinkedIn Jobs data\\nconst jobs = $input.all();\\nconst companyData = $('Google Sheets - Get Target Companies').first().json;\\nconst runDate = $('Set Configuration').first().json.runDate;\\n\\nreturn jobs.map(job => ({\\n  json: {\\n    source: 'LinkedIn',\\n    title: job.json.title || '',\\n    company: job.json.companyName || job.json.company || '',\\n    location: job.json.location || '',\\n    description: job.json.description || '',\\n    postedAt: job.json.postedAt || job.json.listedAt || '',\\n    applyLink: job.json.applyUrl || job.json.link || '',\\n    salary: job.json.salary || '',\\n    targetCompany: companyData['Company Name'] || '',\\n    targetKeywords: companyData['Target Keywords'] || '',\\n    mySolution: companyData['My Solution'] || '',\\n    scrapedDate: runDate,\\n    jobId: `linkedin-${job.json.title}-${job.json.companyName}`.replace(/\\\\s+/g, '-').toLowerCase().substring(0, 100)\\n  }\\n}));\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:11.336Z",
+      "insertStatus": "Perfect",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": false,
+        "coveragePct": 100
+      }
+    },
+    {
+      "caseId": "insert-partial-048",
+      "workflowId": "xemhSJGEE6qKVcsP",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/xemhSJGEE6qKVcsP",
+      "instruction": "Insert the node \"limit order code\" of type \"n8n-nodes-base.code\" between \"Limit Order (POST)\" and \"Respond to Limit Order\". Set parameters to: {}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:12.110Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": false,
+        "type": false,
+        "paramsGt50": false,
+        "noCollateral": true,
+        "coveragePct": null
+      }
+    },
+    {
+      "caseId": "insert-partial-054",
+      "workflowId": "N6JAqPUReselNS9s",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/N6JAqPUReselNS9s",
+      "instruction": "Insert the node \"Currency/Symble List\" of type \"n8n-nodes-base.set\" between \"Check Market is open/close\" and \"Fetch Stock Market Data\". Set parameters to: {}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:12.783Z",
+      "insertStatus": "Perfect",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": false,
+        "coveragePct": 100
+      }
+    },
+    {
+      "caseId": "insert-partial-065",
+      "workflowId": "JsS27PaqtXOrzzf4",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/JsS27PaqtXOrzzf4",
+      "instruction": "Insert the node \"Extract Query Data\" of type \"n8n-nodes-base.set\" between \"Receive User Question\" and \"Route to Appropriate Level\". Set parameters to: {\"assignments\": {\"assignments\": [{\"id\": \"userQuery\", \"name\": \"userQuery\", \"type\": \"string\", \"value\": \"={{ $json.message.text }}\"}, {\"id\": \"chatId\", \"name\": \"chatId\", \"type\": \"string\", \"value\": \"={{ $json.message.chat.id }}\"}, {\"id\": \"timestamp\", \"name\": \"timestamp\", \"type\": \"string\", \"value\": \"={{ $now.toISO() }}\"}]}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:13.474Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": false,
+        "type": false,
+        "paramsGt50": false,
+        "noCollateral": false,
+        "coveragePct": null
+      }
+    },
+    {
+      "caseId": "insert-partial-069",
+      "workflowId": "GSTBZqQoxbbRFCJs",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/GSTBZqQoxbbRFCJs",
+      "instruction": "Insert the node \"Order Handling\" of type \"n8n-nodes-base.code\" between \"Get Low Stock Product\" and \"Generate Email & PO\". Set parameters to: {\"jsCode\": \"const results = [];\\n\\nfor (const item of items) {\\n  const sku = item.json.sku;\\n  const name = item.json.Name;\\n  const supplier = item.json.supplier;\\n  const supplierEmail = item.json.supplier_email;\\n\\n  const available = Number(item.json[\\\"Available Qty\\\"]) || 0;\\n  const threshold = Number(item.json[\\\"Min. Threshold\\\"]) || 0;\\n  const minOrder = Number(item.json[\\\"Min Order\\\"]) || 0;\\n  const maxOrder = Number(item.json[\\\"Max Order\\\"]) || 0;\\n\\n  let reorderNeeded = false;\\n  let orderQty = 0;\\n\\n  // Check if reorder needed\\n  if (available < threshold) {\\n    reorderNeeded = true;\\n\\n    // Basic calculation: how much short\\n    orderQty = threshold - available;\\n\\n    // Ensure reorderQty >= Min Order\\n    if (orderQty < minOrder) {\\n      orderQty = minOrder;\\n    }\\n\\n    // Ensure reorderQty <= Max Order\\n    if (orderQty > maxOrder) {\\n      orderQty = maxOrder;\\n    }\\n  }\\n\\n  results.push({\\n    json: {\\n      sku,\\n      name,\\n      supplier,\\n      supplier_email: supplierEmail,\\n      available,\\n      threshold,\\n      minOrder,\\n      maxOrder,\\n      reorder_needed: reorderNeeded,\\n      order_qty: orderQty\\n    }\\n  });\\n}\\n\\nreturn results;\\n\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:14.150Z",
+      "insertStatus": "Ambiguous",
+      "componentRates": {
+        "splice": false,
+        "type": false,
+        "paramsGt50": false,
+        "noCollateral": true,
+        "coveragePct": null
+      }
+    },
+    {
+      "caseId": "insert-partial-071",
+      "workflowId": "CTb4cwBXk7HBQn03",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/CTb4cwBXk7HBQn03",
+      "instruction": "Insert the node \"When to send\" of type \"n8n-nodes-base.if\" between \"Calculate Waiting Time\" and \"Wait to send 1h before meeting\". Set parameters to: {\"options\": {}}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:14.895Z",
+      "insertStatus": "Splice Error",
+      "componentRates": {
+        "splice": false,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": false,
+        "coveragePct": 75
+      }
+    },
+    {
+      "caseId": "insert-partial-082",
+      "workflowId": "6aQSkqpUsGJiV0a8",
+      "workflowUrl": "https://widmn8n.app.n8n.cloud/workflow/6aQSkqpUsGJiV0a8",
+      "instruction": "Insert the node \"Scrape URLs from results\" of type \"n8n-nodes-base.code\" between \"Search Google Maps with query\" and \"Filter irrelevant URLs\". Set parameters to: {\"jsCode\": \"const data = $input.first().json.data\\n\\nconst regex = /https?:\\\\/\\\\/[^\\\\/]+/g\\n\\nconst urls = data.match(regex)\\n\\nreturn urls.map(url => ({json: {url: url}}))\"}.",
+      "status": "prepared",
+      "fetchedAt": "2026-06-04T16:55:15.606Z",
+      "insertStatus": "Perfect",
+      "componentRates": {
+        "splice": true,
+        "type": true,
+        "paramsGt50": true,
+        "noCollateral": false,
+        "coveragePct": 100
+      }
+    }
+  ],
+  "fetchedAt": "2026-06-04T16:55:16.042Z"
+}

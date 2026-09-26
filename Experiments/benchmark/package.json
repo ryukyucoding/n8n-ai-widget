@@ -1,0 +1,33 @@
+{
+  "name": "n8n-ai-widget-benchmark",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare-data": "python3 dataset/prepare_dataset.py",
+    "prepare-creation": "python3 dataset/prepare_creation_dataset.py && python3 dataset/prepare_creation_edit_dataset.py",
+    "prepare-creation-edit": "python3 dataset/prepare_creation_edit_dataset.py",
+    "bootstrap-run-sheets": "node scripts/bootstrap_run_sheets.mjs",
+    "import-gold-refs": "node scripts/import_gold_template_refs.mjs all",
+    "enrich-run-sheets": "node scripts/enrich_run_sheets.mjs",
+    "manual:creation-edit-local-prepare": "node manual_creation_edit_local.mjs prepare all",
+    "manual:creation-edit-cloud-prepare": "node manual_creation_edit_cloud.mjs prepare all",
+    "manual:creation-edit-cloud-fetch": "node manual_creation_edit_cloud.mjs fetch all --force",
+    "run:local": "node run_local.mjs",
+    "run:local-create": "node run_local_creation.mjs",
+    "rescore:create": "node rescore_creation.mjs --force",
+    "run:cloud": "node run_cloud.mjs",
+    "manual:prepare": "node manual_cloud.mjs prepare --operation insert-partial --pilot",
+    "manual:fetch": "node manual_cloud.mjs fetch --operation insert-partial --pilot",
+    "auth:cloud": "node playwright/auth.setup.mjs",
+    "score": "python3 analysis/score_batch.py",
+    "score:create": "python3 scoring/cli.py create",
+    "score:edit": "python3 scoring/cli.py edit",
+    "report:cloud": "python3 analysis/report_cloud_outcomes.py --results-dir results/cloud --out-csv results/cloud/outcome_report.csv",
+    "compare:delete": "python3 analysis/compare_delete_local_cloud.py --cases delete-001:delete-019",
+    "scan:insert-creds": "python3 dataset/scan_insert_credentials.py"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "dotenv": "^16.4.7"
+  }
+}
